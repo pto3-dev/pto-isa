@@ -30,50 +30,128 @@ __tf__ PTO_INTERNAL void TRowProd(
     constexpr unsigned srcRowStride = TileDataIn::RowStride;
 
     constexpr unsigned elemsPerBlock = BLOCK_BYTE_SIZE / sizeof(T);
-    unsigned blocksPerRow = validCol / elemsPerBlock;
-
-    set_mask_count();
-
-    for (unsigned row = 0; row < validRow; ++row, dstPtr += dstRowStride, srcPtr += srcRowStride) {
-        set_vector_mask(0, elemsPerBlock);
-
-        vector_dup(tmpPtr, (T)1.0f, 1, 1, 1, 0, 0);
-        pipe_barrier(PIPE_V);
-
-        for (unsigned block = 0; block < blocksPerRow; ++block) {
-            vmul(tmpPtr, tmpPtr, srcPtr + block * elemsPerBlock, 1, 0, 0, 1, 0, 0, 1);
-            pipe_barrier(PIPE_V);
-        }
-
-        unsigned elemsLessThanBlock = validCol % elemsPerBlock;
-        if (elemsLessThanBlock > 0) {
-            set_vector_mask(0, elemsLessThanBlock);
-            vmul(tmpPtr, tmpPtr, srcPtr + blocksPerRow * elemsPerBlock, 1, 0, 0, 1, 0, 0, 1);
-            pipe_barrier(PIPE_V);
-        }
-
-        PtoSetWaitFlag<PIPE_V, PIPE_S>();
-        if constexpr (std::is_same_v<T, float>) {
-            dstPtr[0] = tmpPtr[0] * tmpPtr[1] * tmpPtr[2] * tmpPtr[3] * tmpPtr[4] * tmpPtr[5] * tmpPtr[6] * tmpPtr[7];
-        } else if constexpr (std::is_same_v<T, half>) {
-            dstPtr[0] = (half)((float)tmpPtr[0] * (float)tmpPtr[1] * (float)tmpPtr[2] * (float)tmpPtr[3] *
-                               (float)tmpPtr[4] * (float)tmpPtr[5] * (float)tmpPtr[6] * (float)tmpPtr[7] *
-                               (float)tmpPtr[8] * (float)tmpPtr[9] * (float)tmpPtr[10] * (float)tmpPtr[11] *
-                               (float)tmpPtr[12] * (float)tmpPtr[13] * (float)tmpPtr[14] * (float)tmpPtr[15]);
-        } else if constexpr (std::is_same_v<T, int32_t>) {
-            dstPtr[0] = tmpPtr[0] * tmpPtr[1] * tmpPtr[2] * tmpPtr[3] * tmpPtr[4] * tmpPtr[5] * tmpPtr[6] * tmpPtr[7];
-        } else if constexpr (std::is_same_v<T, int16_t>) {
-            dstPtr[0] = tmpPtr[0] * tmpPtr[1] * tmpPtr[2] * tmpPtr[3] * tmpPtr[4] * tmpPtr[5] * tmpPtr[6] * tmpPtr[7] *
-                        tmpPtr[8] * tmpPtr[9] * tmpPtr[10] * tmpPtr[11] * tmpPtr[12] * tmpPtr[13] * tmpPtr[14] *
-                        tmpPtr[15];
-        } else {
-            static_assert(sizeof(T) == 0, "T must be float, half, int32, or int16");
-        }
-        PtoSetWaitFlag<PIPE_S, PIPE_V>();
-    }
+    constexpr unsigned elemsPerRepeat = REPEAT_BYTE / sizeof(T);
+    unsigned repeatsNum = validCol / elemsPerRepeat;
+    unsigned repeatRemain = validCol % elemsPerRepeat;
+    unsigned tmpRepeatsNum = CeilDivision(TileDataTmp::RowStride, elemsPerRepeat);
 
     set_mask_norm();
     set_vector_mask(-1, -1);
+    for (unsigned row = 0; row < validRow; ++row, dstPtr += dstRowStride, srcPtr += srcRowStride) {
+        vector_dup(tmpPtr, (T)1.0f, tmpRepeatsNum, 1, 1, 8, 8);
+        pipe_barrier(PIPE_V);
+
+        vmul(tmpPtr, srcPtr, srcPtr + elemsPerRepeat, repeatsNum / 2, 1, 1, 1, 8, 16, 16);
+        pipe_barrier(PIPE_V);
+
+        if (repeatsNum % 2 != 0) {
+            vmul(tmpPtr, tmpPtr, srcPtr + (repeatsNum - 1) * elemsPerRepeat, 1, 1, 1, 1, 8, 8, 8);
+            pipe_barrier(PIPE_V);
+        }
+
+        if (repeatRemain) {
+            set_mask_count();
+            set_vector_mask(0, repeatRemain);
+            vmul(tmpPtr, tmpPtr, srcPtr + repeatsNum * elemsPerRepeat, 1, 1, 1, 1, 8, 8, 8);
+            pipe_barrier(PIPE_V);
+            set_mask_norm();
+            set_vector_mask(-1, -1);
+        }
+
+        unsigned reduceRepeat = repeatsNum / 2;
+        while (reduceRepeat > 0) {
+            vmul(tmpPtr, tmpPtr, tmpPtr + elemsPerRepeat, reduceRepeat / 2, 1, 1, 1, 8, 16, 16);
+            reduceRepeat /= 2;
+            pipe_barrier(PIPE_V);
+        }
+
+        if constexpr (sizeof(T) == sizeof(int32_t)) {
+            set_mask_count();
+            set_vector_mask(0, elemsPerRepeat / 2);
+            vmul(tmpPtr, tmpPtr, tmpPtr + elemsPerRepeat / 2, 1, 1, 1, 1, 8, 8, 8);
+            pipe_barrier(PIPE_V);
+            set_vector_mask(0, elemsPerRepeat / 4);
+            vmul(tmpPtr, tmpPtr, tmpPtr + elemsPerRepeat / 4, 1, 1, 1, 1, 8, 8, 8);
+            pipe_barrier(PIPE_V);
+            set_vector_mask(0, elemsPerRepeat / 8);
+            vmul(tmpPtr, tmpPtr, tmpPtr + elemsPerRepeat / 8, 1, 1, 1, 1, 8, 8, 8);
+            pipe_barrier(PIPE_V);
+
+            PtoSetWaitFlag<PIPE_V, PIPE_S>();
+            for (int32_t i = elemsPerRepeat / 16; i < elemsPerRepeat / 8; i++) {
+                tmpPtr[elemsPerBlock + i - elemsPerRepeat / 16] = tmpPtr[i];
+            }
+            PtoSetWaitFlag<PIPE_S, PIPE_V>();
+
+            set_vector_mask(0, elemsPerRepeat / 16);
+            vmul(tmpPtr, tmpPtr, tmpPtr + elemsPerBlock, 1, 1, 1, 1, 8, 8, 8);
+
+            PtoSetWaitFlag<PIPE_V, PIPE_S>();
+            for (int32_t i = elemsPerRepeat / 32; i < elemsPerRepeat / 16; i++) {
+                tmpPtr[elemsPerBlock + i - elemsPerRepeat / 32] = tmpPtr[i];
+            }
+            PtoSetWaitFlag<PIPE_S, PIPE_V>();
+
+            set_vector_mask(0, elemsPerRepeat / 32);
+            vmul(tmpPtr, tmpPtr, tmpPtr + elemsPerBlock, 1, 1, 1, 1, 8, 8, 8);
+
+            PtoSetWaitFlag<PIPE_V, PIPE_S>();
+            dstPtr[0] = tmpPtr[0] * tmpPtr[1];
+            PtoSetWaitFlag<PIPE_S, PIPE_V>();
+        } else {
+            set_mask_count();
+            set_vector_mask(0, elemsPerRepeat / 2);
+            vmul(tmpPtr, tmpPtr, tmpPtr + elemsPerRepeat / 2, 1, 1, 1, 1, 8, 8, 8);
+            pipe_barrier(PIPE_V);
+
+            set_vector_mask(0, elemsPerRepeat / 4);
+            vmul(tmpPtr, tmpPtr, tmpPtr + elemsPerRepeat / 4, 1, 1, 1, 1, 8, 8, 8);
+            pipe_barrier(PIPE_V);
+
+            set_vector_mask(0, elemsPerRepeat / 8);
+            vmul(tmpPtr, tmpPtr, tmpPtr + elemsPerRepeat / 8, 1, 1, 1, 1, 8, 8, 8);
+            pipe_barrier(PIPE_V);
+
+            PtoSetWaitFlag<PIPE_V, PIPE_S>();
+            for (int32_t i = elemsPerRepeat / 16; i < elemsPerRepeat / 8; i++) {
+                tmpPtr[elemsPerBlock + i - elemsPerRepeat / 16] = tmpPtr[i];
+            }
+            PtoSetWaitFlag<PIPE_S, PIPE_V>();
+
+            set_vector_mask(0, elemsPerRepeat / 16);
+            vmul(tmpPtr, tmpPtr, tmpPtr + elemsPerBlock, 1, 1, 1, 1, 8, 8, 8);
+
+            PtoSetWaitFlag<PIPE_V, PIPE_S>();
+            for (int32_t i = elemsPerRepeat / 32; i < elemsPerRepeat / 16; i++) {
+                tmpPtr[elemsPerBlock + i - elemsPerRepeat / 32] = tmpPtr[i];
+            }
+            PtoSetWaitFlag<PIPE_S, PIPE_V>();
+
+            set_vector_mask(0, elemsPerRepeat / 32);
+            vmul(tmpPtr, tmpPtr, tmpPtr + elemsPerBlock, 1, 1, 1, 1, 8, 8, 8);
+
+            if constexpr (elemsPerRepeat > 64) {
+                PtoSetWaitFlag<PIPE_V, PIPE_S>();
+                for (int32_t i = elemsPerRepeat / 64; i < elemsPerRepeat / 32; i++) {
+                    tmpPtr[elemsPerBlock + i - elemsPerRepeat / 64] = tmpPtr[i];
+                }
+                PtoSetWaitFlag<PIPE_S, PIPE_V>();
+
+                set_vector_mask(0, elemsPerRepeat / 64);
+                vmul(tmpPtr, tmpPtr, tmpPtr + elemsPerBlock, 1, 1, 1, 1, 8, 8, 8);
+            }
+
+            PtoSetWaitFlag<PIPE_V, PIPE_S>();
+            if constexpr (std::is_same_v<T, half>) {
+                dstPtr[0] = (half)((float)(tmpPtr[0]) * (float)(tmpPtr[1]));
+            } else {
+                dstPtr[0] = tmpPtr[0] * tmpPtr[1];
+            }
+            PtoSetWaitFlag<PIPE_S, PIPE_V>();
+        }
+        set_mask_norm();
+        set_vector_mask(-1, -1);
+    }
 }
 
 template <typename TileDataOut, typename TileDataIn, typename TileDataTmp>
