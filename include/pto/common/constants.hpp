@@ -39,6 +39,7 @@ constexpr const uint32_t B4_C0_SIZE = 64;
 constexpr const int MX_COL_LEN = 2;
 constexpr const int MX_ROW_LEN = 16;
 constexpr const int MX_BLOCK_SIZE = 32;
+constexpr const int BIT_TO_BYTE = 8;
 
 constexpr const int HIF4_COL_LEN = 4;
 constexpr const int HIF4_ROW_LEN = 16;
