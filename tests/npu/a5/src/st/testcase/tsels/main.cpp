@@ -20,6 +20,10 @@ template <
     int vRows, int vCols>
 void LaunchTSels(T* out, TMask* mask, T* src, T scalar, void* stream);
 template <
+    typename T, typename TMask, int dstTileH, int dstTileW, int maskTileH, int maskTileW, int srcTileH, int srcTileW,
+    int vRows, int vCols>
+void LaunchTSelsInplace(T* out, TMask* mask, T scalar, void* stream);
+template <
     typename TMask, int dstTileH, int dstTileW, int maskTileH, int maskTileW, int srcTileH, int srcTileW, int vRows,
     int vCols>
 void LaunchTSelsHalf(aclFloat16* out, TMask* mask, aclFloat16* src, aclFloat16 scalar, void* stream);
@@ -129,6 +133,20 @@ protected:
         bool res = this->AfterLaunch<T>();
         EXPECT_TRUE(res);
     }
+
+    template <
+        typename T, typename TMask, int dstTileH, int dstTileW, int maskTileH, int maskTileW, int srcTileH,
+        int srcTileW, int vRows, int vCols>
+    void LaunchInplace()
+    {
+        T scalar;
+        this->BeforeLaunch<T, TMask, dstTileH, dstTileW, maskTileH, maskTileW, srcTileH, srcTileW>(scalar);
+        aclrtMemcpy(this->dstDevice, this->dstFileSize, this->srcHost, this->srcFileSize, ACL_MEMCPY_HOST_TO_DEVICE);
+        LaunchTSelsInplace<T, TMask, dstTileH, dstTileW, maskTileH, maskTileW, srcTileH, srcTileW, vRows, vCols>(
+            (T*)this->dstDevice, (TMask*)this->maskDevice, scalar, this->stream);
+        bool res = this->AfterLaunch<T>();
+        EXPECT_TRUE(res);
+    }
 };
 
 TEST_F(TSELSTest, case_uint8_uint8_2x32_2x32_2x32_2x32)
@@ -232,4 +250,26 @@ TEST_F(TSELSTest, case_int64_uint8_1x16368_1x2046_1x16368_1x16368)
 TEST_F(TSELSTest, case_uint64_uint8_1x16368_1x2046_1x16368_1x16368)
 {
     this->Launch<uint64_t, uint8_t, 1, 16368, 1, 2046, 1, 16368, 1, 16368>();
+}
+TEST_F(TSELSTest, case_int64_uint8_4x32_4x32_4x32_4x32_inplace)
+{
+    this->LaunchInplace<int64_t, uint8_t, 4, 32, 4, 32, 4, 32, 4, 32>();
+}
+TEST_F(TSELSTest, case_uint64_uint8_4x32_4x32_4x32_4x32_inplace)
+{
+    this->LaunchInplace<uint64_t, uint8_t, 4, 32, 4, 32, 4, 32, 4, 32>();
+}
+
+TEST_F(TSELSTest, case_int64_uint8_1x1024_1x128_1x1024_1x1024_inplace)
+{
+    this->LaunchInplace<int64_t, uint8_t, 1, 1024, 1, 128, 1, 1024, 1, 1024>();
+}
+TEST_F(TSELSTest, case_int64_uint8_4x40_4x5_4x40_4x40_inplace)
+{
+    this->LaunchInplace<int64_t, uint8_t, 4, 40, 4, 5, 4, 40, 4, 40>();
+}
+
+TEST_F(TSELSTest, case_int64_uint8_1x2048_1x256_1x2048_1x2045_inplace)
+{
+    this->LaunchInplace<int64_t, uint8_t, 1, 2048, 1, 256, 1, 2048, 1, 2045>();
 }

@@ -13,7 +13,9 @@
 import os
 import math
 import numpy as np
+
 np.random.seed(19)
+
 
 def gen_golden_data(case_name, param):
     dtype = param.dtype
@@ -35,12 +37,14 @@ def gen_golden_data(case_name, param):
         input2 = np.random.randint(dtype_info.min, dtype_info.max, size=[1]).astype(dtype)
     else:
         dtype_info = np.finfo(dtype)
-        input1 = np.random.uniform(low=dtype_info.min, high=dtype_info.max,
-            size=[src_tile_row, src_tile_col]).astype(dtype)
+        input1 = np.random.uniform(low=dtype_info.min, high=dtype_info.max, size=[src_tile_row, src_tile_col]).astype(
+            dtype
+        )
         input2 = np.random.uniform(low=dtype_info.min, high=dtype_info.max, size=[1]).astype(dtype)
     mask_dtype_info = np.iinfo(param.dtype_mask)
-    mask = np.random.randint(mask_dtype_info.min, mask_dtype_info.max,
-        size=[mask_tile_row, mask_tile_col]).astype(param.dtype_mask)
+    mask = np.random.randint(mask_dtype_info.min, mask_dtype_info.max, size=[mask_tile_row, mask_tile_col]).astype(
+        param.dtype_mask
+    )
     mask_u8view = mask.view(np.uint8).reshape(mask.shape[0], -1)
     golden = np.zeros([dst_tile_row, dst_tile_col]).astype(dtype)
 
@@ -49,6 +53,12 @@ def gen_golden_data(case_name, param):
         for x in range(width):
             do_select = (1 << (x & 7)) & mask_u8view[y, x >> 3]
             golden[y, x] = input1[y, x] if do_select != 0 else input2[0]
+
+    if getattr(param, "is_inplace", False):
+        if height < dst_tile_row:
+            golden[height:, :] = input1[height:, :dst_tile_col]
+        if width < dst_tile_col:
+            golden[:height, width:] = input1[:height, width:]
 
     # Save the input and golden data to binary files
     input1.tofile("input1.bin")
@@ -59,21 +69,35 @@ def gen_golden_data(case_name, param):
 
 class TestParams:
     DTYPE_STR_TABLE = {
-        np.float32: 'float',
-        np.float16: 'half',
-        np.int32: 'int32',
-        np.uint32: 'uint32',
-        np.int16: 'int16',
-        np.uint16: 'uint16',
-        np.int8: 'int8',
-        np.uint8: 'uint8',
-        np.int64: 'int64',
-        np.uint64: 'uint64',
+        np.float32: "float",
+        np.float16: "half",
+        np.int32: "int32",
+        np.uint32: "uint32",
+        np.int16: "int16",
+        np.uint16: "uint16",
+        np.int8: "int8",
+        np.uint8: "uint8",
+        np.int64: "int64",
+        np.uint64: "uint64",
     }
 
-    def __init__(self, dtype, dtype_mask, dst_tile_row, dst_tile_col, mask_tile_row, mask_tile_col,
-        src_tile_row, src_tile_col, valid_row, valid_col):
+    def __init__(
+        self,
+        dtype,
+        dtype_mask,
+        dst_tile_row,
+        dst_tile_col,
+        mask_tile_row,
+        mask_tile_col,
+        src_tile_row,
+        src_tile_col,
+        valid_row,
+        valid_col,
+        is_inplace=False,
+        custom_name=None,
+    ):
         self.dtype = dtype
+        self.custom_name = custom_name
         self.dtype_mask = dtype_mask
         self.dst_tile_row = dst_tile_row
         self.dst_tile_col = dst_tile_col
@@ -83,9 +107,14 @@ class TestParams:
         self.src_tile_col = src_tile_col
         self.valid_row = valid_row
         self.valid_col = valid_col
-        self.name = f"TSELSTest.case_{self.DTYPE_STR_TABLE[dtype]}_{self.DTYPE_STR_TABLE[dtype_mask]}"\
-            f"_{dst_tile_row}x{dst_tile_col}_{mask_tile_row}x{mask_tile_col}"\
-            f"_{src_tile_row}x{src_tile_col}_{valid_row}x{valid_col}"
+        self.is_inplace = is_inplace
+        inplace_suffix = "_inplace" if is_inplace else ""
+        self.name = (
+            f"TSELSTest.case_{self.DTYPE_STR_TABLE[dtype]}_{self.DTYPE_STR_TABLE[dtype_mask]}"
+            f"_{dst_tile_row}x{dst_tile_col}_{mask_tile_row}x{mask_tile_col}"
+            f"_{src_tile_row}x{src_tile_col}_{valid_row}x{valid_col}{inplace_suffix}"
+        )
+
 
 if __name__ == "__main__":
     # Get the absolute path of the script
@@ -127,6 +156,11 @@ if __name__ == "__main__":
         TestParams(np.uint64, np.uint8, 1, 16364, 1, 2048, 1, 16364, 1, 16364),
         TestParams(np.int64, np.uint8, 1, 16368, 1, 2046, 1, 16368, 1, 16368),
         TestParams(np.uint64, np.uint8, 1, 16368, 1, 2046, 1, 16368, 1, 16368),
+        TestParams(np.int64, np.uint8, 4, 32, 4, 32, 4, 32, 4, 32, is_inplace=True),
+TestParams(np.uint64, np.uint8, 4, 32, 4, 32, 4, 32, 4, 32, is_inplace=True, custom_name="TSELSTest.case_uint64_uint8_4x32_4x32_4x32_4x32_inplace"),
+        TestParams(np.int64, np.uint8, 1, 1024, 1, 128, 1, 1024, 1, 1024, is_inplace=True),
+        TestParams(np.int64, np.uint8, 4, 40, 4, 5, 4, 40, 4, 40, is_inplace=True),
+        TestParams(np.int64, np.uint8, 1, 2048, 1, 256, 1, 2048, 1, 2045, is_inplace=True),
     ]
 
     for param in case_list:

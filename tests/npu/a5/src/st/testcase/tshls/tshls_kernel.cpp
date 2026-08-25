@@ -101,3 +101,74 @@ template void LaunchTShlS<int64_t, 1, 16368, 1, 16368, 1, 16368>(
     int64_t* out, int64_t* src, int64_t scalar, void* stream);
 template void LaunchTShlS<uint64_t, 1, 16368, 1, 16368, 1, 16368>(
     uint64_t* out, uint64_t* src, uint64_t scalar, void* stream);
+
+template <typename T, int rows, int stride, int validCols>
+__global__ AICORE void runTShlSInplaceWideInt64(__gm__ T* out, __gm__ T* src, T scalar)
+{
+    constexpr int tileRows = 1;
+    constexpr int tileCols = 64;
+    using DynShapeDim5 = Shape<1, 1, 1, -1, -1>;
+    using DynStridDim5 = pto::Stride<1, 1, 1, -1, -1>;
+    using GlobalData = GlobalTensor<T, DynShapeDim5, DynStridDim5>;
+    using TileData = Tile<TileType::Vec, T, tileRows, tileCols, BLayout::RowMajor, -1, -1>;
+
+    for (int row = 0; row < rows; ++row) {
+        for (int col = 0; col < validCols; col += tileCols) {
+            int curValidCols = (col + tileCols <= validCols) ? tileCols : (validCols - col);
+            int offset = row * stride + col;
+            GlobalData srcGlobal(src + offset, DynShapeDim5(tileRows, curValidCols), DynStridDim5(stride, 1));
+            GlobalData dstGlobal(out + offset, DynShapeDim5(tileRows, curValidCols), DynStridDim5(stride, 1));
+            TileData src0Tile(tileRows, curValidCols);
+            TileData dstTile(tileRows, curValidCols);
+            TASSIGN(src0Tile, 0x0);
+            TASSIGN(dstTile, 0x0);
+            Event<Op::TLOAD, Op::TSHLS> event0 = TLOAD(src0Tile, srcGlobal);
+            Event<Op::TSHLS, Op::TSTORE_VEC> event1 = TSHLS(dstTile, src0Tile, scalar, event0);
+            TSTORE(dstGlobal, dstTile, event1);
+            pipe_barrier(PIPE_ALL);
+        }
+    }
+}
+
+template <typename T, int tileH, int tileW, int vRows, int vCols>
+__global__ AICORE void runTShlSInplace(__gm__ T* out, __gm__ T* src, T scalar)
+{
+    using DynShapeDim5 = Shape<1, 1, 1, vRows, vCols>;
+    using DynStridDim5 = pto::Stride<1, 1, 1, tileW, 1>;
+    using GlobalData = GlobalTensor<T, DynShapeDim5, DynStridDim5>;
+    using TileData = Tile<TileType::Vec, T, tileH, tileW, BLayout::RowMajor, -1, -1>;
+    TileData src0Tile(vRows, vCols);
+    TileData dstTile(vRows, vCols);
+    TASSIGN(src0Tile, 0x0);
+    TASSIGN(dstTile, 0x0);
+    GlobalData dstGlobal(out);
+    GlobalData srcGlobal(src);
+    TLOAD(src0Tile, srcGlobal);
+#ifndef __PTO_AUTO__
+    set_flag(PIPE_MTE2, PIPE_V, EVENT_ID0);
+    wait_flag(PIPE_MTE2, PIPE_V, EVENT_ID0);
+#endif
+    TSHLS(dstTile, src0Tile, scalar);
+#ifndef __PTO_AUTO__
+    set_flag(PIPE_V, PIPE_MTE3, EVENT_ID0);
+    wait_flag(PIPE_V, PIPE_MTE3, EVENT_ID0);
+#endif
+    TSTORE(dstGlobal, dstTile);
+    out = dstGlobal.data();
+}
+
+template <typename T, int tileH, int tileW, int vRows, int vCols>
+void LaunchTShlSInplace(T* out, T* src, T scalar, void* stream)
+{
+    if constexpr ((std::is_same_v<T, int64_t> || std::is_same_v<T, uint64_t>) && tileW > 32) {
+        runTShlSInplaceWideInt64<T, vRows, tileW, vCols><<<1, nullptr, stream>>>(out, src, scalar);
+    } else {
+        runTShlSInplace<T, tileH, tileW, vRows, vCols><<<1, nullptr, stream>>>(out, src, scalar);
+    }
+}
+
+template void LaunchTShlSInplace<int64_t, 4, 32, 4, 32>(int64_t* out, int64_t* src, int64_t scalar, void* stream);
+template void LaunchTShlSInplace<uint64_t, 4, 32, 4, 32>(uint64_t* out, uint64_t* src, uint64_t scalar, void* stream);
+template void LaunchTShlSInplace<int64_t, 1, 1024, 1, 1024>(int64_t* out, int64_t* src, int64_t scalar, void* stream);
+template void LaunchTShlSInplace<int64_t, 4, 64, 4, 40>(int64_t* out, int64_t* src, int64_t scalar, void* stream);
+template void LaunchTShlSInplace<int64_t, 1, 2048, 1, 2045>(int64_t* out, int64_t* src, int64_t scalar, void* stream);

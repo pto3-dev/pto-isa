@@ -30,20 +30,30 @@ def gen_golden_data(case_name, param):
     else:
         dtype_info = np.iinfo(dtype)
         input1 = np.random.randint(dtype_info.min, dtype_info.max, size=[src0_tile_row, src0_tile_col]).astype(dtype)
-    input2 = np.random.randint(1, 7, size=[1, 1]).astype(dtype)
+    if param.scalar is not None:
+        input2 = np.array([[param.scalar]], dtype=dtype)
+    else:
+        input2 = np.random.randint(1, 7, size=[1, 1]).astype(dtype)
 
     # Perform the operation
     golden = np.zeros([dst_tile_row, dst_tile_col]).astype(dtype)
+    if param.inplace:
+        golden[:src0_tile_row, :src0_tile_col] = input1[:src0_tile_row, :src0_tile_col]
     golden[0:h_valid, 0:w_valid] = input1[0:h_valid, 0:w_valid] << input2[0, 0]
 
     # Save the input and golden data to binary files
-    input1.tofile("input1.bin")
-    input2.tofile("input2.bin")
+    if param.inplace:
+        input1.tofile("input.bin")
+        input2.tofile("divider.bin")
+    else:
+        input1.tofile("input1.bin")
+        input2.tofile("input2.bin")
     golden.tofile("golden.bin")
 
 
 class TShlSParams:
-    def __init__(self, dtype, dst_tile_row, dst_tile_col, src0_tile_row, src0_tile_col, valid_row, valid_col):
+    def __init__(self, dtype, dst_tile_row, dst_tile_col, src0_tile_row, src0_tile_col, valid_row, valid_col,
+                 scalar=None, inplace=False, custom_name=None):
         self.dtype = dtype
         self.dst_tile_row = dst_tile_row
         self.dst_tile_col = dst_tile_col
@@ -51,6 +61,9 @@ class TShlSParams:
         self.src0_tile_col = src0_tile_col
         self.valid_row = valid_row
         self.valid_col = valid_col
+        self.scalar = scalar
+        self.inplace = inplace
+        self.custom_name = custom_name
 
 
 def generate_case_name(param):
@@ -70,14 +83,6 @@ def generate_case_name(param):
 {param.src0_tile_row}x{param.src0_tile_col}_{param.valid_row}x{param.valid_col}"
 
 if __name__ == "__main__":
-    # Get the absolute path of the script
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    testcases_dir = os.path.join(script_dir, "testcases")
-
-    # Ensure the testcases directory exists
-    if not os.path.exists(testcases_dir):
-        os.makedirs(testcases_dir)
-
     case_params_list = [
         TShlSParams(np.int16, 64, 64, 64, 64, 64, 64),
         TShlSParams(np.int16, 32, 128, 32, 128, 32, 128),
@@ -92,10 +97,20 @@ if __name__ == "__main__":
         TShlSParams(np.uint64, 1, 16364, 1, 16364, 1, 16364),
         TShlSParams(np.int64, 1, 16368, 1, 16368, 1, 16368),
         TShlSParams(np.uint64, 1, 16368, 1, 16368, 1, 16368),
+        TShlSParams(np.int64, 4, 32, 4, 32, 4, 32, scalar=17, inplace=True,
+                    custom_name="TSHLSTest.case_int64_4x32_inplace"),
+TShlSParams(np.uint64, 4, 32, 4, 32, 4, 32, scalar=17, inplace=True,
+                    custom_name="TSHLSTest.case_uint64_4x32_inplace"),
+        TShlSParams(np.int64, 1, 1024, 1, 1024, 1, 1024, scalar=17, inplace=True,
+                    custom_name="TSHLSTest.case_int64_1x1024_inplace"),
+        TShlSParams(np.int64, 4, 64, 4, 64, 4, 40, scalar=17, inplace=True,
+                    custom_name="TSHLSTest.case_int64_4x64_40_inplace"),
+        TShlSParams(np.int64, 1, 2048, 1, 2048, 1, 2045, scalar=17, inplace=True,
+                    custom_name="TSHLSTest.case_int64_1x2048_2045_inplace"),
     ]
 
     for param in case_params_list:
-        case_name = generate_case_name(param)
+        case_name = param.custom_name if param.custom_name else generate_case_name(param)
         if not os.path.exists(case_name):
             os.makedirs(case_name)
         original_dir = os.getcwd()

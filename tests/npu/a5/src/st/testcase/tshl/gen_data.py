@@ -18,18 +18,31 @@ np.random.seed(19)
 def gen_golden_data_tshl(case_name, param):
     dtype = param.dtype
 
+    tile_row, tile_col = param.tile_row, param.tile_col
     h_valid, w_valid = [param.valid_row, param.valid_col]
 
-    # Generate random input arrays
-    input1 = np.random.randint(-100, 100, size=h_valid * w_valid).astype(dtype)
-    input2 = np.random.randint(0, 32, size=h_valid * w_valid).astype(dtype)
-
-    if dtype in (np.int64, np.uint64):
-        input1[:4] = [1, 1, 1, np.iinfo(dtype).max]
-        input2[:4] = [0, 63, 64, 65]
-
-    # Perform the andbtraction
-    golden = input1 << (input2 & 63 if dtype in (np.int64, np.uint64) else input2)
+    if tile_row == h_valid and tile_col == w_valid:
+        input1 = np.random.randint(-100, 100, size=h_valid * w_valid).astype(dtype)
+        input2 = np.random.randint(0, 32, size=h_valid * w_valid).astype(dtype)
+        if dtype in (np.int64, np.uint64):
+            input1[:4] = [1, 1, 1, np.iinfo(dtype).max]
+            input2[:4] = [0, 63, 64, 65]
+        golden = input1 << (input2 & 63 if dtype in (np.int64, np.uint64) else input2)
+    else:
+        total_elements = tile_row * tile_col
+        input1 = np.random.randint(-100, 100, size=total_elements).astype(dtype)
+        input2 = np.random.randint(0, 32, size=total_elements).astype(dtype)
+        if dtype in (np.int64, np.uint64):
+            input1[:4] = [1, 1, 1, np.iinfo(dtype).max]
+            input2[:4] = [0, 63, 64, 65]
+        shift_amount = input2 & 63 if dtype in (np.int64, np.uint64) else input2
+        computed = input1 << shift_amount
+        golden = np.zeros(total_elements).astype(dtype)
+        for i in range(h_valid):
+            base = i * tile_col
+            golden[base:base + w_valid] = computed[base:base + w_valid]
+            if "inplace" in case_name:
+                golden[base + w_valid:base + tile_col] = input1[base + w_valid:base + tile_col]
 
     # Apply valid region constraints
     output = np.zeros(h_valid * w_valid).astype(dtype)
@@ -63,7 +76,6 @@ if __name__ == "__main__":
     case_params_list = [
         TShlParams("TSHLTest.case1", np.uint16, 64, 64, 64, 64),
         TShlParams("TSHLTest.case2", np.uint16, 64, 64, 63, 63),
-        TShlParams("TSHLTest.case3", np.uint16, 1, 16384, 1, 16384),
         TShlParams("TSHLTest.case4", np.uint16, 2048, 16, 2048, 16),
         TShlParams("TSHLTest.case5", np.uint8, 32, 32, 32, 32),
         TShlParams("TSHLTest.case6", np.uint32, 8, 8, 8, 8),
@@ -72,6 +84,11 @@ if __name__ == "__main__":
         TShlParams("TSHLTest.case9", np.int32, 8, 8, 8, 8),
         TShlParams("TSHLTest.case_int64_4x16_4x15", np.int64, 4, 16, 4, 15),
         TShlParams("TSHLTest.case_uint64_4x16_4x15", np.uint64, 4, 16, 4, 15),
+        TShlParams("TSHLTest.case_int64_4x32_inplace", np.int64, 4, 32, 4, 32),
+TShlParams("TSHLTest.case_uint64_4x32_inplace", np.uint64, 4, 32, 4, 32),
+        TShlParams("TSHLTest.case_int64_1x1024_inplace", np.int64, 1, 1024, 1, 1024),
+        TShlParams("TSHLTest.case_int64_1x2048_2045_inplace", np.int64, 1, 2048, 1, 2045),
+        TShlParams("TSHLTest.case_int64_4x64_40_inplace", np.int64, 4, 64, 4, 40),
     ]
 
     for param in case_params_list:

@@ -17,6 +17,8 @@ using namespace PtoTestCommon;
 
 template <typename T, int dstVR, int dstVC, int src0VR, int src0VC, int src1VR, int src1VC>
 void LaunchTPartAdd(T* out, T* src0, T* src1, void* stream);
+template <typename T, int dstVR, int dstVC, int src0VR, int src0VC, int src1VR, int src1VC>
+void LaunchTPartAddInplace(T* out, T* src1, void* stream);
 
 class TPARTADDTest : public testing::Test {
 protected:
@@ -94,6 +96,65 @@ void test_tpartadd()
     EXPECT_TRUE(ret);
 }
 
+template <typename T, int dstVR, int dstVC, int src0VR, int src0VC, int src1VR, int src1VC>
+void test_tpartadd_inplace()
+{
+    size_t src0FileSize = src0VR * src0VC * sizeof(T);
+    size_t src1FileSize = src1VR * src1VC * sizeof(T);
+    size_t dstFileSize = dstVR * dstVC * sizeof(T);
+
+    aclInit(nullptr);
+    aclrtSetDevice(0);
+    aclrtStream stream;
+    aclrtCreateStream(&stream);
+
+    T *dstHost, *src0Host, *src1Host;
+    T *dstDevice, *src1Device;
+
+    aclrtMallocHost((void**)(&dstHost), dstFileSize);
+    aclrtMallocHost((void**)(&src0Host), src0FileSize);
+    aclrtMallocHost((void**)(&src1Host), src1FileSize);
+
+    aclrtMalloc((void**)&dstDevice, dstFileSize, ACL_MEM_MALLOC_HUGE_FIRST);
+    aclrtMalloc((void**)&src1Device, src1FileSize, ACL_MEM_MALLOC_HUGE_FIRST);
+
+    ReadFile(GetGoldenDir() + "/input1.bin", src0FileSize, src0Host, src0FileSize);
+    ReadFile(GetGoldenDir() + "/input2.bin", src1FileSize, src1Host, src1FileSize);
+
+    aclrtMemcpy(dstDevice, dstFileSize, src0Host, src0FileSize, ACL_MEMCPY_HOST_TO_DEVICE);
+    aclrtMemcpy(src1Device, src1FileSize, src1Host, src1FileSize, ACL_MEMCPY_HOST_TO_DEVICE);
+    LaunchTPartAddInplace<T, dstVR, dstVC, src0VR, src0VC, src1VR, src1VC>(dstDevice, src1Device, stream);
+
+    aclrtSynchronizeStream(stream);
+    aclrtMemcpy(dstHost, dstFileSize, dstDevice, dstFileSize, ACL_MEMCPY_DEVICE_TO_HOST);
+
+    WriteFile(GetGoldenDir() + "/output.bin", dstHost, dstFileSize);
+
+    aclrtFree(dstDevice);
+    aclrtFree(src1Device);
+
+    aclrtFreeHost(dstHost);
+    aclrtFreeHost(src0Host);
+    aclrtFreeHost(src1Host);
+    aclrtDestroyStream(stream);
+    aclrtResetDevice(0);
+    aclFinalize();
+
+    std::vector<T> golden(dstFileSize);
+    std::vector<T> devFinal(dstFileSize);
+    ReadFile(GetGoldenDir() + "/golden.bin", dstFileSize, golden.data(), dstFileSize);
+    ReadFile(GetGoldenDir() + "/output.bin", dstFileSize, devFinal.data(), dstFileSize);
+
+    bool ret;
+    if constexpr (std::is_same_v<T, int64_t> || std::is_same_v<T, uint64_t>) {
+        ret = ResultCmpExact(golden, devFinal.data());
+    } else {
+        ret = ResultCmp<T>(golden, devFinal, 0.001f);
+    }
+
+    EXPECT_TRUE(ret);
+}
+
 TEST_F(TPARTADDTest, case_float_64x64_64x64_64x64) { test_tpartadd<float, 64, 64, 64, 64, 64, 64>(); }
 TEST_F(TPARTADDTest, case_float_64x64_8x64_64x64) { test_tpartadd<float, 64, 64, 8, 64, 64, 64>(); }
 TEST_F(TPARTADDTest, case_float_64x64_64x8_64x64) { test_tpartadd<float, 64, 64, 64, 8, 64, 64>(); }
@@ -108,3 +169,14 @@ TEST_F(TPARTADDTest, case_uint64_4x16_2x16_4x16) { test_tpartadd<uint64_t, 4, 16
 TEST_F(TPARTADDTest, case_int64_4x16_4x8_4x16) { test_tpartadd<int64_t, 4, 16, 4, 8, 4, 16>(); }
 TEST_F(TPARTADDTest, case_int64_4x64_4x64_4x64) { test_tpartadd<int64_t, 4, 64, 4, 64, 4, 64>(); }
 TEST_F(TPARTADDTest, case_uint64_4x64_4x64_4x64) { test_tpartadd<uint64_t, 4, 64, 4, 64, 4, 64>(); }
+TEST_F(TPARTADDTest, case_int64_4x32_4x32_4x32_inplace) { test_tpartadd_inplace<int64_t, 4, 32, 4, 32, 4, 32>(); }
+TEST_F(TPARTADDTest, case_uint64_4x32_4x32_4x32_inplace) { test_tpartadd_inplace<uint64_t, 4, 32, 4, 32, 4, 32>(); }
+TEST_F(TPARTADDTest, case_int64_1x1024_1x1024_1x1024_inplace)
+{
+    test_tpartadd_inplace<int64_t, 1, 1024, 1, 1024, 1, 1024>();
+}
+TEST_F(TPARTADDTest, case_int64_4x64_4x64_4x40_inplace) { test_tpartadd_inplace<int64_t, 4, 64, 4, 64, 4, 40>(); }
+TEST_F(TPARTADDTest, case_int64_1x2048_1x2048_1x2045_inplace)
+{
+    test_tpartadd_inplace<int64_t, 1, 2048, 1, 2048, 1, 2045>();
+}

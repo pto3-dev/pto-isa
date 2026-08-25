@@ -33,6 +33,9 @@ std::string GetGoldenDir()
 template <typename T, int dstTileH, int dstTileW, int src0TileH, int src0TileW, int vRows, int vCols>
 void LaunchTShlS(T* out, T* src, T scalar, void* stream);
 
+template <typename T, int tileRow, int tileCol, int validRow, int validCol>
+void LaunchTShlSInplace(T* out, T* src, T scalar, void* stream);
+
 template <typename T, int dstTileH, int dstTileW, int srcTileH, int srcTileW, int vRows, int vCols>
 void test_tshls()
 {
@@ -91,6 +94,54 @@ void test_tshls()
     EXPECT_TRUE(ret);
 }
 
+template <typename T, int tileRow, int tileCol, int validRow, int validCol>
+void test_tshls_inplace()
+{
+    size_t fileSize = tileRow * tileCol * sizeof(T);
+
+    aclInit(nullptr);
+    aclrtSetDevice(0);
+    aclrtStream stream;
+    aclrtCreateStream(&stream);
+
+    T *dstHost, *dstDevice;
+    T scalar;
+
+    aclrtMallocHost((void**)(&dstHost), fileSize);
+    aclrtMalloc((void**)&dstDevice, fileSize, ACL_MEM_MALLOC_HUGE_FIRST);
+
+    ReadFile(GetGoldenDir() + "/input.bin", fileSize, dstHost, fileSize);
+    size_t scalarSize = sizeof(T);
+    ReadFile(GetGoldenDir() + "/divider.bin", scalarSize, &scalar, sizeof(T));
+
+    aclrtMemcpy(dstDevice, fileSize, dstHost, fileSize, ACL_MEMCPY_HOST_TO_DEVICE);
+    LaunchTShlSInplace<T, tileRow, tileCol, validRow, validCol>(dstDevice, dstDevice, scalar, stream);
+
+    aclrtSynchronizeStream(stream);
+    aclrtMemcpy(dstHost, fileSize, dstDevice, fileSize, ACL_MEMCPY_DEVICE_TO_HOST);
+
+    WriteFile(GetGoldenDir() + "/output.bin", dstHost, fileSize);
+
+    aclrtFree(dstDevice);
+    aclrtFreeHost(dstHost);
+    aclrtDestroyStream(stream);
+    aclrtResetDevice(0);
+    aclFinalize();
+
+    std::vector<T> golden(fileSize / sizeof(T));
+    std::vector<T> devFinal(fileSize / sizeof(T));
+    ReadFile(GetGoldenDir() + "/golden.bin", fileSize, golden.data(), fileSize);
+    ReadFile(GetGoldenDir() + "/output.bin", fileSize, devFinal.data(), fileSize);
+
+    bool ret;
+    if constexpr (std::is_same_v<T, int64_t> || std::is_same_v<T, uint64_t>) {
+        ret = ResultCmpExact(golden, devFinal.data());
+    } else {
+        ret = ResultCmp<T>(golden, devFinal, 0.001f);
+    }
+    EXPECT_TRUE(ret);
+}
+
 TEST_F(TSHLSTest, case_int16_64x64_64x64_64x64) { test_tshls<int16_t, 64, 64, 64, 64, 64, 64>(); }
 TEST_F(TSHLSTest, case_int16_32x128_32x128_32x128) { test_tshls<int16_t, 32, 128, 32, 128, 32, 128>(); }
 TEST_F(TSHLSTest, case_int16_32x112_32x128_32x111) { test_tshls<int16_t, 32, 112, 32, 128, 32, 111>(); }
@@ -104,3 +155,8 @@ TEST_F(TSHLSTest, case_int64_1x16364_1x16364_1x16364) { test_tshls<int64_t, 1, 1
 TEST_F(TSHLSTest, case_uint64_1x16364_1x16364_1x16364) { test_tshls<uint64_t, 1, 16364, 1, 16364, 1, 16364>(); }
 TEST_F(TSHLSTest, case_int64_1x16368_1x16368_1x16368) { test_tshls<int64_t, 1, 16368, 1, 16368, 1, 16368>(); }
 TEST_F(TSHLSTest, case_uint64_1x16368_1x16368_1x16368) { test_tshls<uint64_t, 1, 16368, 1, 16368, 1, 16368>(); }
+TEST_F(TSHLSTest, case_int64_4x32_inplace) { test_tshls_inplace<int64_t, 4, 32, 4, 32>(); }
+TEST_F(TSHLSTest, case_uint64_4x32_inplace) { test_tshls_inplace<uint64_t, 4, 32, 4, 32>(); }
+TEST_F(TSHLSTest, case_int64_1x1024_inplace) { test_tshls_inplace<int64_t, 1, 1024, 1, 1024>(); }
+TEST_F(TSHLSTest, case_int64_4x64_40_inplace) { test_tshls_inplace<int64_t, 4, 64, 4, 40>(); }
+TEST_F(TSHLSTest, case_int64_1x2048_2045_inplace) { test_tshls_inplace<int64_t, 1, 2048, 1, 2045>(); }

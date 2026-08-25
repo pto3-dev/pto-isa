@@ -174,6 +174,88 @@ extern "C" __global__ AICORE void launchTADDSCase16(__gm__ uint64_t* out, __gm__
     runTAddSWideInt64<uint64_t, 16364>(out, src, scalar);
 }
 
+template <typename T, int rows, int stride, int validCols>
+PTO_INTERNAL void runTAddSInplaceWideInt64(__gm__ T* out, __gm__ T* src, T scalar)
+{
+    constexpr int tileRows = 1;
+    constexpr int tileCols = 64;
+
+    using DynShapeDim5 = Shape<1, 1, 1, -1, -1>;
+    using DynStridDim5 = pto::Stride<1, 1, 1, -1, -1>;
+    using GlobalData = GlobalTensor<T, DynShapeDim5, DynStridDim5>;
+    using TileData = Tile<TileType::Vec, T, tileRows, tileCols, BLayout::RowMajor, -1, -1>;
+
+    for (int row = 0; row < rows; ++row) {
+        for (int col = 0; col < validCols; col += tileCols) {
+            int curValidCols = (col + tileCols <= validCols) ? tileCols : (validCols - col);
+            int offset = row * stride + col;
+            GlobalData srcGlobal(src + offset, DynShapeDim5(tileRows, curValidCols), DynStridDim5(stride, 1));
+            GlobalData dstGlobal(out + offset, DynShapeDim5(tileRows, curValidCols), DynStridDim5(stride, 1));
+            TileData src0Tile(tileRows, curValidCols);
+            TileData dstTile(tileRows, curValidCols);
+            TASSIGN(src0Tile, 0x0);
+            TASSIGN(dstTile, 0x0);
+
+            Event<Op::TLOAD, Op::TADDS> event0 = TLOAD(src0Tile, srcGlobal);
+            Event<Op::TADDS, Op::TSTORE_VEC> event1 = TADDS(dstTile, src0Tile, scalar, event0);
+            TSTORE(dstGlobal, dstTile, event1);
+            pipe_barrier(PIPE_ALL);
+        }
+    }
+}
+
+template <typename T, int tileH, int tileW, int vRows, int vCols>
+PTO_INTERNAL void runTAddSInplace(__gm__ T* out, __gm__ T* src, T scalar)
+{
+    using DynShapeDim5 = Shape<1, 1, 1, vRows, vCols>;
+    using DynStridDim5 = pto::Stride<1, 1, 1, tileW, 1>;
+    using GlobalData = GlobalTensor<T, DynShapeDim5, DynStridDim5>;
+    using TileData = Tile<TileType::Vec, T, tileH, tileW, BLayout::RowMajor, -1, -1>;
+    TileData src0Tile(vRows, vCols);
+    TileData dstTile(vRows, vCols);
+    TASSIGN(src0Tile, 0x0);
+    TASSIGN(dstTile, 0x0);
+    GlobalData dstGlobal(out);
+    GlobalData srcGlobal(src);
+    TLOAD(src0Tile, srcGlobal);
+#ifndef __PTO_AUTO__
+    set_flag(PIPE_MTE2, PIPE_V, EVENT_ID0);
+    wait_flag(PIPE_MTE2, PIPE_V, EVENT_ID0);
+#endif
+    TADDS(dstTile, src0Tile, scalar);
+#ifndef __PTO_AUTO__
+    set_flag(PIPE_V, PIPE_MTE3, EVENT_ID0);
+    wait_flag(PIPE_V, PIPE_MTE3, EVENT_ID0);
+#endif
+    TSTORE(dstGlobal, dstTile);
+    out = dstGlobal.data();
+}
+
+extern "C" __global__ AICORE void launchTADDSCase17(__gm__ int64_t* out, __gm__ int64_t* src, int64_t scalar)
+{
+    runTAddSInplace<int64_t, 4, 32, 4, 32>(out, src, scalar);
+}
+extern "C" __global__ AICORE void launchTADDSCase18(__gm__ int64_t* out, __gm__ int64_t* src, int64_t scalar)
+{
+    runTAddSInplaceWideInt64<int64_t, 1, 1024, 1024>(out, src, scalar);
+}
+extern "C" __global__ AICORE void launchTADDSCase19(__gm__ int64_t* out, __gm__ int64_t* src, int64_t scalar)
+{
+    runTAddSInplaceWideInt64<int64_t, 4, 64, 40>(out, src, scalar);
+}
+
+extern "C" __global__ AICORE void launchTADDSCase20(__gm__ int64_t* out, __gm__ int64_t* src, int64_t scalar) {}
+
+extern "C" __global__ AICORE void launchTADDSCase21(__gm__ int64_t* out, __gm__ int64_t* src, int64_t scalar)
+{
+    runTAddSInplaceWideInt64<int64_t, 1, 2048, 2045>(out, src, scalar);
+}
+
+extern "C" __global__ AICORE void launchTADDSCase22(__gm__ uint64_t* out, __gm__ uint64_t* src, uint64_t scalar)
+{
+    runTAddSInplace<uint64_t, 4, 32, 4, 32>(out, src, scalar);
+}
+
 template <uint32_t caseId, typename T>
 void launchTADDSTestCase(void* out, void* src, T scalar, aclrtStream stream)
 {
@@ -242,6 +324,30 @@ void launchTADDSTestCase(void* out, void* src, T scalar, aclrtStream stream)
             launchTADDSCase16<<<1, nullptr, stream>>>((uint64_t*)out, (uint64_t*)src, (uint64_t)scalar);
             break;
         }
+        case 17: {
+            launchTADDSCase17<<<1, nullptr, stream>>>((int64_t*)out, (int64_t*)src, (int64_t)scalar);
+            break;
+        }
+        case 18: {
+            launchTADDSCase18<<<1, nullptr, stream>>>((int64_t*)out, (int64_t*)src, (int64_t)scalar);
+            break;
+        }
+        case 19: {
+            launchTADDSCase19<<<1, nullptr, stream>>>((int64_t*)out, (int64_t*)src, (int64_t)scalar);
+            break;
+        }
+        case 20: {
+            launchTADDSCase20<<<1, nullptr, stream>>>((int64_t*)out, (int64_t*)src, (int64_t)scalar);
+            break;
+        }
+        case 21: {
+            launchTADDSCase21<<<1, nullptr, stream>>>((int64_t*)out, (int64_t*)src, (int64_t)scalar);
+            break;
+        }
+        case 22: {
+            launchTADDSCase22<<<1, nullptr, stream>>>((uint64_t*)out, (uint64_t*)src, (uint64_t)scalar);
+            break;
+        }
         default: {
         }
     }
@@ -269,6 +375,11 @@ template void launchTADDSTestCase<13, uint64_t>(void* out, void* src, uint64_t s
 template void launchTADDSTestCase<14, int64_t>(void* out, void* src, int64_t scalar, aclrtStream stream);
 template void launchTADDSTestCase<15, int64_t>(void* out, void* src, int64_t scalar, aclrtStream stream);
 template void launchTADDSTestCase<16, uint64_t>(void* out, void* src, uint64_t scalar, aclrtStream stream);
+template void launchTADDSTestCase<17, int64_t>(void* out, void* src, int64_t scalar, aclrtStream stream);
+template void launchTADDSTestCase<18, int64_t>(void* out, void* src, int64_t scalar, aclrtStream stream);
+template void launchTADDSTestCase<19, int64_t>(void* out, void* src, int64_t scalar, aclrtStream stream);
+template void launchTADDSTestCase<20, int64_t>(void* out, void* src, int64_t scalar, aclrtStream stream);
+template void launchTADDSTestCase<21, int64_t>(void* out, void* src, int64_t scalar, aclrtStream stream);
 template void launchTADDSTestCase<1>(void*, void*, float, aclrtStream);
 template void launchTADDSTestCase<2>(void*, void*, float, aclrtStream);
 template void launchTADDSTestCase<3>(void*, void*, float, aclrtStream);
@@ -280,3 +391,4 @@ template void launchTADDSTestCase<8>(void*, void*, float, aclrtStream);
 template void launchTADDSTestCase<9>(void*, void*, float, aclrtStream);
 template void launchTADDSTestCase<10>(void*, void*, float, aclrtStream);
 template void launchTADDSTestCase<11>(void*, void*, float, aclrtStream);
+template void launchTADDSTestCase<22, uint64_t>(void*, void*, uint64_t, aclrtStream);

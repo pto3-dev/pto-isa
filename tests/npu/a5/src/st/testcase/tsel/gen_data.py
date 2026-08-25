@@ -12,6 +12,7 @@
 
 import os
 import numpy as np
+
 np.random.seed(19)
 
 
@@ -56,7 +57,7 @@ def gen_golden_data_tsel(param):
             else:
                 golden[idx] = input1[idx]
         j += 1
-    
+
     input0.tofile("input0.bin")
     input1.tofile("input1.bin")
     mask.tofile("mask.bin")
@@ -73,6 +74,7 @@ class TSelParams:
         self.cols = cols
         self.valid_rows = valid_rows
         self.valid_cols = valid_cols
+
 
 if __name__ == "__main__":
     case_params_list = [
@@ -94,6 +96,11 @@ if __name__ == "__main__":
         TSelParams("TSELTest.case_uint64_1x16364", np.uint64, 1, 16364, 1, 16364),
         TSelParams("TSELTest.case_int64_1x16368", np.int64, 1, 16368, 1, 16368),
         TSelParams("TSELTest.case_uint64_1x16368", np.uint64, 1, 16368, 1, 16368),
+        TSelParams("TSELTest.case_int64_4x32_inplace", np.int64, 4, 32, 4, 32),
+TSelParams("TSELTest.case_uint64_4x32_inplace", np.uint64, 4, 32, 4, 32),
+        TSelParams("TSELTest.case_int64_1x1024_inplace", np.int64, 1, 1024, 1, 1024),
+        TSelParams("TSELTest.case_int64_4x64_4x40_inplace", np.int64, 4, 64, 4, 40),
+        TSelParams("TSELTest.case_int64_1x2048_1x2045_inplace", np.int64, 1, 2048, 1, 2045),
     ]
 
     for param in case_params_list:

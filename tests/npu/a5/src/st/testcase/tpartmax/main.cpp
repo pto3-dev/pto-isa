@@ -22,6 +22,8 @@ template <
     typename T, int dstVR, int dstVC, int src0VR, int src0VC, int src1VR, int src1VC, int dstTR, int dstTC, int src0TR,
     int src0TC, int src1TR, int src1TC, bool isHalf>
 void LaunchTPartMax(T* out, T* src0, T* src1, void* stream);
+template <typename T, int dstVR, int dstVC, int src0VR, int src0VC, int src1VR, int src1VC, bool isHalf>
+void LaunchTPartMaxInplace(T* out, T* src1, void* stream);
 
 class TPARTMAXTest : public testing::Test {
 protected:
@@ -114,6 +116,55 @@ void test_tpartmax()
     test_tpartmax<T, dstVR, dstVC, src0VR, src0VC, src1VR, src1VC, 0, 0, 0, 0, 0, 0, isHalf>();
 }
 
+template <typename T, int dstVR, int dstVC, int src0VR, int src0VC, int src1VR, int src1VC, bool isHalf = false>
+void test_tpartmax_inplace()
+{
+    size_t src0FileSize = src0VR * src0VC * sizeof(T);
+    size_t dstFileSize = dstVR * dstVC * sizeof(T);
+
+    aclInit(nullptr);
+    aclrtSetDevice(0);
+    aclrtStream stream;
+    aclrtCreateStream(&stream);
+
+    T *dstHost, *src0Host;
+    T* dstDevice;
+
+    aclrtMallocHost((void**)(&dstHost), dstFileSize);
+    aclrtMallocHost((void**)(&src0Host), src0FileSize);
+
+    aclrtMalloc((void**)&dstDevice, dstFileSize, ACL_MEM_MALLOC_HUGE_FIRST);
+
+    ReadFile(GetGoldenDir() + "/input1.bin", src0FileSize, src0Host, src0FileSize);
+    T* src1Device = load_data<T>(src1VR, src1VC, GetGoldenDir() + "/input2.bin");
+
+    aclrtMemcpy(dstDevice, dstFileSize, src0Host, src0FileSize, ACL_MEMCPY_HOST_TO_DEVICE);
+    LaunchTPartMaxInplace<T, dstVR, dstVC, src0VR, src0VC, src1VR, src1VC, isHalf>(dstDevice, src1Device, stream);
+
+    aclrtSynchronizeStream(stream);
+    aclrtMemcpy(dstHost, dstFileSize, dstDevice, dstFileSize, ACL_MEMCPY_DEVICE_TO_HOST);
+    WriteFile(GetGoldenDir() + "/output.bin", dstHost, dstFileSize);
+    aclrtFree(dstDevice);
+    aclrtFreeHost(dstHost);
+    aclrtFreeHost(src0Host);
+    aclrtFree(src1Device);
+    aclrtDestroyStream(stream);
+    aclrtResetDevice(0);
+    aclFinalize();
+
+    std::vector<T> golden(dstFileSize);
+    std::vector<T> devFinal(dstFileSize);
+    ReadFile(GetGoldenDir() + "/golden.bin", dstFileSize, golden.data(), dstFileSize);
+    ReadFile(GetGoldenDir() + "/output.bin", dstFileSize, devFinal.data(), dstFileSize);
+    bool ret;
+    if constexpr (std::is_same_v<T, int64_t> || std::is_same_v<T, uint64_t>) {
+        ret = ResultCmpExact(golden, devFinal.data());
+    } else {
+        ret = ResultCmp<T>(golden, devFinal, 0.001f);
+    }
+    EXPECT_TRUE(ret);
+}
+
 TEST_F(TPARTMAXTest, case_fp32_64x64_64x64_64x64) { test_tpartmax<float, 64, 64, 64, 64, 64, 64>(); }
 TEST_F(TPARTMAXTest, case_fp32_2x24_2x24_2x8) { test_tpartmax<float, 2, 24, 2, 24, 2, 8>(); }
 TEST_F(TPARTMAXTest, case_fp32_2x24_2x24_1x8) { test_tpartmax<float, 2, 24, 2, 24, 1, 8>(); }
@@ -144,4 +195,15 @@ TEST_F(TPARTMAXTest, case_s64_4x64_4x64_4x64) { test_tpartmax<int64_t, 4, 64, 4,
 TEST_F(TPARTMAXTest, case_u64_4x64_4x64_4x64) { test_tpartmax<uint64_t, 4, 64, 4, 64, 4, 64>(); }
 TEST_F(TPARTMAXTest, case_s64_1x10912_1x10912_1x10908) { test_tpartmax<int64_t, 1, 10912, 1, 10912, 1, 10908>(); }
 TEST_F(TPARTMAXTest, case_u64_1x10912_1x10912_1x10908) { test_tpartmax<uint64_t, 1, 10912, 1, 10912, 1, 10908>(); }
+TEST_F(TPARTMAXTest, case_s64_4x32_4x32_4x32_inplace) { test_tpartmax_inplace<int64_t, 4, 32, 4, 32, 4, 32>(); }
+TEST_F(TPARTMAXTest, case_u64_4x32_4x32_4x32_inplace) { test_tpartmax_inplace<uint64_t, 4, 32, 4, 32, 4, 32>(); }
+TEST_F(TPARTMAXTest, case_s64_1x1024_1x1024_1x1024_inplace)
+{
+    test_tpartmax_inplace<int64_t, 1, 1024, 1, 1024, 1, 1024>();
+}
+TEST_F(TPARTMAXTest, case_s64_4x64_4x64_4x40_inplace) { test_tpartmax_inplace<int64_t, 4, 64, 4, 64, 4, 40>(); }
+TEST_F(TPARTMAXTest, case_s64_1x2048_1x2048_1x2045_inplace)
+{
+    test_tpartmax_inplace<int64_t, 1, 2048, 1, 2048, 1, 2045>();
+}
 } // namespace TPartMaxTest

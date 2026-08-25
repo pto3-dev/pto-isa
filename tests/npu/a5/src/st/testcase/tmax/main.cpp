@@ -40,6 +40,9 @@ template <
     bool sameTile>
 void LaunchTMaxHalf(aclFloat16* out, aclFloat16* src0, aclFloat16* src1, void* stream);
 
+template <typename T, int tileH, int tileW, int vRows, int vCols>
+void LaunchTMaxInplace(T* out, T* src1, void* stream);
+
 template <typename T>
 void CheckTMaxResult(size_t fileSizeDst)
 {
@@ -112,6 +115,50 @@ void test_tmax()
     CheckTMaxResult<T>(fileSizeDst);
 }
 
+template <typename T, int tileH, int tileW, int vRows, int vCols>
+void test_tmax_inplace()
+{
+    size_t fileSize = tileH * tileW * sizeof(T);
+
+    aclInit(nullptr);
+    aclrtSetDevice(0);
+    aclrtStream stream;
+    aclrtCreateStream(&stream);
+
+    T *dstHost, *src1Host;
+    T *dstDevice, *src1Device;
+
+    aclrtMallocHost((void**)(&dstHost), fileSize);
+    aclrtMallocHost((void**)(&src1Host), fileSize);
+
+    aclrtMalloc((void**)&dstDevice, fileSize, ACL_MEM_MALLOC_HUGE_FIRST);
+    aclrtMalloc((void**)&src1Device, fileSize, ACL_MEM_MALLOC_HUGE_FIRST);
+
+    memset(dstHost, 0, fileSize);
+    ReadFile(GetGoldenDir() + "/input1.bin", fileSize, dstHost, fileSize);
+    ReadFile(GetGoldenDir() + "/input2.bin", fileSize, src1Host, fileSize);
+
+    aclrtMemcpy(dstDevice, fileSize, dstHost, fileSize, ACL_MEMCPY_HOST_TO_DEVICE);
+    aclrtMemcpy(src1Device, fileSize, src1Host, fileSize, ACL_MEMCPY_HOST_TO_DEVICE);
+    LaunchTMaxInplace<T, tileH, tileW, vRows, vCols>(dstDevice, src1Device, stream);
+
+    aclrtSynchronizeStream(stream);
+    aclrtMemcpy(dstHost, fileSize, dstDevice, fileSize, ACL_MEMCPY_DEVICE_TO_HOST);
+
+    WriteFile(GetGoldenDir() + "/output.bin", dstHost, fileSize);
+
+    aclrtFree(dstDevice);
+    aclrtFree(src1Device);
+
+    aclrtFreeHost(dstHost);
+    aclrtFreeHost(src1Host);
+    aclrtDestroyStream(stream);
+    aclrtResetDevice(0);
+    aclFinalize();
+
+    CheckTMaxResult<T>(fileSize);
+}
+
 TEST_F(TMAXTest, case_float_64x64_64x64_64x64_64x64) { test_tmax<float, 64, 64, 64, 64, 64, 64, 64, 64>(); }
 TEST_F(TMAXTest, case_int32_64x64_64x64_64x64_64x64) { test_tmax<int32_t, 64, 64, 64, 64, 64, 64, 64, 64>(); }
 TEST_F(TMAXTest, case_int16_64x64_64x64_64x64_64x64) { test_tmax<int16_t, 64, 64, 64, 64, 64, 64, 64, 64>(); }
@@ -143,3 +190,8 @@ TEST_F(TMAXTest, case_uint64_1x16364_1x16364_1x16364_1x16364)
 {
     test_tmax<uint64_t, 1, 16364, 1, 16364, 1, 16364, 1, 16364>();
 }
+TEST_F(TMAXTest, case_int64_4x32_inplace) { test_tmax_inplace<int64_t, 4, 32, 4, 32>(); }
+TEST_F(TMAXTest, case_uint64_4x32_inplace) { test_tmax_inplace<uint64_t, 4, 32, 4, 32>(); }
+TEST_F(TMAXTest, case_int64_1x1024_inplace) { test_tmax_inplace<int64_t, 1, 1024, 1, 1024>(); }
+TEST_F(TMAXTest, case_int64_1x2048_2045_inplace) { test_tmax_inplace<int64_t, 1, 2048, 1, 2045>(); }
+TEST_F(TMAXTest, case_int64_4x64_40_inplace) { test_tmax_inplace<int64_t, 4, 64, 4, 40>(); }

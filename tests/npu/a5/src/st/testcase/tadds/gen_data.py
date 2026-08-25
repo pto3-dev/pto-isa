@@ -41,6 +41,8 @@ def gen_golden_data(param):
         input_arr = np.random.uniform(low=value_min, high=value_max, size=(rows, cols)).astype(data_type)
         divider = np.random.uniform(low=value_min, high=value_max, size=(1, 1)).astype(data_type)
     output_arr = np.zeros((dst_tile_row, dst_tile_col), dtype=data_type)
+    if param.inplace:
+        output_arr[:rows, :cols] = input_arr[:rows, :cols]
     for i in range(valid_row):
         for j in range(valid_col):
             output_arr[i, j] = input_arr[i, j] + divider[0, 0]
@@ -57,7 +59,7 @@ def gen_golden_data(param):
 class taddsParams:
     def __init__(
         self, name, data_type, dst_tile_row, dst_tile_col, row, col,
-        valid_row=None, valid_col=None, scalar=None, int_low=None, int_high=None
+        valid_row=None, valid_col=None, scalar=None, int_low=None, int_high=None, inplace=False
     ):
         self.name = name
         self.data_type = data_type
@@ -70,6 +72,7 @@ class taddsParams:
         self.scalar = scalar
         self.int_low = int_low
         self.int_high = int_high
+        self.inplace = inplace
 
 if __name__ == "__main__":
     case_params_list = [
@@ -92,6 +95,11 @@ if __name__ == "__main__":
         ),
         taddsParams("TADDSTest.case_int64_1x16364", np.int64, 1, 16364, 1, 16364),
         taddsParams("TADDSTest.case_uint64_1x16364", np.uint64, 1, 16364, 1, 16364),
+        taddsParams("TADDSTest.case_int64_4x32_inplace", np.int64, 4, 32, 4, 32, inplace=True),
+taddsParams("TADDSTest.case_uint64_4x32_inplace", np.uint64, 4, 32, 4, 32, inplace=True),
+        taddsParams("TADDSTest.case_int64_1x1024_inplace", np.int64, 1, 1024, 1, 1024, inplace=True),
+        taddsParams("TADDSTest.case_int64_4x64_40_inplace", np.int64, 4, 64, 4, 64, valid_col=40, inplace=True),
+        taddsParams("TADDSTest.case_int64_1x2048_2045_inplace", np.int64, 1, 2048, 1, 2048, valid_col=2045, inplace=True),
     ]
 
     for _, case in enumerate(case_params_list):
