@@ -62,6 +62,7 @@ constexpr uint32_t kRdmaBackendUnavailableError = 0x21000;
 constexpr uint32_t kRdmaInvalidWorkspaceError = 0x21001;
 constexpr uint32_t kRdmaBackendMismatchError = 0x21002;
 constexpr uint32_t kRdmaSessionBuildError = 0x21003;
+constexpr uint32_t kRdmaUnsupportedOperationError = 0x21004;
 
 static_assert(sizeof(RdmaInfo) == 64, "unexpected RDMA workspace-header layout");
 static_assert(sizeof(RdmaMemInfo) == 24, "unexpected RDMA memory-info layout");

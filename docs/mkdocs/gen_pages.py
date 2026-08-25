@@ -816,6 +816,7 @@ NAV_PAGES_EN = [
     "docs/isa/comm/TPUT.md",
     "docs/isa/comm/TGET.md",
     "docs/isa/comm/TPUT_ASYNC.md",
+    "docs/isa/comm/TPUT_ASYNC_NOTIFY.md",
     "docs/isa/comm/TGET_ASYNC.md",
     "docs/isa/comm/TNOTIFY.md",
     "docs/isa/comm/TWAIT.md",

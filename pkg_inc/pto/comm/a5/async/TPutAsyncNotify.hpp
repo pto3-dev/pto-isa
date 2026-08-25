@@ -66,6 +66,30 @@ PTO_INTERNAL AsyncEvent TPUT_ASYNC_NOTIFY_URMA(
 }
 #endif
 
+#ifdef PTO_RDMA_SUPPORTED
+template <typename GlobalDstData, typename GlobalSrcData, typename GlobalSignalData>
+PTO_INTERNAL AsyncEvent TPUT_ASYNC_NOTIFY_RDMA(
+    GlobalDstData& dstGlobalData, GlobalSrcData& srcGlobalData, GlobalSignalData& dstSignalData, int32_t signalValue,
+    NotifyOp notifyOp, const AsyncSession& session, uint32_t peer)
+{
+    PTO_ASSERT(
+        session.valid && session.engine == DmaEngine::RDMA, "TPUT_ASYNC_NOTIFY: RDMA requires a valid RDMA session.");
+    const uint64_t transferSize = TPutAsyncValidatePayload(dstGlobalData, srcGlobalData);
+    TPutAsyncValidateNotifySignal(dstSignalData, notifyOp);
+    if (notifyOp != NotifyOp::Set) {
+        PTO_ASSERT(false, "TPUT_ASYNC_NOTIFY: RDMA currently supports NotifyOp::Set only.");
+        return AsyncEvent(rdma::EncodeErrorHandle(rdma::kRdmaUnsupportedOperationError), DmaEngine::RDMA);
+    }
+    PTO_ASSERT(transferSize <= 0x7fffffffULL, "TPUT_ASYNC_NOTIFY: RDMA payload must not exceed 0x7fffffff bytes.");
+
+    const uint64_t eventHandle = rdma::WriteNotify(
+        session, reinterpret_cast<__gm__ uint8_t*>(dstGlobalData.data()),
+        reinterpret_cast<__gm__ uint8_t*>(srcGlobalData.data()), transferSize,
+        reinterpret_cast<__gm__ int32_t*>(dstSignalData.data()), signalValue, peer);
+    return AsyncEvent(eventHandle, DmaEngine::RDMA);
+}
+#endif
+
 } // namespace detail
 
 template <DmaEngine engine = DmaEngine::SDMA, typename GlobalDstData, typename GlobalSrcData, typename GlobalSignalData>
@@ -86,8 +110,13 @@ PTO_INTERNAL AsyncEvent TPUT_ASYNC_NOTIFY_IMPL(
         return {};
 #endif
     } else if constexpr (engine == DmaEngine::RDMA) {
-        static_assert(engine != DmaEngine::RDMA, "TPUT_ASYNC_NOTIFY: A5 RDMA peer path is not implemented");
+#ifdef PTO_RDMA_SUPPORTED
+        return detail::TPUT_ASYNC_NOTIFY_RDMA(
+            dstGlobalData, srcGlobalData, dstSignalData, signalValue, notifyOp, session, peer);
+#else
+        static_assert(engine != DmaEngine::RDMA, "TPUT_ASYNC_NOTIFY: RDMA support is not enabled for this build");
         return AsyncEvent(0, engine);
+#endif
     } else {
         static_assert(engine == DmaEngine::SDMA, "TPUT_ASYNC_NOTIFY: unsupported DMA engine");
         return AsyncEvent(0, engine);

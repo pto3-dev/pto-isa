@@ -158,4 +158,5 @@
     - [TTEST](isa/comm/TTEST_zh.md)
   - [异步通信](menu/async_comm_zh.md)
     - [TPUT_ASYNC](isa/comm/TPUT_ASYNC_zh.md)
+    - [TPUT_ASYNC_NOTIFY](isa/comm/TPUT_ASYNC_NOTIFY_zh.md)
     - [TGET_ASYNC](isa/comm/TGET_ASYNC_zh.md)

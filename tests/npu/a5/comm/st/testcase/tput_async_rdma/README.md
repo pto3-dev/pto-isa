@@ -1,6 +1,8 @@
 # RDMA Async ST (HNS1825 Target Platform)
 
-This directory contains the shared RDMA async ST implementation. `tput_async_rdma` validates remote WRITE, while `tget_async_rdma` reuses the kernel implementation to validate remote READ.
+This directory contains the shared RDMA async ST implementation. `tput_async_rdma` validates remote WRITE,
+`tget_async_rdma` validates remote READ, and `tput_async_notify_rdma` validates remote WRITE with a `Set`
+notification. The three targets reuse the same RDMA test kernel implementation.
 
 ## Prerequisites
 
@@ -10,13 +12,26 @@ This directory contains the shared RDMA async ST implementation. `tput_async_rdm
 
 ## Build and Run
 
-Select the RDMA implementation before CMake configuration, then run PUT and GET independently:
+Select the RDMA implementation before CMake configuration, then run the required RDMA ST target:
 
 ```bash
 export PTO_RDMA_BACKEND=HNS_1825
 python3 tests/script/run_st.py -r npu -v a5 -t comm/tput_async_rdma -d -n 2
 python3 tests/script/run_st.py -r npu -v a5 -t comm/tget_async_rdma -d -n 2
+python3 tests/script/run_st.py -r npu -v a5 -t comm/tput_async_notify_rdma -d -n 2
 ```
+
+For the first `TPUT_ASYNC_NOTIFY` validation, run only the focused two-rank case:
+
+```bash
+export PTO_RDMA_BACKEND=HNS_1825
+python3 tests/script/run_st.py -r npu -v a5 -t comm/tput_async_notify_rdma \
+    -g TPutAsyncNotifyRdma.Int32SetAndCanaries -d -n 2
+```
+
+The case checks the remote payload, remote signal, and canaries on both sides of the signal, and waits for the returned
+`AsyncEvent`. After observing the signal, the receiver maintains its data cache before checking the payload. The current
+RDMA backend does not support `AtomicAdd`, so there is no corresponding RDMA case.
 
 `PTO_RDMA_BACKEND` is read only while CMake configures this ST build. Unset, empty, or unsupported values build the tests without RDMA support. `run_st.py` rebuilds by default; after changing this variable, do not use `-w/--without-build` to reuse an existing binary.
 
