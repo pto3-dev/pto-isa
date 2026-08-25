@@ -29,8 +29,6 @@ Where `validRows = dst0.GetValidRow()` and `validCols = dst0.GetValidCol()`.
 
 ## Assembly Syntax
 
-PTO-AS form: see [PTO-AS Specification](../assembly/PTO-AS.md).
-
 Synchronous form:
 
 ```text
