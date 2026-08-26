@@ -25,8 +25,9 @@ __global__ AICORE void runTNOT(__gm__ T __out__* out, __gm__ T __in__* input)
     TileData srcTile(kGRows_, kGCols_);
     TileData dstTile(kGRows_, kGCols_);
 
+    constexpr unsigned tileBytes = kTRows_ * kTCols_ * sizeof(T);
     TASSIGN(srcTile, 0x0 + 0x400 * block_idx);
-    TASSIGN(dstTile, 0x4000 + 0x400 * block_idx);
+    TASSIGN(dstTile, tileBytes + 0x400 * block_idx);
 
     int offset = (block_idx / 4) * (64 * 16) + (block_idx % 4) * 16;
     GlobalData srcGlobal(input + offset);
@@ -60,3 +61,6 @@ template void LaunchTNot<uint16_t, 60, 60, 64, 64>(uint16_t* out, uint16_t* inpu
 
 template void LaunchTNot<int32_t, 64, 64, 64, 64>(int32_t* out, int32_t* input, void* stream);
 template void LaunchTNot<uint32_t, 60, 60, 64, 64>(uint32_t* out, uint32_t* input, void* stream);
+
+template void LaunchTNot<int64_t, 64, 64, 64, 64>(int64_t* out, int64_t* input, void* stream);
+template void LaunchTNot<uint64_t, 60, 60, 64, 64>(uint64_t* out, uint64_t* input, void* stream);

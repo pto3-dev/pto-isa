@@ -19,13 +19,32 @@ np.random.seed(19)
 
 def gen_golden_data_tand(case_name, param):
     dtype = param.dtype
+    tile_row, tile_col = param.tile_row, param.tile_col
     h_valid, w_valid = [param.valid_row, param.valid_col]
-    input1 = np.random.randint(1, 16383, size=(h_valid, w_valid)).astype(dtype)
-    input2 = np.random.randint(1, 16383, size=(1, 1)).astype(dtype)
-    golden = np.zeros((h_valid, w_valid), dtype=dtype)
-    for i in range(h_valid):
-        for j in range(w_valid):
-            golden[i, j] = input1[i, j] | input2[0, 0]
+
+    if dtype in (np.int64, np.uint64):
+        # Full-tile arrays so the written binary sizes match main.cpp's
+        # kTRows_*kTCols_ read. Use large values so the high 32-bit half of
+        # each 64-bit element is exercised.
+        rng = np.random.default_rng(5)
+        size = tile_row * tile_col
+        if dtype == np.int64:
+            input1 = rng.integers(-(2 ** 31), 2 ** 31 - 1, size=size, dtype=np.int64)
+            input2 = rng.integers(-(2 ** 31), 2 ** 31 - 1, size=(1, 1), dtype=np.int64)
+        else:
+            input1 = rng.integers(0, 2 ** 32 - 1, size=size, dtype=np.uint64)
+            input2 = rng.integers(0, 2 ** 32 - 1, size=(1, 1), dtype=np.uint64)
+
+        golden = np.zeros(size).astype(dtype)
+        golden[0:h_valid * w_valid] = (
+            input1[0:h_valid * w_valid] | input2[0, 0])
+    else:
+        input1 = np.random.randint(1, 16383, size=(h_valid, w_valid)).astype(dtype)
+        input2 = np.random.randint(1, 16383, size=(1, 1)).astype(dtype)
+        golden = np.zeros((h_valid, w_valid), dtype=dtype)
+        for i in range(h_valid):
+            for j in range(w_valid):
+                golden[i, j] = input1[i, j] | input2[0, 0]
 
     with open("input2.bin", 'wb') as f:
         dtype_map = {
@@ -34,7 +53,9 @@ def gen_golden_data_tand(case_name, param):
             np.int16: 'h',
             np.uint16: 'H',
             np.int32: 'i',
-            np.uint32: 'I'
+            np.uint32: 'I',
+            np.int64: 'q',
+            np.uint64: 'Q'
         }
         format_char = dtype_map.get(dtype)
         if format_char is not None:
@@ -75,6 +96,9 @@ if __name__ == "__main__":
         TORSParams("TORSTest.case8", np.int16, 16, 16, 16, 16),
         TORSParams("TORSTest.case9", np.int32, 8, 8, 8, 8),
         TORSParams("TORSTest.case10", np.int32, 1, 8, 1, 8),
+        TORSParams("TORSTest.case_int64_4x16_4x15", np.int64, 4, 16, 4, 15),
+        TORSParams("TORSTest.case_uint64_4x16_4x15", np.uint64, 4, 16, 4, 15),
+        TORSParams("TORSTest.case_int64_1x1024_1x1024", np.int64, 1, 1024, 1, 1024),
     ]
 
     for param in case_params_list:

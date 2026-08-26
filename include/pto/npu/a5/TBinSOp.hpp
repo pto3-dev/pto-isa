@@ -43,6 +43,15 @@ PTO_INTERNAL void Int64ScalarCalcRegs(
     } else if constexpr (Op == Int64Op::Shr) {
         vbr(scalarLow, static_cast<int32_t>(scalarBits));
         Int64ShiftRegs<true, T>(dstLow, dstHigh, srcLow, srcHigh, scalarLow, mask);
+    } else if constexpr (Op == Int64Op::And) {
+        vand((vector_u32&)dstLow, (vector_u32&)srcLow, (vector_u32&)scalarLow, mask, MODE_ZEROING);
+        vand((vector_u32&)dstHigh, (vector_u32&)srcHigh, (vector_u32&)scalarHigh, mask, MODE_ZEROING);
+    } else if constexpr (Op == Int64Op::Or) {
+        vor((vector_u32&)dstLow, (vector_u32&)srcLow, (vector_u32&)scalarLow, mask, MODE_ZEROING);
+        vor((vector_u32&)dstHigh, (vector_u32&)srcHigh, (vector_u32&)scalarHigh, mask, MODE_ZEROING);
+    } else if constexpr (Op == Int64Op::Xor) {
+        vxor((vector_u32&)dstLow, (vector_u32&)srcLow, (vector_u32&)scalarLow, mask, MODE_ZEROING);
+        vxor((vector_u32&)dstHigh, (vector_u32&)srcHigh, (vector_u32&)scalarHigh, mask, MODE_ZEROING);
     } else {
         Int64MinMax<Op, T>(dstLow, dstHigh, srcLow, srcHigh, scalarLow, scalarHigh, mask);
     }

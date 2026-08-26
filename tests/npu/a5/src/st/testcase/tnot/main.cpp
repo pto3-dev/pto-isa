@@ -11,6 +11,7 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #include "test_common.h"
 #include "acl/acl.h"
 #include <gtest/gtest.h>
+#include <type_traits>
 
 using namespace std;
 using namespace PtoTestCommon;
@@ -74,9 +75,12 @@ void test_tnot()
     ReadFile(GetGoldenDir() + "/golden.bin", fileSize, golden.data(), fileSize);
     ReadFile(GetGoldenDir() + "/output.bin", fileSize, devFinal.data(), fileSize);
 
-    bool ret = ResultCmp<T>(golden, devFinal, 0.001f);
-
-    EXPECT_TRUE(ret);
+    if constexpr (std::is_same_v<T, int64_t> || std::is_same_v<T, uint64_t>) {
+        EXPECT_TRUE(ResultCmpExact(golden, devFinal.data()));
+    } else {
+        bool ret = ResultCmp<T>(golden, devFinal, 0.001f);
+        EXPECT_TRUE(ret);
+    }
 }
 
 TEST_F(TNOTTest, case_int8_64x64_64x64_64x64) { test_tnot<int8_t, 64, 64, 64, 64>(); }
@@ -90,3 +94,7 @@ TEST_F(TNOTTest, case_uint16_60x60_64x64_60x60) { test_tnot<u_int16_t, 60, 60, 6
 TEST_F(TNOTTest, case_int32_64x64_64x64_64x64) { test_tnot<int32_t, 64, 64, 64, 64>(); }
 
 TEST_F(TNOTTest, case_uint32_60x60_64x64_60x60) { test_tnot<u_int32_t, 60, 60, 64, 64>(); }
+
+TEST_F(TNOTTest, case_int64_64x64_64x64_64x64) { test_tnot<int64_t, 64, 64, 64, 64>(); }
+
+TEST_F(TNOTTest, case_uint64_60x60_64x64_60x60) { test_tnot<u_int64_t, 60, 60, 64, 64>(); }

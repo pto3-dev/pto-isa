@@ -53,7 +53,7 @@ PTO_INST RecordEvent TABS(TileDataDst &dst, TileDataSrc &src, WaitEvents &... ev
     - `TileData::DType` 必须是以下之一：`int32_t`、`int16_t`、`int8_t`、`uint8_t`、`half`、`float`。
 - **实现检查 (NPU)**:
     - Atlas A3 训练系列产品/Atlas A3 推理系列产品 `TileData::DType` 必须是以下之一：`float` 或 `half`。
-    - Ascend 950PR/Ascend 950DT `TileData::DType` 必须是以下之一：`int32_t`、`int16_t`、`int8_t`、`half`、`float`。
+    - Ascend 950PR/Ascend 950DT `TileData::DType` 必须是以下之一：`int32_t`、`int16_t`、`int8_t`、`int64_t`、`half`、`float`。
     - Tile位置必须是向量（`TileData::Loc == TileType::Vec`）。
     - 静态有效边界：`TileData::ValidRow <= TileData::Rows` 且 `TileData::ValidCol <= TileData::Cols`。
     - 运行时：`src.GetValidRow() == dst.GetValidRow()` 且 `src.GetValidCol() == dst.GetValidCol()`。

@@ -51,7 +51,7 @@ PTO_INST RecordEvent TXORS(TileDataDst &dst, TileDataSrc &src0, typename TileDat
     - `dst`、`src` 和 `tmp` 必须使用相同的元素类型。
     - 在手动模式下，源、目标和临时存储的内存区域不得重叠。
 - **实现检查 (Ascend 950PR/Ascend 950DT)**:
-    - 支持的元素类型为 `uint8_t`、`int8_t`、`uint16_t`、`int16_t`、`uint32_t`、`int32_t`。
+    - 支持的元素类型为 `uint8_t`、`int8_t`、`uint16_t`、`int16_t`、`uint32_t`、`int32_t`、`int64_t`、`uint64_t`。
     - `dst` 和 `src` 的元素类型必须一致。
     - `src.GetValidRow()/GetValidCol()` 必须与 `dst` 一致。
 - **有效区域**:

@@ -42,8 +42,13 @@ __tf__ PTO_INTERNAL OP_NAME(TOR) OP_TYPE(element_wise) void TOr(
     __ubuf__ T* dstPtr = (__ubuf__ T*)__cce_get_tile_ptr(dst);
     __ubuf__ T* src0Ptr = (__ubuf__ T*)__cce_get_tile_ptr(src0);
     __ubuf__ T* src1Ptr = (__ubuf__ T*)__cce_get_tile_ptr(src1);
-    BinaryInstr<OrOp<T>, TileDataDst, TileDataSrc0, TileDataSrc1, ElementsPerRepeat, BlockSizeElem>(
-        dstPtr, src0Ptr, src1Ptr, validRows, validCols, version);
+    if constexpr (std::is_same_v<T, int64_t> || std::is_same_v<T, uint64_t>) {
+        Int64Binary<Int64Op::Or, T, TileDataDst::Cols, TileDataSrc0::Cols, TileDataSrc1::Cols>(
+            dstPtr, src0Ptr, src1Ptr, validRows, validCols);
+    } else {
+        BinaryInstr<OrOp<T>, TileDataDst, TileDataSrc0, TileDataSrc1, ElementsPerRepeat, BlockSizeElem>(
+            dstPtr, src0Ptr, src1Ptr, validRows, validCols, version);
+    }
     return;
 }
 
@@ -51,7 +56,8 @@ template <typename TileDataDst, typename TileDataSrc0, typename TileDataSrc1>
 PTO_INTERNAL void TOrCheck(const TileDataDst& dst, const TileDataSrc0& src0, const TileDataSrc1& src1)
 {
     using T = typename TileDataDst::DType;
-    static_assert(sizeof(T) == 4 || sizeof(T) == 2 || sizeof(T) == 1, "Fix: TOR has invalid data type.");
+    static_assert(
+        sizeof(T) == 8 || sizeof(T) == 4 || sizeof(T) == 2 || sizeof(T) == 1, "Fix: TOR has invalid data type.");
     static_assert(
         TileDataDst::isRowMajor && TileDataSrc0::isRowMajor && TileDataSrc1::isRowMajor,
         "Fix: TOR only support row major layout.");

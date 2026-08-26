@@ -18,7 +18,7 @@ See LICENSE in the root of the software repository for the full text of the Lice
 
 namespace pto {
 
-enum class Int64Op { Add, Sub, Mul, Shl, Shr, Max, Min };
+enum class Int64Op { Add, Sub, Mul, Shl, Shr, Max, Min, And, Or, Xor, Not, Abs };
 
 template <MaskPattern Pattern>
 PTO_INTERNAL constexpr unsigned Int64MaskPatternOffset()
@@ -447,6 +447,15 @@ PTO_INTERNAL void Int64BinaryCalcRegs(
         vmula(dstHigh, src0High, src1Low, mask, MODE_ZEROING);
     } else if constexpr (Op == Int64Op::Shl || Op == Int64Op::Shr) {
         Int64ShiftRegs<Op == Int64Op::Shr, T>(dstLow, dstHigh, src0Low, src0High, src1Low, mask);
+    } else if constexpr (Op == Int64Op::And) {
+        vand((vector_u32&)dstLow, (vector_u32&)src0Low, (vector_u32&)src1Low, mask, MODE_ZEROING);
+        vand((vector_u32&)dstHigh, (vector_u32&)src0High, (vector_u32&)src1High, mask, MODE_ZEROING);
+    } else if constexpr (Op == Int64Op::Or) {
+        vor((vector_u32&)dstLow, (vector_u32&)src0Low, (vector_u32&)src1Low, mask, MODE_ZEROING);
+        vor((vector_u32&)dstHigh, (vector_u32&)src0High, (vector_u32&)src1High, mask, MODE_ZEROING);
+    } else if constexpr (Op == Int64Op::Xor) {
+        vxor((vector_u32&)dstLow, (vector_u32&)src0Low, (vector_u32&)src1Low, mask, MODE_ZEROING);
+        vxor((vector_u32&)dstHigh, (vector_u32&)src0High, (vector_u32&)src1High, mask, MODE_ZEROING);
     } else {
         Int64MinMax<Op, T>(dstLow, dstHigh, src0Low, src0High, src1Low, src1High, mask);
     }

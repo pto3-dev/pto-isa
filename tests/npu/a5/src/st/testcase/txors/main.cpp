@@ -11,6 +11,7 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #include "test_common.h"
 #include "acl/acl.h"
 #include <gtest/gtest.h>
+#include <type_traits>
 
 using namespace std;
 using namespace PtoTestCommon;
@@ -83,9 +84,12 @@ void test_txors()
     ReadFile(GetGoldenDir() + "/golden.bin", fileSize, golden.data(), fileSize);
     ReadFile(GetGoldenDir() + "/output.bin", fileSize, devFinal.data(), fileSize);
 
-    bool ret = ResultCmp<T>(golden, devFinal, 0.001f);
-
-    EXPECT_TRUE(ret);
+    if constexpr (std::is_same_v<T, int64_t> || std::is_same_v<T, uint64_t>) {
+        EXPECT_TRUE(ResultCmpExact(golden, devFinal.data()));
+    } else {
+        bool ret = ResultCmp<T>(golden, devFinal, 0.001f);
+        EXPECT_TRUE(ret);
+    }
 }
 
 TEST_F(TXORSTest, case1) { test_txors<uint16_t, 64, 64, 64, 64>(); }
@@ -107,3 +111,9 @@ TEST_F(TXORSTest, case8) { test_txors<int16_t, 16, 16, 16, 16>(); }
 TEST_F(TXORSTest, case9) { test_txors<int32_t, 8, 8, 8, 8>(); }
 
 TEST_F(TXORSTest, case10) { test_txors<int32_t, 1, 8, 1, 8>(); }
+
+TEST_F(TXORSTest, case_int64_4x16_4x15) { test_txors<int64_t, 4, 16, 4, 15>(); }
+
+TEST_F(TXORSTest, case_uint64_4x16_4x15) { test_txors<uint64_t, 4, 16, 4, 15>(); }
+
+TEST_F(TXORSTest, case_int64_1x1024_1x1024) { test_txors<int64_t, 1, 1024, 1, 1024>(); }

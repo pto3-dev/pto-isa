@@ -53,7 +53,7 @@ PTO_INST RecordEvent TNOT(TileDataDst &dst, TileDataSrc &src, WaitEvents &... ev
     - 静态有效边界： `TileData::ValidRow <= TileData::Rows`且`TileData::ValidCol <= TileData::Cols`。
     - 运行时： `src`且`dst` tiles应具有相同的 `validRow/validCol`。
 - **实现检查 (Ascend 950PR/Ascend 950DT)**:
-    - `TileData::DType` 必须是以下之一： `uint32_t`， `int32_t`， `uint16_t`， `int16_t`， `uint8_t`，  `int8_t`。
+    - `TileData::DType` 必须是以下之一： `uint32_t`， `int32_t`， `int64_t`， `uint64_t`， `uint16_t`， `int16_t`， `uint8_t`，  `int8_t`。
     - Tile布局必须是行主序（`TileData::isRowMajor`）。
     - Tile位置必须是向量（`TileData::Loc == TileType::Vec`）。
     - 静态有效边界： `TileData::ValidRow <= TileData::Rows`且`TileData::ValidCol <= TileData::Cols`。

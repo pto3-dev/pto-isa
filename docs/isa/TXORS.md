@@ -50,7 +50,7 @@ PTO_INST RecordEvent TXORS(TileDataDst &dst, TileDataSrc &src0, typename TileDat
     - `dst`, `src`, and `tmp` must use the same element type.
     - In manual mode, source, destination, and temporary storage must not overlap in memory.
 - **Implementation checks (A5)**:
-    - Supported element types are `uint8_t`, `int8_t`, `uint16_t`, `int16_t`, `uint32_t`, `int32_t`.
+    - Supported element types are `uint8_t`, `int8_t`, `uint16_t`, `int16_t`, `uint32_t`, `int32_t`, `int64_t`, `uint64_t`.
     - `dst` and `src` element types must match.
     - `src.GetValidRow()/GetValidCol()` must match `dst`.
 - **Valid region**:

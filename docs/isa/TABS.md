@@ -52,7 +52,7 @@ PTO_INST RecordEvent TABS(TileDataDst &dst, TileDataSrc &src, WaitEvents &... ev
     - `TileData::DType` must be one of: `int32_t`, `int16_t`, `int8_t`, `uint8_t`, `half`, `float`.
 - **Implementation checks (NPU)**:
     - For A3, `TileData::DType` must be one of: `float` or `half`;
-    - For A5, `TileData::DType` must be one of: `float`, `half`, `int32_t`, `int16_t`, `int8_t`;
+    - For A5, `TileData::DType` must be one of: `float`, `half`, `int32_t`, `int16_t`, `int8_t`, `int64_t`;
     - Tile location must be vector (`TileData::Loc == TileType::Vec`);
     - Static valid bounds: `TileData::ValidRow <= TileData::Rows` and `TileData::ValidCol <= TileData::Cols`;
     - Runtime: `src.GetValidRow() == dst.GetValidRow()` and `src.GetValidCol() == dst.GetValidCol()`;

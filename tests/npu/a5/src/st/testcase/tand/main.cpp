@@ -11,6 +11,7 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #include "test_common.h"
 #include "acl/acl.h"
 #include <gtest/gtest.h>
+#include <type_traits>
 
 using namespace std;
 using namespace PtoTestCommon;
@@ -90,9 +91,12 @@ void test_tand()
     ReadFile(GetGoldenDir() + "/golden.bin", fileSize, golden.data(), fileSize);
     ReadFile(GetGoldenDir() + "/output.bin", fileSize, devFinal.data(), fileSize);
 
-    bool ret = ResultCmp<T>(golden, devFinal, 0.001f);
-
-    EXPECT_TRUE(ret);
+    if constexpr (std::is_same_v<T, int64_t> || std::is_same_v<T, uint64_t>) {
+        EXPECT_TRUE(ResultCmpExact(golden, devFinal.data()));
+    } else {
+        bool ret = ResultCmp<T>(golden, devFinal, 0.001f);
+        EXPECT_TRUE(ret);
+    }
 }
 
 TEST_F(TANDTest, case1) { test_tand<uint16_t, 64, 64, 64, 64, false>(); }
@@ -116,3 +120,11 @@ TEST_F(TANDTest, case9) { test_tand<int32_t, 8, 8, 8, 8, false>(); }
 TEST_F(TANDTest, case10) { test_tand<int16_t, 16, 16, 16, 16, true>(); }
 
 TEST_F(TANDTest, case11) { test_tand<float, 8, 8, 8, 8, false>(); }
+
+TEST_F(TANDTest, case_int64_4x16_4x15) { test_tand<int64_t, 4, 16, 4, 15, false>(); }
+
+TEST_F(TANDTest, case_uint64_4x16_4x15) { test_tand<uint64_t, 4, 16, 4, 15, false>(); }
+
+TEST_F(TANDTest, case_int64_32x32_32x32) { test_tand<int64_t, 32, 32, 32, 32, false>(); }
+
+TEST_F(TANDTest, case_int64_1x1024_1x1024) { test_tand<int64_t, 1, 1024, 1, 1024, false>(); }

@@ -11,6 +11,7 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #include "test_common.h"
 #include "acl/acl.h"
 #include <gtest/gtest.h>
+#include <type_traits>
 
 using namespace std;
 using namespace PtoTestCommon;
@@ -83,9 +84,12 @@ void test_tabs()
     } else if constexpr (std::is_same_v<T, aclFloat16>) {
         eps = 0.001f;
     }
-    bool ret = ResultCmp<T>(golden, devFinal, eps);
-
-    EXPECT_TRUE(ret);
+    if constexpr (std::is_same_v<T, int64_t>) {
+        EXPECT_TRUE(ResultCmpExact(golden, devFinal.data()));
+    } else {
+        bool ret = ResultCmp<T>(golden, devFinal, eps);
+        EXPECT_TRUE(ret);
+    }
 }
 
 TEST_F(TABSTest, case_float_64x64_64x64_64x64_InPlace) { test_tabs<float, 64, 64, 64, 64, true>(); }
@@ -98,3 +102,5 @@ TEST_F(TABSTest, case_int16_64x64_64x64_64x64_InPlace) { test_tabs<int16_t, 64, 
 TEST_F(TABSTest, case_int16_64x64_64x64_64x64) { test_tabs<int16_t, 64, 64, 64, 64, false>(); }
 TEST_F(TABSTest, case_int32_64x64_64x64_64x64_InPlace) { test_tabs<int32_t, 64, 64, 64, 64, true>(); }
 TEST_F(TABSTest, case_int32_64x64_64x64_64x64) { test_tabs<int32_t, 64, 64, 64, 64, false>(); }
+
+TEST_F(TABSTest, case_int64_64x64_64x64_64x64) { test_tabs<int64_t, 64, 64, 64, 64, false>(); }
