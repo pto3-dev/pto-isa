@@ -1,4 +1,4 @@
-﻿# TROWPROD
+# TROWPROD
 
 ## 指令示意图
 
@@ -79,7 +79,7 @@ PTO_INST RecordEvent TROWPROD(TileDataOut &dst, TileDataIn &src, TileDataTmp &tm
 `tmp` **被使用**作为逐行累加器缓冲区。对于每一行，实现将 `tmp` 初始化为 `1.0`，然后使用 `vmul` 将 `src` 数据的各个块乘入 `tmp`。所有块累加完成后，标量模式流水线读取 `tmp` 元素并计算最终乘积。
 
 - `tmp` 必须与 `src`/`dst` 具有相同的元素类型。
-- `tmp` 大小：至少1行和 `BLOCK_BYTE_SIZE / sizeof(T)` 列（即1个块：`float`/`int32_t` 为8个元素，`half`/`int16_t` 为16个元素）。
+- `tmp` 大小：至少1行和 `CeilDivision(TileDataIn::Cols / 2, REPEAT_BYTE_SIZE / sizeof(T))` 列。
 - 安全的默认设置：将 `tmp` 设为与 `src` 相同的形状。
 
 ### Ascend 950PR/Ascend 950DT

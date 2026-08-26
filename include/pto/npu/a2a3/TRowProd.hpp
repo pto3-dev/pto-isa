@@ -41,8 +41,10 @@ __tf__ PTO_INTERNAL void TRowProd(
         vector_dup(tmpPtr, (T)1.0f, tmpRepeatsNum, 1, 1, 8, 8);
         pipe_barrier(PIPE_V);
 
-        vmul(tmpPtr, srcPtr, srcPtr + elemsPerRepeat, repeatsNum / 2, 1, 1, 1, 8, 16, 16);
-        pipe_barrier(PIPE_V);
+        if (repeatsNum > 1) {
+            vmul(tmpPtr, srcPtr, srcPtr + elemsPerRepeat, repeatsNum / 2, 1, 1, 1, 8, 16, 16);
+            pipe_barrier(PIPE_V);
+        }
 
         if (repeatsNum % 2 != 0) {
             vmul(tmpPtr, tmpPtr, srcPtr + (repeatsNum - 1) * elemsPerRepeat, 1, 1, 1, 1, 8, 8, 8);
