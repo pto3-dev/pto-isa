@@ -20,21 +20,17 @@ See LICENSE in the root of the software repository for the full text of the Lice
 
 class Gmm2ExpertProgressCoordinator {
 public:
-    AICORE inline void Init(GM_ADDR workspaceGM, const __gm__ MegaMoeTilingData *tilingData)
+    AICORE inline void Init(GM_ADDR workspaceGM, const __gm__ MegaMoeTilingData* tilingData)
     {
         workspaceGM_ = workspaceGM;
         tilingData_ = tilingData;
-        cumsumMMPtr_ = reinterpret_cast<__gm__ int32_t *>(workspaceGM + tilingData->frontReorderTiling.cumsumMMOffset);
+        cumsumMMPtr_ = reinterpret_cast<__gm__ int32_t*>(workspaceGM + tilingData->frontReorderTiling.cumsumMMOffset);
         remoteWindow_.Init(reinterpret_cast<GM_ADDR>(tilingData->runtimeInfo.remoteWindowContext));
     }
 
     AICORE inline void Process()
     {
-        if ASCEND_IS_AIC {
-            return;
-        }
-
-        const __gm__ MegaMoeGmmQueueTiling &queue = tilingData_->gmmSchedulerTiling.gmm2;
+        const __gm__ MegaMoeGmmQueueTiling& queue = tilingData_->gmmSchedulerTiling.gmm2;
         const uint32_t expertCount = tilingData_->megaMoeInfo.expertPerRank;
         const uint32_t rankCount = tilingData_->runtimeInfo.rankSize;
         const uint32_t problemK = tilingData_->megaMoeInfo.K;
@@ -43,9 +39,8 @@ public:
         for (uint32_t readyExpertCount = 1U; readyExpertCount <= expertCount; ++readyExpertCount) {
             const uint32_t expert = readyExpertCount - 1U;
             const uint32_t currentM = MoeCurrentMRaw(cumsumMMPtr_, rankCount, expertCount, expert);
-            const uint32_t expectedTiles = GmmCommonCoreLoops(currentM, problemK, tilingData_->gmm2Tiling.l1TileM,
-                                                              tilingData_->gmm2Tiling.l1TileN);
-            __gm__ int32_t *completion = GmmExpertCompletionSlot(workspaceGM_, queue, expert);
+            const uint32_t expectedTiles = GmmCommonCoreLoops(currentM, problemK);
+            __gm__ int32_t* completion = GmmExpertCompletionSlot(workspaceGM_, queue, expert);
             while (static_cast<uint32_t>(ld_dev(completion, 0)) < expectedTiles) {
                 GmmPollBackoff();
             }
@@ -60,8 +55,8 @@ public:
             // data-ready publication; no second Combine-side fan-out is needed.
             const bool allExpertsReady = readyExpertCount == expertCount;
             for (uint32_t consumerRank = 0U; consumerRank < rankCount; ++consumerRank) {
-                remoteWindow_.PublishRankReadyMte(static_cast<int32_t>(consumerRank), readyExpertCount, epoch,
-                                                  allExpertsReady, EVENT_ID0);
+                remoteWindow_.PublishRankReadyMte(
+                    static_cast<int32_t>(consumerRank), readyExpertCount, epoch, allExpertsReady, EVENT_ID0);
             }
             if (!allExpertsReady && readyExpertCount + 1U == expertCount) {
                 // Drain historical progress while the final expert is still
@@ -76,8 +71,8 @@ public:
 
 private:
     GM_ADDR workspaceGM_ = nullptr;
-    const __gm__ MegaMoeTilingData *tilingData_ = nullptr;
-    __gm__ int32_t *cumsumMMPtr_ = nullptr;
+    const __gm__ MegaMoeTilingData* tilingData_ = nullptr;
+    __gm__ int32_t* cumsumMMPtr_ = nullptr;
     PtoRemoteWindow remoteWindow_;
 };
 

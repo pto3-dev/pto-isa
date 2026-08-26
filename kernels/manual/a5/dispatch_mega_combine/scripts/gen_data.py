@@ -153,32 +153,15 @@ def make_expert_idx(rank: int, args: argparse.Namespace) -> np.ndarray:
     return (base % total_experts).astype(np.int32)
 
 
-@dataclass(frozen=True)
-class WeightRowsSpec:
-    rank: int
-    expert: int
-    row_begin: int
-    row_count: int
-    reduction: int
-    kind: int
-
-
-@dataclass(frozen=True)
-class WeightPairSpec:
-    rank: int
-    kind: int
-    out_dir: Path
-    expected_sizes: dict[str, int]
-    reuse_static: bool
-
-
-def make_weight_rows(spec: WeightRowsSpec, args: argparse.Namespace) -> np.ndarray:
-    rows = spec.row_begin + np.arange(spec.row_count, dtype=np.int32)
+def make_weight_rows(
+    rank: int, expert: int, row_begin: int, row_count: int, reduction: int, kind: int, args: argparse.Namespace
+) -> np.ndarray:
+    rows = row_begin + np.arange(row_count, dtype=np.int32)
     seed_phase = args.seed % WEIGHT_PERIOD
-    phase = (rows * 3 + spec.expert * 5 + spec.rank * 7 + spec.kind * 11 + seed_phase) % WEIGHT_PERIOD
-    amplitude_exp = -4 + ((rows + spec.expert * 2 + spec.rank + spec.kind + seed_phase) % 4)
-    amplitude = np.ldexp(np.ones(spec.row_count, dtype=np.float32), amplitude_exp)
-    reduction_idx = np.arange(spec.reduction, dtype=np.int32)
+    phase = (rows * 3 + expert * 5 + rank * 7 + kind * 11 + seed_phase) % WEIGHT_PERIOD
+    amplitude_exp = -4 + ((rows + expert * 2 + rank + kind + seed_phase) % 4)
+    amplitude = np.ldexp(np.ones(row_count, dtype=np.float32), amplitude_exp)
+    reduction_idx = np.arange(reduction, dtype=np.int32)
     pattern_idx = (reduction_idx[None, :] + phase[:, None]) % WEIGHT_PERIOD
     return bf16_round(WEIGHT_PATTERN[pattern_idx] * amplitude[:, None])
 
@@ -198,8 +181,7 @@ def make_quantized_weight_write_chunk(
         raise ValueError("weight reduction dimension must be divisible by the MX group size")
 
     # The deterministic weights repeat every 16 rows and columns; one 32-column MX group captures a full cycle.
-    rows_spec = WeightRowsSpec(rank, expert, 0, WEIGHT_PERIOD, MX_GROUP_SIZE, kind)
-    periodic_rows = make_weight_rows(rows_spec, args)
+    periodic_rows = make_weight_rows(rank, expert, 0, WEIGHT_PERIOD, MX_GROUP_SIZE, kind, args)
     periodic_fp8, periodic_e8m0 = mx_quantize_bf16_rows(periodic_rows)
     row_repeats = WEIGHT_WRITE_ROWS // WEIGHT_PERIOD
     column_repeats = reduction // MX_GROUP_SIZE
@@ -208,33 +190,33 @@ def make_quantized_weight_write_chunk(
     return fp8, e8m0
 
 
-def static_file_matches(path: Path, expected_size: int) -> bool:
-    return path.exists() and path.stat().st_size == expected_size
-
-
-def write_weight_pair(spec: WeightPairSpec, args: argparse.Namespace) -> None:
-    weight_name = f"weight{spec.kind}"
-    scale_name = f"scale{spec.kind}"
-    weight_path = spec.out_dir / f"rank{spec.rank}_{weight_name}.bin"
-    scale_path = spec.out_dir / f"rank{spec.rank}_{scale_name}.bin"
+def write_weight_pair(
+    rank: int, kind: int, args: argparse.Namespace, out_dir: Path, expected_sizes: dict[str, int], reuse_static: bool
+) -> None:
+    weight_name = f"weight{kind}"
+    scale_name = f"scale{kind}"
+    weight_path = out_dir / f"rank{rank}_{weight_name}.bin"
+    scale_path = out_dir / f"rank{rank}_{scale_name}.bin"
     if (
-        spec.reuse_static
-        and static_file_matches(weight_path, spec.expected_sizes[weight_name])
-        and static_file_matches(scale_path, spec.expected_sizes[scale_name])
+        reuse_static
+        and weight_path.exists()
+        and scale_path.exists()
+        and weight_path.stat().st_size == expected_sizes[weight_name]
+        and scale_path.stat().st_size == expected_sizes[scale_name]
     ):
         return
 
-    output_dim, reduction = weight_dimensions(spec.kind, args)
+    output_dim, reduction = weight_dimensions(kind, args)
     with weight_path.open("wb") as weight_file, scale_path.open("wb") as scale_file:
         for expert in range(args.experts):
-            fp8, e8m0 = make_quantized_weight_write_chunk(spec.rank, expert, reduction, spec.kind, args)
+            fp8, e8m0 = make_quantized_weight_write_chunk(rank, expert, reduction, kind, args)
             for row_begin in range(0, output_dim, WEIGHT_WRITE_ROWS):
                 row_count = min(WEIGHT_WRITE_ROWS, output_dim - row_begin)
                 fp8[:row_count].tofile(weight_file)
                 e8m0[:row_count].tofile(scale_file)
-    if weight_path.stat().st_size != spec.expected_sizes[weight_name]:
+    if weight_path.stat().st_size != expected_sizes[weight_name]:
         raise RuntimeError(f"{weight_path.name} generated with an unexpected size")
-    if scale_path.stat().st_size != spec.expected_sizes[scale_name]:
+    if scale_path.stat().st_size != expected_sizes[scale_name]:
         raise RuntimeError(f"{scale_path.name} generated with an unexpected size")
 
 
@@ -305,8 +287,7 @@ def periodic_weight_table(rank: int, expert: int, output_dim: int, kind: int, ar
     cached = _WEIGHT_TABLE_CACHE.get(key)
     if cached is not None:
         return cached
-    rows_spec = WeightRowsSpec(rank, expert, 0, output_dim, MX_GROUP_SIZE, kind)
-    signature = make_weight_rows(rows_spec, args)
+    signature = make_weight_rows(rank, expert, 0, output_dim, MX_GROUP_SIZE, kind, args)
     fp8, e8m0 = mx_quantize_bf16_rows(signature)
     dequant = mx_dequantize_rows(fp8, e8m0)
     table = np.ascontiguousarray(dequant[:, :WEIGHT_PERIOD].T, dtype=np.float32)
@@ -377,8 +358,7 @@ def compute_outputs_and_workload(data: GoldenInputs, args: argparse.Namespace):
         for local_expert in range(args.experts):
             routes = route_groups[dst_rank][local_expert]
             for start in range(0, len(routes), ctx.chunk_rows):
-                chunk_end = start + ctx.chunk_rows
-                chunk = routes[start:chunk_end]
+                chunk = routes[start : start + ctx.chunk_rows]
                 if chunk:
                     run_batch_chunk(ctx, dst_rank, local_expert, chunk)
     return [bf16_round(output) for output in outputs], workload
@@ -520,8 +500,8 @@ def main() -> None:
         write(out_dir / f"rank{rank}_expert_idx.bin", expert_idx[rank].astype(np.int32))
         write(out_dir / f"rank{rank}_probs.bin", probs[rank].astype(np.float32))
         write(out_dir / f"rank{rank}_expected_out.bin", fp32_to_bf16_bits(expected_out[rank]))
-        write_weight_pair(WeightPairSpec(rank, 1, out_dir, sizes, reuse_static), args)
-        write_weight_pair(WeightPairSpec(rank, 2, out_dir, sizes, reuse_static), args)
+        write_weight_pair(rank, 1, args, out_dir, sizes, reuse_static)
+        write_weight_pair(rank, 2, args, out_dir, sizes, reuse_static)
 
     case_json = {**build_case_metadata(args), **workload}
     (out_dir / "case.json").write_text(json.dumps(case_json, indent=2), encoding="utf-8")

@@ -88,12 +88,12 @@ for each rank, token:
   mask，Dispatch 只拉取命中记录。
 - **Deferred metadata**：预留 AIV0 在 Dispatch 和首段 GMM 推进期间并行构造 GMM task descriptor、
   source-rank `preSum`、expert-major route 顺序及逆映射 `expandedRowIdx`。
-- **CV 直传**：GMM1 通过单槽 CV FIFO 把 BF16 x/gate tile 直接交给 SwiGLU；GMM2 通过三槽 CV FIFO
+- **CV 直传**：GMM1 通过单槽 CV FIFO 把 BF16 x/gate tile 直接交给 SwiGLU；GMM2 通过单槽 CV FIFO
   把 BF16 结果直接交给 Combine，两层 GMM 输出均不落 GM 中间结果。
 - **自适应向量流水**：Front 使用 quant ping-pong；Dispatch 和 Unpermute 在 216 KiB 主 UB 内分别选择
   2～6 槽的远端 token ring 和 BF16/FP32 输入 ring。
 - **GMM1 双模式调度**：`M <= 512` 使用全 AIC wave0 直通和 mailbox P/C 后缀；更大场景使用
-  fixed-wave GMM1，释放后的 AIC 仍可无全局 barrier 地切换到 GMM2 mailbox。
+  fixed-wave GMM1，Group2 在配置的全 AIC wave 前缀结束后无全局 barrier 地切换到 GMM2。
 - **GMM2 动态调度**：初始 GMM2 组直通执行 wave0，其余 GMM2 tile 均由 producer 分配 mailbox ticket；
   Group1 AIC 完成 GMM1 handoff 后即可加入消费。
 - **Token-ready Unpermute**：Combine 在远端写完成后发布有序 expert-prefix progress；一个 token 的全部
@@ -108,9 +108,9 @@ mixed-core 分配。每个 physical block 包含一个 AIC 和两个 AIV subbloc
 | 32 | 64 | `0..20`（21） | `21..31`（11） | 16 |
 | 36 | 72 | `0..23`（24） | `24..35`（12） | 16 |
 
-GMM1 第一个 wave 使用全部可用 AIC。36 AIC canonical 场景中，
+fixed-wave GMM1 先执行配置的全 AIC wave 前缀。36 AIC canonical 场景中，
 `(worldSize=8, M=1024/2048, expertPerRank=16)` 和
-`(worldSize=16, M=1024, expertPerRank=16)` 的稳态分组覆盖为 `22:14`，其它已列场景使用默认比例。
+`(worldSize=16, M=1024, expertPerRank=16)` 的稳态分组覆盖为 `22:14`；其中八卡 `M=2048` 在切分前保持 4 个全 AIC wave，其它已列场景使用默认全 AIC 前缀和比例。
 每个 AIV1 都是配对 AIC 的 SwiGLU/Combine consumer；所有 AIV 参与 Unpermute 最终阶段，`M >= 512`
 时额外启用 16 个 AIV0 phase1 worker 消费冻结的 progress 快照。
 
@@ -131,11 +131,11 @@ deferred metadata worker 和 mailbox producer。
 | `maxOutputSize` | 每 rank routed row workspace 上限 |
 | `aicNum` | 有效 AICore launch 核数；已验证 28、32 和 36 |
 | `aivNum` | 按 `2 * aicNum` 推导：56、64 或 72 |
-| `GMM baseM/baseN` | 主要 tile 口径为 `128 x 256` output tile |
+| `GMM baseM/baseN` | 主要 tile 口径为 `256 x 256` output tile |
 | `Front Mask Pull` | 唯一 Front 实现；host 拒绝 clipping、非法 expert、inactive token 和接收容量不足 |
 | `固定角色 AIV UB` | Dispatch、SwiGLU、Combine、Unpermute 使用 216 KiB 主区；尾部 40 KiB 保留给同步快照 |
 | `Dispatch / Unpermute tile` | Dispatch 使用自适应 2～6 槽 packed-token ring；Unpermute 尽量保留完整 K 行、单 tile 最多 8192 列，并使用自适应 2～6 槽输入 ring |
-| `GMM / AIV CV tile` | GMM1 通过一个 CV 槽传递成对的 `128 x 256` BF16 tile；GMM2 通过三个 CV 槽传递 `128 x 256` BF16 tile |
+| `GMM / AIV CV tile` | GMM1 通过一个 CV 槽传递成对的 `256 x 256` BF16 half-tile；GMM2 通过一个 CV 槽传递 `256 x 256` BF16 tile |
 
 ## 支持 Case
 
@@ -179,7 +179,7 @@ aivNum=2 * aicNum
 │ AIC : GMM1 direct/fixed/mailbox -> released AIC joins GMM2 mailbox           │
 │ AIV1:       CV SwiGLU                    CV Combine -> remote compact row     │
 │                                                                              │
-│ GMM1 wave0 和 GMM2 wave0 直通，其余任务由 mailbox ticket 调度                 │
+│ hybrid GMM1/GMM2 使用 wave0 直通 + mailbox 后缀；fixed GMM1 按 wave 调度       │
 └──────────────────────────────┬───────────────────────────────────────────────┘
                                │ 有序 expert-prefix progress
 ┌──────────────────────────────▼───────────────────────────────────────────────┐
@@ -223,7 +223,7 @@ srcRank.sourceTokenRecords[routeSlot / topK]
 PTO vector mask 压缩生成命中 route index。每个 source rank 获得
 `floor(dispatchGroupSize / worldSize)` 个 active AIV0 lane，多余 Dispatch 角色保持空闲。自适应
 2～6 槽 ring 重叠远端 packed record 搬入与 E4M3/E8M0、metadata 写回。Dispatch 按 expert 和
-128-row M tile 发布 cache-line 隔离的 ready count，GMM1 只等待当前将消费的输入 tile。
+256-row M tile 发布 cache-line 隔离的 ready count，GMM1 只等待当前将消费的输入 tile。
 
 ## GMM1 / SwiGLU / GMM2 阶段
 
@@ -238,9 +238,9 @@ gmA[E4M3] / gmAScale[E8M0] x weight1[E4M3] / scale1[E8M0]
   -> 成对的 x/gate CV tile
 ```
 
-每个 local expert 按 `128 x 256` 半输出 tile 切分，x 和 gate 成对计算，并通过单槽 CV FIFO 直接交给
+每个 local expert 按 `256 x 256` 半输出 tile 切分，x 和 gate 成对计算，并通过单槽 CV FIFO 直接交给
 配对 AIV1。线性 tile id 使用 swizzle 改善 B 侧 L1 复用。`M <= 512` 时全部 AIC 直通执行 wave0，
-稳态 GMM1 组从 mailbox 消费后缀；更大 M 使用 fixed-wave GMM1，wave0 后按配置分组。
+稳态 GMM1 组从 mailbox 消费后缀；更大 M 使用 fixed-wave GMM1，先执行配置的全 AIC wave 前缀，再按配置分组。
 
 ### SwiGLU
 
@@ -254,7 +254,7 @@ x/gate BF16 CV tile
 ```
 
 CV control stream 携带准确的 GMM task 顺序。SwiGLU 完成每个 E4M3/E8M0 写回后，再增加对应
-expert/M tile 的 GMM2 dependency counter，使 GMM2 只获取下一任务需要的输入区间。
+expert 的 GMM2 dependency counter；达到该 expert 所需的 SwiGLU tile 数后，GMM2 才开始处理该 expert。
 
 ### GMM2
 
@@ -269,7 +269,7 @@ gmSwigluA[E4M3] / gmSwigluScale[E8M0] x weight2[E4M3] / scale2[E8M0]
 
 配置的 GMM2 组直通执行 wave0，其余 tile 都是 producer 分配的 mailbox 任务。Group1 AIC 完成各自
 调度模式对应的 GMM1 handoff 后，立即进入 GMM2 mailbox，不经过全局 GMM1/GMM2 barrier。每个 AIC
-通过三槽 CV FIFO 把 BF16 `128 x 256` 结果流式交给配对 Combine AIV1。
+通过单槽 CV FIFO 把 BF16 `256 x 256` 结果流式交给配对 Combine AIV1。
 
 ## Combine / Unpermute 阶段
 
@@ -380,8 +380,8 @@ bash run.sh --world-size 8 --first-device 0 --m 512 --k 7168 --n 4096 --topk 8 -
 
 常用约束：
 
-- `K` 必须是 128 的倍数，满足 8192-element Dispatch/Combine vector 宽度及 packed-row 容量。
-- `N` 必须为偶数，`N / 2` 必须是 128 的倍数，完整行 SwiGLU buffer 还必须装入 216 KiB 主 UB。
+- `K` 必须是 128 的倍数，并满足 Dispatch packed-row 容量。
+- `N` 必须为偶数，且 `N / 2` 必须是 128 的倍数。
 - `topK` 必须位于 `1..32`。
 - `expertPerRank` 必须是 `4`、`8`、`16` 或 `32`，全部共用一份 runtime kernel，device 容量为
   32 个本地 expert。

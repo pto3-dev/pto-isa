@@ -41,12 +41,15 @@ using FrontMaskSrcTile =
     pto::Tile<pto::TileType::Vec, int32_t, 1, kFrontMaskMaxBatchRoutes, pto::BLayout::RowMajor, -1, -1>;
 using FrontMaskDstTile =
     pto::Tile<pto::TileType::Vec, uint8_t, 1, kFrontMaskMaxBatchBytes, pto::BLayout::RowMajor, -1, -1>;
-using FrontQuantSrcTile = pto::Tile<pto::TileType::Vec, bfloat16_t, 1, kFrontQuantMaxCols, pto::BLayout::RowMajor, -1,
-                                    -1, pto::SLayout::NoneBox, 512, pto::PadValue::Zero>;
-using FrontQuantFp8Tile = pto::Tile<pto::TileType::Vec, int8_t, 1, kFrontQuantMaxCols, pto::BLayout::RowMajor, -1, -1,
-                                    pto::SLayout::NoneBox, 512, pto::PadValue::Zero>;
-using FrontQuantE8Tile = pto::Tile<pto::TileType::Vec, uint8_t, 1, kFrontQuantMaxScaleCols, pto::BLayout::RowMajor, -1,
-                                   -1, pto::SLayout::NoneBox, 512, pto::PadValue::Zero>;
+using FrontQuantSrcTile = pto::Tile<
+    pto::TileType::Vec, bfloat16_t, 1, kFrontQuantMaxCols, pto::BLayout::RowMajor, -1, -1, pto::SLayout::NoneBox, 512,
+    pto::PadValue::Zero>;
+using FrontQuantFp8Tile = pto::Tile<
+    pto::TileType::Vec, int8_t, 1, kFrontQuantMaxCols, pto::BLayout::RowMajor, -1, -1, pto::SLayout::NoneBox, 512,
+    pto::PadValue::Zero>;
+using FrontQuantE8Tile = pto::Tile<
+    pto::TileType::Vec, uint8_t, 1, kFrontQuantMaxScaleCols, pto::BLayout::RowMajor, -1, -1, pto::SLayout::NoneBox, 512,
+    pto::PadValue::Zero>;
 using FrontQuantBf16ScaleTile =
     pto::Tile<pto::TileType::Vec, bfloat16_t, 1, kFrontQuantMaxScaleCols, pto::BLayout::RowMajor, -1, -1>;
 
@@ -74,17 +77,18 @@ AICORE inline uint32_t FrontMaskPopcount(uint8_t value)
 template <typename InputElement>
 class FrontMaskPull {
 public:
-    AICORE inline void Init(GM_ADDR xGM, GM_ADDR expertIdGM, GM_ADDR expertTokenNumsGM, GM_ADDR workspaceGM,
-                            const __gm__ MegaMoeTilingData *tilingData)
+    AICORE inline void Init(
+        GM_ADDR xGM, GM_ADDR expertIdGM, GM_ADDR expertTokenNumsGM, GM_ADDR workspaceGM,
+        const __gm__ MegaMoeTilingData* tilingData)
     {
         static_assert(std::is_same_v<InputElement, bfloat16_t>, "MXFP8 Front requires BF16 input");
-        xPtr_ = reinterpret_cast<__gm__ InputElement *>(xGM);
-        expertIdPtr_ = reinterpret_cast<__gm__ int32_t *>(expertIdGM);
-        expertTokenNumsPtr_ = reinterpret_cast<__gm__ int32_t *>(expertTokenNumsGM);
+        xPtr_ = reinterpret_cast<__gm__ InputElement*>(xGM);
+        expertIdPtr_ = reinterpret_cast<__gm__ int32_t*>(expertIdGM);
+        expertTokenNumsPtr_ = reinterpret_cast<__gm__ int32_t*>(expertTokenNumsGM);
         workspaceGM_ = workspaceGM;
         tilingData_ = tilingData;
 
-        const __gm__ MegaMoeInfo &info = tilingData_->megaMoeInfo;
+        const __gm__ MegaMoeInfo& info = tilingData_->megaMoeInfo;
         problemM_ = info.M;
         problemK_ = info.K;
         expertPerRank_ = info.expertPerRank;
@@ -97,19 +101,14 @@ public:
 
         remoteWindow_.Init(reinterpret_cast<GM_ADDR>(tilingData_->runtimeInfo.remoteWindowContext));
         peerMemoryLayout_.Init(tilingData_->frontReorderTiling);
-        sourceTokenRecords_ = reinterpret_cast<__gm__ int8_t *>(
-            remoteWindow_.LocalBase() + peerMemoryLayout_.sourceTokenRecords);
+        sourceTokenRecords_ = reinterpret_cast<__gm__ int8_t*>(remoteWindow_.LocalBase());
         localRouteMaskSlots_ =
-            reinterpret_cast<__gm__ uint8_t *>(remoteWindow_.LocalBase() + peerMemoryLayout_.routeMaskSlots);
-        cumsumMMPtr_ =
-            reinterpret_cast<__gm__ int32_t *>(workspaceGM_ + tilingData_->frontReorderTiling.cumsumMMOffset);
+            reinterpret_cast<__gm__ uint8_t*>(remoteWindow_.LocalBase() + peerMemoryLayout_.routeMaskSlots);
+        cumsumMMPtr_ = reinterpret_cast<__gm__ int32_t*>(workspaceGM_ + tilingData_->frontReorderTiling.cumsumMMOffset);
     }
 
     AICORE inline void Process()
     {
-        if ASCEND_IS_AIC {
-            return;
-        }
         if (coreIdx_ == 0U) {
             remoteWindow_.PrepareFrontReadyEpoch();
         }
@@ -131,35 +130,28 @@ public:
             BuildCumsumAndExpertTokenNums();
             dsb(DSB_DDR);
             PublishScalarEpoch(
-                FixedSyncSlot(workspaceGM_, tilingData_,
-                                                        kMegaMoeFixedSyncFrontMetadataReadySlot),
+                FixedSyncSlot(workspaceGM_, tilingData_, kMegaMoeFixedSyncFrontMetadataReadySlot),
                 kMegaMoeFixedFrontMetadataReadyMarker);
         }
         pto::SYNCALL<pto::SyncCoreType::AIVOnly>();
     }
 
 private:
-    AICORE inline uint32_t PackedRowStride() const
-    {
-        return tilingData_->frontReorderTiling.packedRowStride;
-    }
+    AICORE inline uint32_t PackedRowStride() const { return tilingData_->frontReorderTiling.packedRowStride; }
 
-    AICORE inline event_t FrontBufferEvent(uint32_t bufferId) const
-    {
-        return static_cast<event_t>(bufferId);
-    }
+    AICORE inline event_t FrontBufferEvent(uint32_t bufferId) const { return static_cast<event_t>(bufferId); }
 
-    AICORE inline __gm__ uint8_t *LocalMaskSlot(uint32_t localExpert, uint32_t sourceRank) const
+    AICORE inline __gm__ uint8_t* LocalMaskSlot(uint32_t localExpert, uint32_t sourceRank) const
     {
         const uint64_t slot = static_cast<uint64_t>(localExpert) * rankSize_ + sourceRank;
         return localRouteMaskSlots_ + slot * tilingData_->frontReorderTiling.maskSlotBytes;
     }
 
-    AICORE inline __gm__ uint8_t *RemoteMaskSlot(uint32_t globalExpert) const
+    AICORE inline __gm__ uint8_t* RemoteMaskSlot(uint32_t globalExpert) const
     {
         const uint32_t dstRank = globalExpert / expertPerRank_;
         const uint32_t localExpert = globalExpert - dstRank * expertPerRank_;
-        __gm__ uint8_t *remoteBase = reinterpret_cast<__gm__ uint8_t *>(
+        __gm__ uint8_t* remoteBase = reinterpret_cast<__gm__ uint8_t*>(
             remoteWindow_.RemoteBase(peerMemoryLayout_.routeMaskSlots, static_cast<int32_t>(dstRank)));
         const uint64_t slot = static_cast<uint64_t>(localExpert) * rankSize_ + rank_;
         return remoteBase + slot * tilingData_->frontReorderTiling.maskSlotBytes;
@@ -172,8 +164,8 @@ private:
 
     AICORE inline uint32_t FrontExpertCoreEnd(uint32_t globalExpert) const
     {
-        return static_cast<uint32_t>((static_cast<uint64_t>(globalExpert + 1U) * coreNum_ + expertNum_ - 1U) /
-                                     expertNum_);
+        return static_cast<uint32_t>(
+            (static_cast<uint64_t>(globalExpert + 1U) * coreNum_ + expertNum_ - 1U) / expertNum_);
     }
 
     AICORE inline uint32_t AllocatedMaskLaneCount(uint32_t globalExpert) const
@@ -250,17 +242,17 @@ private:
         pto::TASSIGN(e8Tile, plan.e8);
         pto::TASSIGN(maxTile, plan.max);
         pto::TASSIGN(scalingTile, plan.scaling);
-        pto::TQUANT<pto::QuantType::MXFP8, FrontQuantFp8Tile, FrontQuantSrcTile, FrontQuantE8Tile,
-                    FrontQuantBf16ScaleTile, FrontQuantBf16ScaleTile, pto::QuantScaleAlg::OCP>(
-            fp8Tile, srcTile, &e8Tile, &maxTile, &scalingTile);
+        pto::TQUANT<
+            pto::QuantType::MXFP8, FrontQuantFp8Tile, FrontQuantSrcTile, FrontQuantE8Tile, FrontQuantBf16ScaleTile,
+            FrontQuantBf16ScaleTile, pto::QuantScaleAlg::OCP>(fp8Tile, srcTile, &e8Tile, &maxTile, &scalingTile);
 
         set_flag(PIPE_V, PIPE_MTE2, event);
         set_flag(PIPE_V, PIPE_MTE3, event);
         wait_flag(PIPE_V, PIPE_MTE3, event);
-        __gm__ int8_t *record = sourceTokenRecords_ + static_cast<uint64_t>(token) * PackedRowStride();
+        __gm__ int8_t* record = sourceTokenRecords_ + static_cast<uint64_t>(token) * PackedRowStride();
         PtoStoreVector<int8_t>(record, plan.fp8, problemK_);
         PtoStoreVector<uint8_t>(
-            reinterpret_cast<__gm__ uint8_t *>(record) + tilingData_->frontReorderTiling.quantDataStorageBytes, plan.e8,
+            reinterpret_cast<__gm__ uint8_t*>(record) + tilingData_->frontReorderTiling.quantDataStorageBytes, plan.e8,
             scaleCols);
         set_flag(PIPE_MTE3, PIPE_V, event);
     }
@@ -319,14 +311,14 @@ private:
     {
         const event_t event = FrontBufferEvent(bufferId);
         wait_flag(PIPE_V, PIPE_MTE2, event);
-        PtoLoadVector<int32_t, kFrontMaskMaxBatchRoutes>(FrontMaskSrcUb(bufferId), expertIdPtr_ + batchStart,
-                                                         validRoutes);
+        PtoLoadVector<int32_t, kFrontMaskMaxBatchRoutes>(
+            FrontMaskSrcUb(bufferId), expertIdPtr_ + batchStart, validRoutes);
         set_flag(PIPE_MTE2, PIPE_V, event);
     }
 
-    AICORE inline uint32_t CompareAndPushFrontMask(uint32_t globalExpert, __gm__ uint8_t *remoteSlot,
-                                                   uint32_t batchStart, uint32_t validRoutes, uint32_t storeMaskBytes,
-                                                   uint32_t bufferId) const
+    AICORE inline uint32_t CompareAndPushFrontMask(
+        uint32_t globalExpert, __gm__ uint8_t* remoteSlot, uint32_t batchStart, uint32_t validRoutes,
+        uint32_t storeMaskBytes, uint32_t bufferId) const
     {
         const event_t event = FrontBufferEvent(bufferId);
         const uint64_t srcUb = FrontMaskSrcUb(bufferId);
@@ -365,16 +357,16 @@ private:
         }
     }
 
-    AICORE inline void StoreFrontMaskLaneCount(__gm__ uint8_t *remoteSlot, uint32_t laneIdx,
-                                               uint32_t matchedCount) const
+    AICORE inline void StoreFrontMaskLaneCount(
+        __gm__ uint8_t* remoteSlot, uint32_t laneIdx, uint32_t matchedCount) const
     {
         PtoFillUb<int32_t, kFrontMaskCountRecordElems>(kFrontMaskCountUb, 0, kFrontMaskCountRecordElems);
         pto::PtoSetWaitFlag<PIPE_V, PIPE_S>();
         PtoSetValue<int32_t, kFrontMaskCountRecordElems>(kFrontMaskCountUb, 0U, static_cast<int32_t>(matchedCount));
         pto::PtoSetWaitFlag<PIPE_S, PIPE_MTE3>();
-        __gm__ int32_t *countRecord =
-            reinterpret_cast<__gm__ int32_t *>(remoteSlot + tilingData_->frontReorderTiling.maskBytes +
-                                               static_cast<uint64_t>(laneIdx) * kMegaMoeFrontMaskCountRecordBytes);
+        __gm__ int32_t* countRecord = reinterpret_cast<__gm__ int32_t*>(
+            remoteSlot + tilingData_->frontReorderTiling.maskBytes +
+            static_cast<uint64_t>(laneIdx) * kMegaMoeFrontMaskCountRecordBytes);
         PtoStoreVector<int32_t, kFrontMaskCountRecordElems>(countRecord, kFrontMaskCountUb, kFrontMaskCountRecordElems);
         pto::PtoSetWaitFlag<PIPE_MTE3, PIPE_V>();
     }
@@ -390,10 +382,10 @@ private:
         const uint32_t unboundedRouteEnd = laneBlockEnd * kFrontMaskRoutesPerStoreBlock;
         const uint32_t laneRouteEnd = unboundedRouteEnd < routeElems_ ? unboundedRouteEnd : routeElems_;
         const uint32_t laneMaskByteEnd = laneBlockEnd * kMegaMoeFrontMaskCountRecordBytes;
-        const uint32_t batchRoutes = tilingData_->frontReorderTiling.maskRouteItemsPerBatch;
+        constexpr uint32_t batchRoutes = kMegaMoeFrontMaskRouteItemsPerBatch;
         const uint32_t laneRouteCount = laneRouteEnd - laneRouteBegin;
         const uint32_t batchCount = static_cast<uint32_t>(ceilDiv(laneRouteCount, batchRoutes));
-        __gm__ uint8_t *remoteSlot = RemoteMaskSlot(globalExpert);
+        __gm__ uint8_t* remoteSlot = RemoteMaskSlot(globalExpert);
 
         uint32_t matchedCount = 0U;
         PrepareFrontMaskEvents();
@@ -470,7 +462,7 @@ private:
             for (uint32_t sourceRank = 0U; sourceRank < rankSize_; ++sourceRank) {
                 for (uint32_t laneIdx = 0U; laneIdx < laneCount; ++laneIdx) {
                     const uint32_t recordIdx = sourceRank * kMegaMoeFixedPhysicalAivNum + laneIdx;
-                    __gm__ int32_t *countPtr = reinterpret_cast<__gm__ int32_t *>(
+                    __gm__ int32_t* countPtr = reinterpret_cast<__gm__ int32_t*>(
                         LocalMaskSlot(localExpert, sourceRank) + tilingData_->frontReorderTiling.maskBytes +
                         static_cast<uint64_t>(laneIdx) * kMegaMoeFrontMaskCountRecordBytes);
                     PtoLoadVector<int32_t, kFrontMaskCountRecordElems>(
@@ -489,11 +481,11 @@ private:
                         countRecordsUb + static_cast<uint64_t>(recordIdx) * kMegaMoeFrontMaskCountRecordBytes, 0U));
                 }
                 cumulative += sourceCount;
-                PtoSetValue<int32_t, maxCumsumElems>(cumsumUb, sourceRank * expertPerRank_ + localExpert,
-                                                     static_cast<int32_t>(cumulative));
+                PtoSetValue<int32_t, maxCumsumElems>(
+                    cumsumUb, sourceRank * expertPerRank_ + localExpert, static_cast<int32_t>(cumulative));
             }
-            PtoSetValue<int32_t, expertTokenNumsTileElems>(expertTokenNumsUb, localExpert,
-                                                           static_cast<int32_t>(cumulative));
+            PtoSetValue<int32_t, expertTokenNumsTileElems>(
+                expertTokenNumsUb, localExpert, static_cast<int32_t>(cumulative));
             set_flag(PIPE_S, PIPE_MTE2, EVENT_ID0);
         }
         wait_flag(PIPE_S, PIPE_MTE2, EVENT_ID0);
@@ -503,14 +495,14 @@ private:
         pto::PtoSetWaitFlag<PIPE_MTE3, PIPE_S>();
     }
 
-    __gm__ InputElement *xPtr_ = nullptr;
-    __gm__ int32_t *expertIdPtr_ = nullptr;
-    __gm__ int32_t *expertTokenNumsPtr_ = nullptr;
-    __gm__ int8_t *sourceTokenRecords_ = nullptr;
-    __gm__ uint8_t *localRouteMaskSlots_ = nullptr;
-    __gm__ int32_t *cumsumMMPtr_ = nullptr;
+    __gm__ InputElement* xPtr_ = nullptr;
+    __gm__ int32_t* expertIdPtr_ = nullptr;
+    __gm__ int32_t* expertTokenNumsPtr_ = nullptr;
+    __gm__ int8_t* sourceTokenRecords_ = nullptr;
+    __gm__ uint8_t* localRouteMaskSlots_ = nullptr;
+    __gm__ int32_t* cumsumMMPtr_ = nullptr;
     GM_ADDR workspaceGM_ = nullptr;
-    const __gm__ MegaMoeTilingData *tilingData_ = nullptr;
+    const __gm__ MegaMoeTilingData* tilingData_ = nullptr;
     PtoRemoteWindow remoteWindow_;
     MegaMoePeerMemoryLayout peerMemoryLayout_;
 
@@ -526,8 +518,9 @@ private:
 };
 
 template <typename InputElement>
-AICORE inline void FrontReorderProcess(GM_ADDR xGM, GM_ADDR expertIdGM, GM_ADDR expertTokenNumsGM, GM_ADDR workspaceGM,
-                                       const __gm__ MegaMoeTilingData *tilingData)
+AICORE inline void FrontReorderProcess(
+    GM_ADDR xGM, GM_ADDR expertIdGM, GM_ADDR expertTokenNumsGM, GM_ADDR workspaceGM,
+    const __gm__ MegaMoeTilingData* tilingData)
 {
     FrontMaskPull<InputElement> front;
     front.Init(xGM, expertIdGM, expertTokenNumsGM, workspaceGM, tilingData);
