@@ -118,6 +118,8 @@ template void LaunchTDivS<int64_t, 1, 16364, 1, 16364, 1, 16364>(
     int64_t* out, int64_t* src, int64_t scalar, void* stream);
 template void LaunchTDivS<uint64_t, 1, 16364, 1, 16364, 1, 16364>(
     uint64_t* out, uint64_t* src, uint64_t scalar, void* stream);
+template void LaunchTDivS<int64_t, 1, 32732, 1, 32732, 1, 32732>(
+    int64_t* out, int64_t* src, int64_t scalar, void* stream);
 template void LaunchTDivS<int64_t, 4091, 4, 4091, 4, 4091, 4>(int64_t* out, int64_t* src, int64_t scalar, void* stream);
 template void LaunchTDivS<uint64_t, 4091, 4, 4091, 4, 4091, 4>(
     uint64_t* out, uint64_t* src, uint64_t scalar, void* stream);

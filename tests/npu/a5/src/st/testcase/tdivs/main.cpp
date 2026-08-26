@@ -175,6 +175,7 @@ TEST_F(TDIVSTest, case_int64_4x64) { TDivSTestFramework<int64_t, 4, 64, 4, 64, 4
 TEST_F(TDIVSTest, case_uint64_4x64) { TDivSTestFramework<uint64_t, 4, 64, 4, 64, 4, 64>(); }
 TEST_F(TDIVSTest, case_int64_1x16364) { TDivSTestFramework<int64_t, 1, 16364, 1, 16364, 1, 16364>(); }
 TEST_F(TDIVSTest, case_uint64_1x16364) { TDivSTestFramework<uint64_t, 1, 16364, 1, 16364, 1, 16364>(); }
+TEST_F(TDIVSTest, case_int64_1x32732) { TDivSTestFramework<int64_t, 1, 32732, 1, 32732, 1, 32732>(); }
 TEST_F(TDIVSTest, case_int64_4091x4) { TDivSTestFramework<int64_t, 4091, 4, 4091, 4, 4091, 4>(); }
 TEST_F(TDIVSTest, case_uint64_4091x4) { TDivSTestFramework<uint64_t, 4091, 4, 4091, 4, 4091, 4>(); }
 TEST_F(TDIVSTest, case_int64_4x32_inplace) { TDivSInplaceTestFramework<int64_t, 4, 32, 4, 32>(); }

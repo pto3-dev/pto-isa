@@ -29,6 +29,44 @@ struct TColSumOp {
     }
 };
 
+template <typename T, unsigned SrcStride>
+PTO_INTERNAL void TColSum_Fp32Acc(__ubuf__ T* dst, __ubuf__ T* src, unsigned validRow, unsigned validCol)
+{
+    constexpr unsigned elmPerRpt = CCE_VL / sizeof(float);
+    constexpr auto distValue =
+        std::integral_constant<::DistVST, static_cast<::DistVST>(GetDistVst<T, DistVST::DIST_NORM>())>();
+    uint16_t repeatTimes = CeilDivision(validCol, elmPerRpt);
+    uint16_t rows = validRow;
+    uint32_t sreg = validCol;
+
+    __VEC_SCOPE__
+    {
+        RegTensor<T> srcB16VReg;
+        RegTensor<T> dstB16VReg;
+        RegTensor<float> srcF32VReg;
+        RegTensor<float> dstF32VReg;
+        MaskReg pRegB32;
+        MaskReg pRegB16;
+
+        for (uint16_t i = 0; i < repeatTimes; ++i) {
+            uint16_t colOffset = i * elmPerRpt;
+            pRegB32 = CreatePredicate<float>(sreg);
+            vbr(dstF32VReg, 0.0f);
+
+            for (uint16_t j = 0; j < rows; ++j) {
+                vlds(srcB16VReg, src + j * SrcStride, colOffset, UNPK_B16);
+                vcvt(srcF32VReg, srcB16VReg, pRegB32, PART_EVEN);
+                vadd(dstF32VReg, dstF32VReg, srcF32VReg, pRegB32, MODE_ZEROING);
+            }
+
+            vcvt(dstB16VReg, dstF32VReg, pRegB32, ROUND_R, RS_DISABLE, PART_EVEN);
+            vpack((RegTensor<uint16_t>&)dstB16VReg, (RegTensor<uint32_t>&)dstB16VReg, LOWER);
+            ppack(pRegB16, pRegB32, LOWER);
+            vsts(dstB16VReg, dst, colOffset, distValue, pRegB16);
+        }
+    } // end VF
+}
+
 template <typename T, unsigned TmpStride>
 PTO_INTERNAL void TColSum_Binary_TmpProc(
     RegTensor<T>& src0VReg, RegTensor<T>& src1VReg, RegTensor<T>& dstVReg, MaskReg& pReg, __ubuf__ T* tmp,
@@ -119,6 +157,8 @@ __tf__ PTO_INTERNAL OP_NAME(TCOLSUM) OP_TYPE(reduce) void TColSum(
 
     if constexpr (std::is_same_v<T, int64_t> || std::is_same_v<T, uint64_t>) {
         Int64ColReduce<Int64Op::Add, T, TileDataOut::Cols, TileDataIn::Cols>(dst, src, validRow, validCol);
+    } else if constexpr (std::is_same_v<T, half> || std::is_same_v<T, float16_t>) {
+        TColSum_Fp32Acc<T, TileDataIn::Cols>(dst, src, validRow, validCol);
     } else if constexpr (isBinary) {
         __ubuf__ T* tmp = (__ubuf__ T*)__cce_get_tile_ptr(tmpData);
         constexpr unsigned elmPerRpt = CCE_VL / sizeof(T); // 每次repeat涉及多少个元素
@@ -161,6 +201,8 @@ __tf__ PTO_INTERNAL void TColSum(
     __ubuf__ T* src = (__ubuf__ T*)__cce_get_tile_ptr(srcData);
     if constexpr (std::is_same_v<T, int64_t> || std::is_same_v<T, uint64_t>) {
         Int64ColReduce<Int64Op::Add, T, TileDataOut::Cols, TileDataIn::Cols>(dst, src, validRow, validCol);
+    } else if constexpr (std::is_same_v<T, half> || std::is_same_v<T, float16_t>) {
+        TColSum_Fp32Acc<T, TileDataIn::Cols>(dst, src, validRow, validCol);
     } else {
         TColReduceInstr<TColSumOp<T>, T, TileDataIn>(dst, src, validRow, validCol, version);
     }

@@ -146,6 +146,11 @@ TEST_F(TCOLSUMTest, case15)
     bool ret = TCOLSUMTestFramework<15, int16_t, 64, 64, 1, 128, 128>();
     EXPECT_TRUE(ret);
 }
+TEST_F(TCOLSUMTest, case16)
+{
+    bool ret = TCOLSUMTestFramework<16, int16_t, 64, 64, 1, 128, 128>();
+    EXPECT_TRUE(ret);
+}
 TEST_F(TCOLSUMTest, case21)
 {
     bool ret = TCOLSUMTestFramework<21, int8_t, 1, 1, 1, 256, 255>();

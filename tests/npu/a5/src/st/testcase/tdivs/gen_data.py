@@ -81,6 +81,7 @@ if __name__ == "__main__":
         TDivsParams("TDIVSTest.case_uint64_4x64", np.uint64, 4, 64, 4, 64),
         TDivsParams("TDIVSTest.case_int64_1x16364", np.int64, 1, 16364, 1, 16364),
         TDivsParams("TDIVSTest.case_uint64_1x16364", np.uint64, 1, 16364, 1, 16364),
+        TDivsParams("TDIVSTest.case_int64_1x32732", np.int64, 1, 32732, 1, 32732),
         TDivsParams("TDIVSTest.case_int64_4091x4", np.int64, 4091, 4, 4091, 4),
         TDivsParams("TDIVSTest.case_uint64_4091x4", np.uint64, 4091, 4, 4091, 4),
         TDivsParams("TDIVSTest.case_int64_4x32_inplace", np.int64, 4, 32, 4, 32, scalar=17, inplace=True),

@@ -15,6 +15,12 @@ import numpy as np
 np.random.seed(19)
 
 
+def gen_half_fp32_acc_golden(input_arr, valid_row, valid_col):
+    output_arr = np.zeros((input_arr.shape[1]), dtype=np.float16)
+    output_arr[:valid_col] = input_arr[:valid_row, :valid_col].astype(np.float32).sum(axis=0).astype(np.float16)
+    return output_arr
+
+
 def gen_half_nonbinary_golden(input_arr, valid_row, valid_col):
     output_arr = np.zeros((input_arr.shape[1]), dtype=np.float16)
     if valid_row > 0 and valid_col > 0:
@@ -55,6 +61,18 @@ def gen_half_binary_golden(input_arr, valid_row, valid_col):
     return output_arr
 
 
+def gen_half_cancel_input(row, valid_row, col):
+    base = np.float16(512.0)
+    residual = np.float16(0.25)
+    pattern = [base] * (valid_row // 2)
+    pattern.extend([np.float16(-base)] * (valid_row - len(pattern) - 1))
+    pattern.append(np.float16(-base + residual))
+    pattern = np.array(pattern, dtype=np.float16)
+    input_arr = np.zeros((row, col), dtype=np.float16)
+    input_arr[:valid_row, :] = np.tile(pattern.reshape(valid_row, 1), (1, col)).astype(np.float16)
+    return input_arr
+
+
 def gen_sensitive_half_input(row, col):
     pattern = np.array([
         -0.9970703, 0.9355469, 0.9980469, 0.9814453, -0.9492188, 0.9697266, -0.9804688, -0.9316406,
@@ -82,15 +100,14 @@ def gen_golden_data(param):
         value_min = -5
     if data_type in (np.int64, np.uint64):
         input_arr = np.random.randint(1, 100, size=(row, col)).astype(data_type)
+    elif data_type == np.float16 and param.fp32_acc_guard:
+        input_arr = gen_half_cancel_input(row, valid_row, col)
     elif data_type == np.float16 and param.is_binary:
         input_arr = gen_sensitive_half_input(row, col)
     else:
         input_arr = np.random.uniform(low=value_min, high=value_max, size=(row, col)).astype(data_type)
     if data_type == np.float16:
-        if param.is_binary:
-            output_arr = gen_half_binary_golden(input_arr, valid_row, valid_col)
-        else:
-            output_arr = gen_half_nonbinary_golden(input_arr, valid_row, valid_col)
+        output_arr = gen_half_fp32_acc_golden(input_arr, valid_row, valid_col)
     else:
         output_arr = np.zeros((col))
         for i in range(valid_row):
@@ -104,7 +121,7 @@ def gen_golden_data(param):
 
 
 class TColsumParams:
-    def __init__(self, name, data_type, row, valid_row, col, valid_col, is_binary=False):
+    def __init__(self, name, data_type, row, valid_row, col, valid_col, is_binary=False, fp32_acc_guard=False):
         self.name = name
         self.data_type = data_type
         self.row = row
@@ -112,6 +129,7 @@ class TColsumParams:
         self.col = col
         self.valid_col = valid_col
         self.is_binary = is_binary
+        self.fp32_acc_guard = fp32_acc_guard
 
 if __name__ == "__main__":
     case_params_list = [
@@ -125,6 +143,7 @@ if __name__ == "__main__":
         TColsumParams("TCOLSUMTest.case13", np.float16, 16, 15, 256, 255),
         TColsumParams("TCOLSUMTest.case14", np.float16, 64, 63, 128, 127, True),
         TColsumParams("TCOLSUMTest.case15", np.float16, 64, 64, 128, 128, True),
+        TColsumParams("TCOLSUMTest.case16", np.float16, 64, 64, 128, 128, True, True),
         TColsumParams("TCOLSUMTest.case21", np.int8, 1, 1, 256, 255),
         TColsumParams("TCOLSUMTest.case22", np.int8, 16, 16, 128, 127),
         TColsumParams("TCOLSUMTest.case23", np.int8, 16, 15, 256, 255),
