@@ -1447,18 +1447,20 @@ if [ "$ENABLE_KIRINDEV0000" = "true" ]; then
   python3 tests/script/run_st.py $ARGS -w -v kirinDev0000 -t tmatmul_new_full
 fi
 
-# if [ "$ENABLE_COMM" = "true" ]; then
-#   if [ "$ENABLE_A3" = "true" ]; then
-#     python3 tests/script/run_st.py $ARGS -v a3 -t comm/tput
-#     python3 tests/script/run_st.py $ARGS -v a3 -t comm/tget
-#     python3 tests/script/run_st.py $ARGS -v a3 -t comm/tnotify
-#     python3 tests/script/run_st.py $ARGS -v a3 -t comm/twait
-#     python3 tests/script/run_st.py $ARGS -v a3 -t comm/ttest
-#     python3 tests/script/run_st.py $ARGS -v a3 -t comm/tgather
-#     python3 tests/script/run_st.py $ARGS -v a3 -t comm/tscatter
-#     python3 tests/script/run_st.py $ARGS -v a3 -t comm/treduce
-#     python3 tests/script/run_st.py $ARGS -v a3 -t comm/tbroadcast
-#     python3 tests/script/run_st.py $ARGS -v a3 -t comm/tput_async
-#     python3 tests/script/run_st.py $ARGS -v a3 -t comm/tget_async
-#   fi
-# fi
+if [ "$ENABLE_COMM" = "true" ]; then
+  if [ -z "$ST_PART" ] || [ "$ST_PART" = "3" ]; then
+    if [ "$ENABLE_A3" = "true" ]; then
+      python3 tests/script/run_st.py $ARGS -v a3 -t comm/tput
+      python3 tests/script/run_st.py $ARGS -v a3 -t comm/tget
+      python3 tests/script/run_st.py $ARGS -v a3 -t comm/tnotify
+      python3 tests/script/run_st.py $ARGS -v a3 -t comm/twait
+      python3 tests/script/run_st.py $ARGS -v a3 -t comm/ttest
+      python3 tests/script/run_st.py $ARGS -v a3 -t comm/tgather
+      python3 tests/script/run_st.py $ARGS -v a3 -t comm/tscatter
+      python3 tests/script/run_st.py $ARGS -v a3 -t comm/treduce
+      python3 tests/script/run_st.py $ARGS -v a3 -t comm/tbroadcast
+      python3 tests/script/run_st.py $ARGS -v a3 -t comm/tput_async
+      python3 tests/script/run_st.py $ARGS -v a3 -t comm/tget_async
+    fi
+  fi
+fi
