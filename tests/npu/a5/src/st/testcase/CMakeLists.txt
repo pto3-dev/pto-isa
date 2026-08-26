@@ -250,6 +250,7 @@ set(ALL_TESTCASES
     tpushpop_vc
     tpushpop_vc_nosplit
     tpushpop_dir_both
+    tpushpop_subblock_dispatch
     texpands_mat
     tpushpop_subtile
     tinterleave
@@ -277,6 +278,7 @@ if (AUTO_MODE)
     tpushpop_vc_nosplit
     tpushpop_dir_both
     tpushpop_subtile
+    tpushpop_subblock_dispatch
   # the following case wait to be fix 
     tcvt
     ttrans

@@ -897,6 +897,7 @@ if [ "$ENABLE_A5" = "true" ]; then
       python3 tests/script/run_st.py $ARGS -w -v a5 -t tpushpop_vc_nosplit -g TPushPopVCNSTest.case1_int8_single_k_tile
       python3 tests/script/run_st.py $ARGS -w -v a5 -t tpushpop_dir_both -g TPushPopDirBothTest.case1_float_dir_both
       python3 tests/script/run_st.py $ARGS -w -v a5 -t tpushpop_subtile -g TPushTpopSubtileTest.case1_half_128x512
+      python3 tests/script/run_st.py $ARGS -w -v a5 -t tpushpop_subblock_dispatch -g TPushPopSubBlockDispatchTest.case1_v2c_nosplit_implicit_id
       python3 tests/script/run_st.py $ARGS -w -v a5 -t thistogram -g THISTOGRAMTest.case_8x128_b1
       python3 tests/script/run_st.py $ARGS -w -v a5 -t thistogram -g THISTOGRAMTest.case_u32_6x912_b1_k64
       python3 tests/script/run_st.py $ARGS -w -v a5 -t tcolgather -g TCOLGATHERTest.case_mask_half_16x64_16x64_P1111
@@ -1109,6 +1110,7 @@ if [ "$ENABLE_A5" = "true" ]; then
       python3 tests/script/run_st.py $ARGS -w -v a5 -t tpushpop_vc_nosplit
       python3 tests/script/run_st.py $ARGS -w -v a5 -t tpushpop_dir_both
       python3 tests/script/run_st.py $ARGS -w -v a5 -t tpushpop_subtile
+      python3 tests/script/run_st.py $ARGS -w -v a5 -t tpushpop_subblock_dispatch
       python3 tests/script/run_st.py $ARGS -w -v a5 -t thistogram
       python3 tests/script/run_st.py $ARGS -w -v a5 -t tcolgather
       python3 tests/script/run_st.py $ARGS -w -v a5 -t tcolscatter
