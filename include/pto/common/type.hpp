@@ -117,8 +117,6 @@ struct int4b_t {
 };
 } // namespace pto
 
-#include <type_traits>
-
 namespace pto {
 enum class TileType {
     Vec,
@@ -423,6 +421,13 @@ enum class TInsertMode : uint8_t {
 #endif
 
 enum class Coalesce : uint8_t { Row = 0, Elem = 1 };
+
+struct MrgSortExecutedNumList {
+    uint16_t mrgSortList0;
+    uint16_t mrgSortList1;
+    uint16_t mrgSortList2;
+    uint16_t mrgSortList3;
+};
 
 namespace GlobalTensorDim {
 constexpr int DIM_0 = 0;

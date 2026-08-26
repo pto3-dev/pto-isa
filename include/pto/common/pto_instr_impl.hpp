@@ -225,6 +225,7 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #include "pto/npu/a5/TLoad.hpp"
 #ifdef __DAV_VEC__
 #include "pto/npu/a5/TCvt.hpp"
+#endif
 #include "pto/npu/a5/TStore.hpp"
 #include "pto/npu/a5/TMrgSort.hpp"
 #include "pto/npu/a5/TMatmul.hpp"
@@ -262,10 +263,10 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #include "pto/npu/a5/TRowExpandExpdif.hpp"
 #include "pto/npu/a5/TPartAdd.hpp"
 #include "pto/npu/a5/TPartMul.hpp"
-#include "pto/npu/a5/TPartArgMax.hpp"
 #include "pto/npu/a5/TPartMax.hpp"
-#include "pto/npu/a5/TPartArgMin.hpp"
 #include "pto/npu/a5/TPartMin.hpp"
+#include "pto/npu/a5/TPartArgMax.hpp"
+#include "pto/npu/a5/TPartArgMin.hpp"
 #include "pto/npu/a5/TPow.hpp"
 #include "pto/npu/a5/TQuant.hpp"
 #include "pto/npu/a5/TDeQuant.hpp"
@@ -313,6 +314,10 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #endif // __COSTMODEL
 #endif
 
+#ifdef PTO_NPU_ARCH_A6
+#include "pto/npu/a6/header.hpp"
+#endif
+
 #ifdef PTO_NPU_ARCH_KIRIN9030
 #include "pto/npu/kirin9030/header.hpp"
 #endif
@@ -323,8 +328,11 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #include "pto/npu/kirinDev0000/header.hpp"
 #endif
 
-// Async L2 cache prefetch via SDMA CMO. Dispatch through per-architecture
-// wrappers while sharing the common SDMA implementation.
+// Async L2 cache prefetch via SDMA CMO. Dispatched per-arch like other NPU
+// instruction headers; both wrappers pull in the same arch-neutral SDMA-backed
+// implementation (the actual SQE-field differences are handled inside the SDMA
+// helpers via `#ifdef PTO_NPU_ARCH_A5`). Guarded so that costmodel and CPU sim
+// builds pick up their own variant from the blocks below.
 #if defined(__CCE_AICORE__) && !(defined(__CPU_SIM) || defined(__COSTMODEL))
 #ifdef PTO_NPU_ARCH_A2A3
 #include "pto/npu/a2a3/TPrefetchAsync.hpp"

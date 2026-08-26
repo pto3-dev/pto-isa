@@ -45,7 +45,7 @@ PTO_INTERNAL void TPOP_IMPL(Pipe& pipe, TileCons& tile)
 template <
     typename TileCons, typename Pipe,
     std::enable_if_t<(is_tile_data_v<TileCons> || is_conv_tile_v<TileCons>) && !is_global_data_v<TileCons>, int> = 0>
-PTO_INTERNAL void TPOP_REVERSED_IMPL(TileCons& tile, Pipe& pipe)
+PTO_INTERNAL void TPOP_IMPL(TileCons& tile, Pipe& pipe)
 {
     TPOP_IMPL<Pipe, TileCons, TileSplitAxis::TILE_NO_SPLIT>(pipe, tile);
 }
