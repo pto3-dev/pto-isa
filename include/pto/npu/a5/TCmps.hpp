@@ -141,7 +141,8 @@ PTO_INTERNAL void TCmps_32B(
             sReg = validCol;
             // for odd repeat number, add 1 to include remainder
             uint16_t repeatTimes = CeilDivision(validCol, repeatElm) + 1;
-            for (uint16_t j = 0; j < (uint16_t)(repeatTimes / 2); ++j) {
+            uint16_t halfRepeatTimes = static_cast<uint16_t>(repeatTimes / 2);
+            for (uint16_t j = 0; j < halfRepeatTimes; ++j) {
                 vlds(srcReg0, src0, i * SrcStride + j * 2 * repeatElm, NORM);
                 vlds(srcReg1, src0, i * SrcStride + (j * 2 + 1) * repeatElm, NORM);
                 pReg = CreatePredicate<T>(sReg);
@@ -229,7 +230,8 @@ PTO_INTERNAL void TCmpsTileB32(
             sReg = validCol;
             // for odd repeat number, add 1 to include remainder
             uint16_t repeatTimes = CeilDivision(validCol, repeatElm) + 1;
-            for (uint16_t j = 0; j < (uint16_t)(repeatTimes / 2); ++j) {
+            uint16_t halfRepeatTimes = static_cast<uint16_t>(repeatTimes / 2);
+            for (uint16_t j = 0; j < halfRepeatTimes; ++j) {
                 vlds(src0Reg0, src0, i * SrcStride + j * 2 * repeatElm, NORM);
                 vlds(src0Reg1, src0, i * SrcStride + (j * 2 + 1) * repeatElm, NORM);
                 pReg = CreatePredicate<T>(sReg);

@@ -259,7 +259,8 @@ __tf__ PTO_INTERNAL OP_NAME(TCMP) OP_TYPE(element_wise) void TCmp_32B(
         constexpr int32_t dstRepeatStride = 2 * repeatElm / CMP_BITS_PER_INDEX;
         for (uint16_t i = 0; i < (uint16_t)(validRow); i++) {
             sReg = validCol;
-            for (uint16_t j = 0; j < (uint16_t)(repeatTimes / 2); j++) {
+            uint16_t halfRepeatTimes = static_cast<uint16_t>(repeatTimes / 2);
+            for (uint16_t j = 0; j < halfRepeatTimes; j++) {
                 vlds(src0Reg0, src0, i * SrcTile0::RowStride + j * 2 * repeatElm, NORM);
                 vlds(src1Reg0, src1, i * SrcTile0::RowStride + j * 2 * repeatElm, NORM);
                 vlds(src0Reg1, src0, i * SrcTile1::RowStride + (j * 2 + 1) * repeatElm, NORM);

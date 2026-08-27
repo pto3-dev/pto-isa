@@ -131,7 +131,8 @@ __tf__ PTO_INTERNAL void TConcatIdx(
         dstIdxPtr = (__ubuf__ idxType*)__cce_get_tile_ptr(dstIdx);
     }
 
-    for (uint16_t i = 0; i < validRow; i++) {
+    uint16_t rowLimit = static_cast<uint16_t>(validRow);
+    for (uint16_t i = 0; i < rowLimit; i++) {
         SetWaitFlag<PIPE_MTE2, PIPE_S>();
         unsigned idx0Num = *(idx0Ptr + i * idx0Stride) / sizeof(idxType);
         unsigned idx1Num = *(idx1Ptr + i * idx1Stride) / sizeof(idxType);

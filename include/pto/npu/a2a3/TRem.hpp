@@ -174,7 +174,8 @@ __tf__ PTO_INTERNAL void TRem(
     constexpr unsigned tmpRowStride = TileDataTmp::RowStride;
     uint16_t repeatTimes = CeilDivision(validCols, elementsPerRepeat);
 
-    for (uint16_t i = 0; i < validRows; i++) {
+    uint16_t rowLimit = static_cast<uint16_t>(validRows);
+    for (uint16_t i = 0; i < rowLimit; i++) {
         __ubuf__ T* dstNext = dstPtr + i * dstRowStride;
         __ubuf__ T* s0Next = src0Ptr + i * src0RowStride;
         __ubuf__ T* s1Next = src1Ptr + i * src1RowStride;

@@ -134,7 +134,8 @@ __tf__ PTO_INTERNAL void TDeInterleaveUnalign(
             // De-interleave src1 into dst0[halfValidCols:end] and dst1[halfValidCols:end] (unaligned stores)
             sreg = halfValidCols;
             // Split main and tail, because dst copy element count is different with main block
-            for (uint16_t j = 0; j < (uint16_t)(repeatTime - 1); ++j) {
+            uint16_t fullRepeatLimit = static_cast<uint16_t>(repeatTime - 1);
+            for (uint16_t j = 0; j < fullRepeatLimit; ++j) {
                 vlds(src0Reg, src1Ptr, i * srcRowStride + j * 2 * ElementsPerRepeat, NORM);
                 vlds(src1Reg, src1Ptr, i * srcRowStride + j * 2 * ElementsPerRepeat + ElementsPerRepeat, NORM);
                 vdintlv(dst0Reg, dst1Reg, src0Reg, src1Reg);

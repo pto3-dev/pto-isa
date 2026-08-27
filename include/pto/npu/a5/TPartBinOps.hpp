@@ -89,8 +89,9 @@ PTO_INTERNAL void Int64PartSameStrideTailRows(
         __ubuf__ T* src = src0;
         if (src1Rows >= src0Rows)
             src = src1;
+        uint16_t rows = dstRows;
         uint16_t colRepeats = CeilDivision(dstCols, elementsPerRepeat);
-        for (uint16_t row = firstRow; row < dstRows; ++row) {
+        for (uint16_t row = firstRow; row < rows; ++row) {
             uint32_t sreg = dstCols;
             for (uint16_t colRepeat = 0; colRepeat < colRepeats; ++colRepeat) {
                 MaskReg preg = CreatePredicate<uint32_t>(sreg);

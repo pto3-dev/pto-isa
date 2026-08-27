@@ -112,7 +112,8 @@ __tf__ PTO_INTERNAL void TGatherBColWise(
         MaskReg preg1 = CreatePredicate<T>(countRem);
         RegTensor<uint32_t> vregOffset, vregOffsetSel, selIdx;
         RegTensor<T> vregDst;
-        for (uint16_t i = 0; i < (uint16_t)(repeatTimes - 1); i++) {
+        uint16_t fullRepeatLimit = static_cast<uint16_t>(repeatTimes - 1);
+        for (uint16_t i = 0; i < fullRepeatLimit; i++) {
             uint32_t perRowOffset = (uint32_t)i * offsetsPerRepeat;
             uint32_t perRowDstOffset = (uint32_t)i * elementsPerRepeat;
             for (uint16_t j = 0; j < (uint16_t)validRow; j++) {

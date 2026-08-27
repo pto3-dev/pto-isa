@@ -76,10 +76,10 @@ enum class CastMode {
 // 1 = PyTorch-compatible (uses NonSatTorch), 0 = standard (faster)
 #define EDGE_CASE_ALIGN_ENABLE 1
 
-#define FOR_ROWS                                     \
-    for (uint16_t row = 0; row < validRows; row++) { \
-        int32_t dstOffset = row * dstCols;           \
-        int32_t srcOffset = row * srcCols;           \
+#define FOR_ROWS                                                                                 \
+    for (uint16_t row = 0, rowLimit = static_cast<uint16_t>(validRows); row < rowLimit; row++) { \
+        int32_t dstOffset = row * dstCols;                                                       \
+        int32_t srcOffset = row * srcCols;                                                       \
         uint32_t sreg = validCols;
 
 #define FOR_ELEMENTS(elNum)                                 \
@@ -1709,7 +1709,7 @@ inline AICORE void castFp4toBf16(
     SRC_VEC v_zero;
     vdup((RegTensor<uint8_t>&)v_zero, 0, pg, MODE_ZEROING);
 
-    for (uint16_t row = 0; row < validRows; row++) {
+    for (uint16_t row = 0, rowLimit = static_cast<uint16_t>(validRows); row < rowLimit; row++) {
         int32_t rowSrcByteOffset = (row * srcCols) >> 1;
         int32_t rowDstOffset = row * dstCols;
         uint32_t sreg = validCols;
