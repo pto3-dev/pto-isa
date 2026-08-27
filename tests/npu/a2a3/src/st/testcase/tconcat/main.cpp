@@ -10,6 +10,7 @@ See LICENSE in the root of the software repository for the full text of the Lice
 
 #include "test_common.h"
 #include "acl/acl.h"
+#include <cstring>
 #include <gtest/gtest.h>
 
 using namespace std;
@@ -68,8 +69,11 @@ void test_tconcat()
     ReadFile(GetGoldenDir() + "/input1.bin", fileSizeSrc0, src0Host, fileSizeSrc0);
     ReadFile(GetGoldenDir() + "/input2.bin", fileSizeSrc1, src1Host, fileSizeSrc1);
 
+    memset(dstHost, 0, fileSizeDst);
+    aclrtMemcpy(dstDevice, fileSizeDst, dstHost, fileSizeDst, ACL_MEMCPY_HOST_TO_DEVICE);
     aclrtMemcpy(src0Device, fileSizeSrc0, src0Host, fileSizeSrc0, ACL_MEMCPY_HOST_TO_DEVICE);
     aclrtMemcpy(src1Device, fileSizeSrc1, src1Host, fileSizeSrc1, ACL_MEMCPY_HOST_TO_DEVICE);
+    aclrtSynchronizeStream(stream);
     if constexpr (std::is_same<T, aclFloat16>::value) {
         LaunchTConcatHalf<dstTileH, dstTileW, src0TileH, src0TileW, src1TileH, src1TileW, vRows, vCols0, vCols1>(
             dstDevice, src0Device, src1Device, stream);
@@ -146,4 +150,34 @@ TEST_F(TCONCATTest, case_int16_32x256_32x128_32x128_32x127_32x128)
 TEST_F(TCONCATTest, case_int16_32x192_32x128_32x128_32x128_32x64)
 {
     test_tconcat<int16_t, 32, 192, 32, 128, 32, 128, 32, 128, 64>();
+}
+
+TEST_F(TCONCATTest, case_half_16x64_16x32_16x32_16x31_16x32)
+{
+    test_tconcat<aclFloat16, 16, 64, 16, 32, 16, 32, 16, 31, 32>();
+}
+
+TEST_F(TCONCATTest, case_float_128x64_56x32_56x32_56x32_56x16)
+{
+    test_tconcat<float, 128, 64, 56, 32, 56, 32, 56, 32, 16>();
+}
+
+TEST_F(TCONCATTest, case_int8_128x64_56x32_56x32_56x32_56x16)
+{
+    test_tconcat<int8_t, 128, 64, 56, 32, 56, 32, 56, 32, 16>();
+}
+
+TEST_F(TCONCATTest, case_int8_16x64_16x32_16x32_16x31_16x32)
+{
+    test_tconcat<int8_t, 16, 64, 16, 32, 16, 32, 16, 31, 32>();
+}
+
+TEST_F(TCONCATTest, case_int8_32x128_32x64_32x64_32x33_32x31)
+{
+    test_tconcat<int8_t, 32, 128, 32, 64, 32, 64, 32, 33, 31>();
+}
+
+TEST_F(TCONCATTest, case_float_32x128_32x64_32x64_32x33_32x31)
+{
+    test_tconcat<float, 32, 128, 32, 64, 32, 64, 32, 33, 31>();
 }

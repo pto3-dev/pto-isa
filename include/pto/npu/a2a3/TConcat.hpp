@@ -43,11 +43,29 @@ __tf__ PTO_INTERNAL void TConcatImpl(
 
     bool isAligned = (validCol0 % elementsPerBlock) == 0;
     if (isAligned) {
-        unsigned src1Gap = (TileDataS1::Cols * sizeof(TD) + BLOCK_BYTE_SIZE - 1) / BLOCK_BYTE_SIZE - src1BlockLen;
-        dstGap = (TileDataD::Cols * sizeof(TD) + BLOCK_BYTE_SIZE - 1) / BLOCK_BYTE_SIZE - src1BlockLen;
-        for (int i = 0; i < validRow; i++) {
-            pto_copy_ubuf_to_ubuf(
-                dstPtr + i * dstRowStride + validCol0, src1Ptr + i * src1RowStride, 1, src1BlockLen, src1Gap, dstGap);
+        unsigned src1AlignedBlockLen = (validCol1 * sizeof(TD)) / BLOCK_BYTE_SIZE;
+        unsigned src1TailLen = validCol1 - src1AlignedBlockLen * elementsPerBlock;
+        if (src1AlignedBlockLen > 0) {
+            unsigned src1Gap =
+                (TileDataS1::Cols * sizeof(TD) + BLOCK_BYTE_SIZE - 1) / BLOCK_BYTE_SIZE - src1AlignedBlockLen;
+            dstGap = (TileDataD::Cols * sizeof(TD) + BLOCK_BYTE_SIZE - 1) / BLOCK_BYTE_SIZE - src1AlignedBlockLen;
+            for (int i = 0; i < validRow; i++) {
+                pto_copy_ubuf_to_ubuf(
+                    dstPtr + i * dstRowStride + validCol0, src1Ptr + i * src1RowStride, 1, src1AlignedBlockLen, src1Gap,
+                    dstGap);
+            }
+        }
+        if (src1TailLen > 0) {
+            set_flag(PIPE_V, PIPE_S, EVENT_ID0);
+            wait_flag(PIPE_V, PIPE_S, EVENT_ID0);
+            set_flag(PIPE_MTE2, PIPE_S, EVENT_ID0);
+            wait_flag(PIPE_MTE2, PIPE_S, EVENT_ID0);
+            for (unsigned i = 0; i < validRow; i++) {
+                for (unsigned j = 0; j < src1TailLen; j++) {
+                    dstPtr[i * dstRowStride + validCol0 + src1AlignedBlockLen * elementsPerBlock + j] =
+                        src1Ptr[i * src1RowStride + src1AlignedBlockLen * elementsPerBlock + j];
+                }
+            }
         }
     } else {
         set_flag(PIPE_V, PIPE_S, EVENT_ID0);
