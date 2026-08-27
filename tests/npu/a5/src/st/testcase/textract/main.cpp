@@ -91,8 +91,8 @@ void textract_test(uint32_t M, uint32_t K, uint32_t N, uint16_t indexM, uint16_t
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(cFileSize);
-    std::vector<T> devFinal(cFileSize);
+    std::vector<T> golden(cFileSize / sizeof(T));
+    std::vector<T> devFinal(cFileSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 
@@ -164,8 +164,8 @@ void textract_mx_test(uint32_t M, uint32_t K, uint32_t N, uint16_t indexM, uint1
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(cFileSize);
-    std::vector<T> devFinal(cFileSize);
+    std::vector<T> golden(cFileSize / sizeof(T));
+    std::vector<T> devFinal(cFileSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 
@@ -236,8 +236,8 @@ static bool SetTmovTargetShape(
 template <typename T>
 void CheckTmovResult(size_t cFileSize)
 {
-    std::vector<T> golden(cFileSize);
-    std::vector<T> devFinal(cFileSize);
+    std::vector<T> golden(cFileSize / sizeof(T));
+    std::vector<T> devFinal(cFileSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 
@@ -360,8 +360,8 @@ void tmov_mx_test(uint32_t M, uint32_t K, uint32_t N)
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(cFileSize);
-    std::vector<T> devFinal(cFileSize);
+    std::vector<T> golden(cFileSize / sizeof(T));
+    std::vector<T> devFinal(cFileSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 

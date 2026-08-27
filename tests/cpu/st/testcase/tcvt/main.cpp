@@ -90,8 +90,8 @@ void test_tcvt()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<D> golden(dstFileSize);
-    std::vector<D> devFinal(dstFileSize);
+    std::vector<D> golden(dstFileSize / sizeof(D));
+    std::vector<D> devFinal(dstFileSize / sizeof(D));
     CHECK_RESULT_GTEST(ReadFile(GetGoldenDir() + "/golden.bin", dstFileSize, golden.data(), dstFileSize));
     CHECK_RESULT_GTEST(ReadFile(GetGoldenDir() + "/output_z.bin", dstFileSize, devFinal.data(), dstFileSize));
 

@@ -88,8 +88,8 @@ public:
     bool checkOutput(const std::string& goldenFileName, const std::string& outputFileName, float eps = 0.0001f)
     {
         size_t size = this->size;
-        std::vector<T> golden(size);
-        std::vector<T> output(size);
+        std::vector<T> golden(size / sizeof(T));
+        std::vector<T> output(size / sizeof(T));
         aclrtMemcpy(output.data(), size, this->device, size, ACL_MEMCPY_DEVICE_TO_HOST);
         WriteFile(outputFileName, output.data(), size);
         ReadFile(goldenFileName, size, golden.data(), size);

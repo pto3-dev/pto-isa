@@ -75,8 +75,8 @@ void test_tmov()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(dataSize);
-    std::vector<T> devFinal(dataSize);
+    std::vector<T> golden(dataSize / sizeof(T));
+    std::vector<T> devFinal(dataSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", dataSize, golden.data(), dataSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", dataSize, devFinal.data(), dataSize);
 

@@ -85,8 +85,8 @@ void test_tcolmax()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(outputSize);
-    std::vector<T> devFinal(outputSize);
+    std::vector<T> golden(outputSize / sizeof(T));
+    std::vector<T> devFinal(outputSize / sizeof(T));
     CHECK_RESULT_GTEST(ReadFile(GetGoldenDir() + "/golden.bin", outputSize, golden.data(), outputSize));
     CHECK_RESULT_GTEST(ReadFile(GetGoldenDir() + "/output.bin", outputSize, devFinal.data(), outputSize));
 

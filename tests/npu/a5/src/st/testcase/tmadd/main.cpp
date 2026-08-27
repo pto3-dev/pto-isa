@@ -87,8 +87,8 @@ void test_TMADD()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(fileSizeDst);
-    std::vector<T> devFinal(fileSizeDst);
+    std::vector<T> golden(fileSizeDst / sizeof(T));
+    std::vector<T> devFinal(fileSizeDst / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", fileSizeDst, golden.data(), fileSizeDst);
     ReadFile(GetGoldenDir() + "/output.bin", fileSizeDst, devFinal.data(), fileSizeDst);
 

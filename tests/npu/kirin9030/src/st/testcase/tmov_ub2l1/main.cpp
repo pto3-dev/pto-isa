@@ -68,8 +68,8 @@ void testTMovUb2L1(int32_t srcRows, int32_t srcCols, int32_t dstRows, int32_t ds
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<dType> golden(dstByteSize);
-    std::vector<dType> devFinal(dstByteSize);
+    std::vector<dType> golden(dstByteSize / sizeof(dType));
+    std::vector<dType> devFinal(dstByteSize / sizeof(dType));
     ReadFile(GetGoldenDir() + "/golden_output.bin", dstByteSize, golden.data(), dstByteSize);
     ReadFile(GetGoldenDir() + "/output.bin", dstByteSize, devFinal.data(), dstByteSize);
     bool ret = ResultCmp(golden, devFinal, 0.001f);

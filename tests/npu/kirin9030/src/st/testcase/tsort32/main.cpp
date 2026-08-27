@@ -92,8 +92,8 @@ void tsort32_test()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(dstByteSize);
-    std::vector<T> devFinal(dstByteSize);
+    std::vector<T> golden(dstByteSize / sizeof(T));
+    std::vector<T> devFinal(dstByteSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden_output.bin", dstByteSize, golden.data(), dstByteSize);
     ReadFile(GetGoldenDir() + "/output.bin", dstByteSize, devFinal.data(), dstByteSize);
 

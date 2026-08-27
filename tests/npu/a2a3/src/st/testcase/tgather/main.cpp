@@ -85,8 +85,8 @@ void test_gather()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(dstSize);
-    std::vector<T> devFinal(dstSize);
+    std::vector<T> golden(dstSize / sizeof(T));
+    std::vector<T> devFinal(dstSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", dstSize, golden.data(), dstSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", dstSize, devFinal.data(), dstSize);
 
@@ -257,8 +257,8 @@ void test_gather_index()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<float> golden(dstFileSize);
-    std::vector<float> devFinal(dstFileSize);
+    std::vector<float> golden(dstFileSize / sizeof(float));
+    std::vector<float> devFinal(dstFileSize / sizeof(float));
     ReadFile(GetGoldenDir() + "/golden.bin", dstFileSize, golden.data(), dstFileSize);
     ReadFile(GetGoldenDir() + "/output.bin", dstFileSize, devFinal.data(), dstFileSize);
 
@@ -340,8 +340,8 @@ void test_gather_cmp()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<float> devFinal(dstsize);
-    std::vector<float> golden(dstsize);
+    std::vector<float> devFinal(dstsize / sizeof(float));
+    std::vector<float> golden(dstsize / sizeof(float));
     ReadFile(GetGoldenDir() + "/output.bin", dstsize, devFinal.data(), dstsize);
     ReadFile(GetGoldenDir() + "/golden.bin", dstsize, golden.data(), dstsize);
 

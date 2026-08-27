@@ -55,8 +55,8 @@ protected:
     template <typename T>
     bool CompareGolden(size_t dstSize, bool printAllEn = false)
     {
-        std::vector<T> golden(dstSize);
-        std::vector<T> result(dstSize);
+        std::vector<T> golden(dstSize / sizeof(T));
+        std::vector<T> result(dstSize / sizeof(T));
         ReadFile(GetGoldenDir() + "/output.bin", dstSize, result.data(), dstSize);
         ReadFile(GetGoldenDir() + "/output.bin", dstSize, golden.data(), dstSize);
 

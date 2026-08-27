@@ -65,8 +65,8 @@ void test_vci()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(FileSize);
-    std::vector<T> devFinal(FileSize);
+    std::vector<T> golden(FileSize / sizeof(T));
+    std::vector<T> devFinal(FileSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", FileSize, golden.data(), FileSize);
     ReadFile(GetGoldenDir() + "/output.bin", FileSize, devFinal.data(), FileSize);
 

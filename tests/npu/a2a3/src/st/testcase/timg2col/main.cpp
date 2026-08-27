@@ -91,8 +91,8 @@ void timg2col_test(
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(cFileSize);
-    std::vector<T> devFinal(cFileSize);
+    std::vector<T> golden(cFileSize / sizeof(T));
+    std::vector<T> devFinal(cFileSize / sizeof(T));
     if ((key == 4) || (key == 8)) {
         ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     } else {
@@ -163,8 +163,8 @@ void timg2col_test_fractal4d(
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(cFileSize);
-    std::vector<T> devFinal(cFileSize);
+    std::vector<T> golden(cFileSize / sizeof(T));
+    std::vector<T> devFinal(cFileSize / sizeof(T));
     if (key == 12) {
         ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     } else {

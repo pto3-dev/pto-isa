@@ -107,16 +107,16 @@ void TeardownBuffers(DirBothBuffers& b)
 template <typename T>
 void VerifyOutputs(size_t outFileSize)
 {
-    std::vector<T> golden(outFileSize);
-    std::vector<T> devFinal(outFileSize);
+    std::vector<T> golden(outFileSize / sizeof(T));
+    std::vector<T> devFinal(outFileSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", outFileSize, golden.data(), outFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", outFileSize, devFinal.data(), outFileSize);
 
     bool ret = ResultCmp(golden, devFinal, 0.001f);
     EXPECT_TRUE(ret) << "vector side (C2V) mismatch";
 
-    std::vector<T> goldenCube(outFileSize);
-    std::vector<T> devCube(outFileSize);
+    std::vector<T> goldenCube(outFileSize / sizeof(T));
+    std::vector<T> devCube(outFileSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden_cube.bin", outFileSize, goldenCube.data(), outFileSize);
     ReadFile(GetGoldenDir() + "/output_cube.bin", outFileSize, devCube.data(), outFileSize);
 

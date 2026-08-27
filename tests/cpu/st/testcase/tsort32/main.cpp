@@ -86,8 +86,8 @@ bool TSort32Test()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T0> golden(dstByteSize);
-    std::vector<T0> devFinal(dstByteSize);
+    std::vector<T0> golden(dstByteSize / sizeof(T0));
+    std::vector<T0> devFinal(dstByteSize / sizeof(T0));
     ReadFile(GetGoldenDir() + "/golden.bin", dstByteSize, golden.data(), dstByteSize);
     ReadFile(GetGoldenDir() + "/output.bin", dstByteSize, devFinal.data(), dstByteSize);
     return ResultCmp<T0>(golden, devFinal, 0.001f);

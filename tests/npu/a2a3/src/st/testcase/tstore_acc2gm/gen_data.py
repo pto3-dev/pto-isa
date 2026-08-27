@@ -34,17 +34,12 @@ def get_c0_size(data_type):
     return 32 // np.dtype(data_type).itemsize
 
 
-def saturation(arr, min_val, max_val, dtype):
-    arr = np.clip(arr, min_val, max_val)
-    return arr.astype(dtype)
-
-
 def saturation(value, min_val, max_val, target_type):
     """
     Saturate the input floating-point number and convert it to the target type.
     """
     x_clamped = np.clip(value, min_val, max_val) # Saturation Processing
-    return np.round(x_clamped).astype(target_type).astype(target_type)
+    return np.round(x_clamped).astype(target_type)
 
 
 def extract_quant_params(quant_gm):

@@ -129,8 +129,8 @@ void tmatmul_test(uint32_t M, uint32_t K, uint32_t N)
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(cFileSize);
-    std::vector<T> devFinal(cFileSize);
+    std::vector<T> golden(cFileSize / sizeof(T));
+    std::vector<T> devFinal(cFileSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 
@@ -224,8 +224,8 @@ void tmatmul_bias_test(uint32_t M, uint32_t K, uint32_t N)
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(cFileSize);
-    std::vector<T> devFinal(cFileSize);
+    std::vector<T> golden(cFileSize / sizeof(T));
+    std::vector<T> devFinal(cFileSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 
@@ -363,8 +363,8 @@ void tmatmul_split_k_test(uint32_t M, uint32_t K, uint32_t N)
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(cFileSize);
-    std::vector<T> devFinal(cFileSize);
+    std::vector<T> golden(cFileSize / sizeof(T));
+    std::vector<T> devFinal(cFileSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 
@@ -444,8 +444,8 @@ void tmatmul_bias_split_k_test(uint32_t M, uint32_t K, uint32_t N)
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(cFileSize);
-    std::vector<T> devFinal(cFileSize);
+    std::vector<T> golden(cFileSize / sizeof(T));
+    std::vector<T> devFinal(cFileSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 
@@ -524,8 +524,8 @@ void tmatmul_gemv_test(uint32_t K, uint32_t N)
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(cFileSize);
-    std::vector<T> devFinal(cFileSize);
+    std::vector<T> golden(cFileSize / sizeof(T));
+    std::vector<T> devFinal(cFileSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 
@@ -606,8 +606,8 @@ void tmatmul_gemv_bias_test(uint32_t K, uint32_t N)
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(cFileSize);
-    std::vector<T> devFinal(cFileSize);
+    std::vector<T> golden(cFileSize / sizeof(T));
+    std::vector<T> devFinal(cFileSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 
@@ -683,8 +683,8 @@ void tmatmul_gemv_split_k_test(uint32_t K, uint32_t N)
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(cFileSize);
-    std::vector<T> devFinal(cFileSize);
+    std::vector<T> golden(cFileSize / sizeof(T));
+    std::vector<T> devFinal(cFileSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 
@@ -754,8 +754,8 @@ void tmatmul_s16_test(uint32_t M, uint32_t K, uint32_t N)
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(cFileSize);
-    std::vector<T> devFinal(cFileSize);
+    std::vector<T> golden(cFileSize / sizeof(T));
+    std::vector<T> devFinal(cFileSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 
@@ -825,8 +825,8 @@ void tmatmul_relu_test(uint32_t M, uint32_t K, uint32_t N, float reluScalar, flo
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(cFileSize);
-    std::vector<T> devFinal(cFileSize);
+    std::vector<T> golden(cFileSize / sizeof(T));
+    std::vector<T> devFinal(cFileSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 
@@ -905,8 +905,8 @@ void tmatmul_relu_s8_test(uint32_t M, uint32_t K, uint32_t N, float reluScalar, 
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(cFileSize);
-    std::vector<T> devFinal(cFileSize);
+    std::vector<T> golden(cFileSize / sizeof(T));
+    std::vector<T> devFinal(cFileSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 
@@ -979,8 +979,8 @@ void tmatmul_normal_relu_test(uint32_t M, uint32_t K, uint32_t N)
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(cFileSize);
-    std::vector<T> devFinal(cFileSize);
+    std::vector<T> golden(cFileSize / sizeof(T));
+    std::vector<T> devFinal(cFileSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 
@@ -1067,8 +1067,8 @@ void tmatmul_vector_relu_test(uint32_t M, uint32_t K, uint32_t N)
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(cFileSize);
-    std::vector<T> devFinal(cFileSize);
+    std::vector<T> golden(cFileSize / sizeof(T));
+    std::vector<T> devFinal(cFileSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 

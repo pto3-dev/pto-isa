@@ -109,8 +109,8 @@ void test_tmov()
     aclrtDestroyStream(stream);
     aclrtResetDevice(0);
     aclFinalize();
-    std::vector<float> golden(cFileSize);
-    std::vector<float> devFinal(cFileSize);
+    std::vector<float> golden(cFileSize / sizeof(float));
+    std::vector<float> devFinal(cFileSize / sizeof(float));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 

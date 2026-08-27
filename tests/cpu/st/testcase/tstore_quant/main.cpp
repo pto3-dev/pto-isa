@@ -96,8 +96,8 @@ void test_tstore_quant()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<DstDataType> golden(dstDataSize);
-    std::vector<DstDataType> devFinal(dstDataSize);
+    std::vector<DstDataType> golden(dstDataSize / sizeof(DstDataType));
+    std::vector<DstDataType> devFinal(dstDataSize / sizeof(DstDataType));
     CHECK_RESULT_GTEST(ReadFile(GetGoldenDir() + "/golden.bin", dstDataSize, golden.data(), dstDataSize));
     CHECK_RESULT_GTEST(ReadFile(GetGoldenDir() + "/output.bin", dstDataSize, devFinal.data(), dstDataSize));
 

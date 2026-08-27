@@ -95,8 +95,8 @@ void tMovL12Bias(uint32_t m, uint32_t n, uint32_t k)
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<CType> golden(cFileSize);
-    std::vector<CType> devFinal(cFileSize);
+    std::vector<CType> golden(cFileSize / sizeof(CType));
+    std::vector<CType> devFinal(cFileSize / sizeof(CType));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 
@@ -161,8 +161,8 @@ void tMovL12Fb(uint32_t m, uint32_t n, uint32_t k)
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<CType> golden(cFileSize);
-    std::vector<CType> devFinal(cFileSize);
+    std::vector<CType> golden(cFileSize / sizeof(CType));
+    std::vector<CType> devFinal(cFileSize / sizeof(CType));
     ReadFile(GetGoldenDir() + "/quant_golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 
@@ -220,8 +220,8 @@ void tMovAcc2Vec(uint32_t m, uint32_t n, uint32_t k)
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<CType> golden(cFileSize);
-    std::vector<CType> devFinal(cFileSize);
+    std::vector<CType> golden(cFileSize / sizeof(CType));
+    std::vector<CType> devFinal(cFileSize / sizeof(CType));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 

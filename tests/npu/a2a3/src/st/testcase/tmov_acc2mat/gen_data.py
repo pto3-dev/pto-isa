@@ -55,7 +55,7 @@ def saturation(value, min_val, max_val, target_type):
     将输入的浮点数进行饱和处理，并转换为目标类型
     """
     x_clamped = np.clip(value, min_val, max_val)
-    return np.round(x_clamped).astype(target_type).astype(target_type)
+    return np.round(x_clamped).astype(target_type)
 
 
 def qf2b8_pre(data, quant_gm):

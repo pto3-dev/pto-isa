@@ -97,8 +97,8 @@ void test_tpartmax()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(dstFileSize);
-    std::vector<T> devFinal(dstFileSize);
+    std::vector<T> golden(dstFileSize / sizeof(T));
+    std::vector<T> devFinal(dstFileSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", dstFileSize, golden.data(), dstFileSize);
     ReadFile(GetGoldenDir() + "/output.bin", dstFileSize, devFinal.data(), dstFileSize);
     bool ret;
@@ -152,8 +152,8 @@ void test_tpartmax_inplace()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(dstFileSize);
-    std::vector<T> devFinal(dstFileSize);
+    std::vector<T> golden(dstFileSize / sizeof(T));
+    std::vector<T> devFinal(dstFileSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", dstFileSize, golden.data(), dstFileSize);
     ReadFile(GetGoldenDir() + "/output.bin", dstFileSize, devFinal.data(), dstFileSize);
     bool ret;

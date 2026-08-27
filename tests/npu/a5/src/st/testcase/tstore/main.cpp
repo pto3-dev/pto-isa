@@ -83,8 +83,8 @@ void test_tstore()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<DataType> golden(dataSize);
-    std::vector<DataType> devFinal(dataSize);
+    std::vector<DataType> golden(dataSize / sizeof(DataType));
+    std::vector<DataType> devFinal(dataSize / sizeof(DataType));
     ReadFile(GetGoldenDir() + "/golden.bin", dataSize, golden.data(), dataSize);
     ReadFile(GetGoldenDir() + "/output.bin", dataSize, devFinal.data(), dataSize);
 
@@ -161,8 +161,8 @@ void TestTstoreB4()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<DataType> golden(dataSize);
-    std::vector<DataType> devFinal(dataSize);
+    std::vector<DataType> golden(dataSize / sizeof(DataType));
+    std::vector<DataType> devFinal(dataSize / sizeof(DataType));
     ReadFile(GetGoldenDir() + "/golden.bin", dataSize, golden.data(), dataSize);
     ReadFile(GetGoldenDir() + "/output.bin", dataSize, devFinal.data(), dataSize);
 

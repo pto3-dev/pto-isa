@@ -72,8 +72,8 @@ void test_trsqrt()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(fileDstSize);
-    std::vector<T> devFinal(fileDstSize);
+    std::vector<T> golden(fileDstSize / sizeof(T));
+    std::vector<T> devFinal(fileDstSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", fileDstSize, golden.data(), fileDstSize);
     ReadFile(GetGoldenDir() + "/output.bin", fileDstSize, devFinal.data(), fileDstSize);
 
