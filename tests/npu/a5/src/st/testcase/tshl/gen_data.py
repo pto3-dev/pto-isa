@@ -21,28 +21,28 @@ def gen_golden_data_tshl(case_name, param):
     tile_row, tile_col = param.tile_row, param.tile_col
     h_valid, w_valid = [param.valid_row, param.valid_col]
 
-    if tile_row == h_valid and tile_col == w_valid:
-        input1 = np.random.randint(-100, 100, size=h_valid * w_valid).astype(dtype)
-        input2 = np.random.randint(0, 32, size=h_valid * w_valid).astype(dtype)
-        if dtype in (np.int64, np.uint64):
-            input1[:4] = [1, 1, 1, np.iinfo(dtype).max]
-            input2[:4] = [0, 63, 64, 65]
-        golden = input1 << (input2 & 63 if dtype in (np.int64, np.uint64) else input2)
-    else:
+    input1 = np.random.randint(-100, 100, size=h_valid * w_valid).astype(dtype)
+    input2 = np.random.randint(0, 32, size=h_valid * w_valid).astype(dtype)
+
+    if dtype in (np.int64, np.uint64):
+        input1[:4] = [1, 1, 1, np.iinfo(dtype).max]
+        input2[:4] = [0, 63, 64, 65]
+
+    golden = input1 << (input2 & 63 if dtype in (np.int64, np.uint64) else input2)
+
+    if "inplace" in case_name and w_valid < tile_col:
         total_elements = tile_row * tile_col
-        input1 = np.random.randint(-100, 100, size=total_elements).astype(dtype)
-        input2 = np.random.randint(0, 32, size=total_elements).astype(dtype)
-        if dtype in (np.int64, np.uint64):
-            input1[:4] = [1, 1, 1, np.iinfo(dtype).max]
-            input2[:4] = [0, 63, 64, 65]
-        shift_amount = input2 & 63 if dtype in (np.int64, np.uint64) else input2
-        computed = input1 << shift_amount
-        golden = np.zeros(total_elements).astype(dtype)
+        full_input1 = np.zeros(total_elements).astype(dtype)
+        full_input2 = np.zeros(total_elements).astype(dtype)
+        full_golden = np.zeros(total_elements).astype(dtype)
         for i in range(h_valid):
             base = i * tile_col
-            golden[base:base + w_valid] = computed[base:base + w_valid]
-            if "inplace" in case_name:
-                golden[base + w_valid:base + tile_col] = input1[base + w_valid:base + tile_col]
+            full_input1[base:base + w_valid] = input1[i * w_valid:(i + 1) * w_valid]
+            full_input2[base:base + w_valid] = input2[i * w_valid:(i + 1) * w_valid]
+            full_golden[base:base + w_valid] = golden[i * w_valid:(i + 1) * w_valid]
+        input1 = full_input1
+        input2 = full_input2
+        golden = full_golden
 
     # Apply valid region constraints
     output = np.zeros(h_valid * w_valid).astype(dtype)
@@ -76,6 +76,7 @@ if __name__ == "__main__":
     case_params_list = [
         TShlParams("TSHLTest.case1", np.uint16, 64, 64, 64, 64),
         TShlParams("TSHLTest.case2", np.uint16, 64, 64, 63, 63),
+        TShlParams("TSHLTest.case3", np.uint16, 1, 16384, 1, 16384),
         TShlParams("TSHLTest.case4", np.uint16, 2048, 16, 2048, 16),
         TShlParams("TSHLTest.case5", np.uint8, 32, 32, 32, 32),
         TShlParams("TSHLTest.case6", np.uint32, 8, 8, 8, 8),

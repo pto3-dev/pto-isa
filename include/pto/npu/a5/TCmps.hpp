@@ -24,42 +24,32 @@ template <typename T, unsigned DstRowBytes, unsigned SrcCols>
 PTO_INTERNAL void Int64CompareScalar(
     __ubuf__ uint8_t* dst, __ubuf__ T* src, T scalar, CmpMode mode, unsigned validRows, unsigned validCols)
 {
-    constexpr unsigned elementsPerRepeat = 32;
-    uint16_t repeatTimes = CeilDivision(validCols, elementsPerRepeat);
-    uint16_t pairRepeatTimes = repeatTimes / 2;
+    constexpr unsigned elementsPerRepeat = 64;
+    uint16_t repeatTimes = CeilDivision(validCols, elementsPerRepeat) + 1;
     __VEC_SCOPE__
     {
-        vector_s32 lhsLow0, lhsHigh0, rhsLow, rhsHigh;
-        vector_s32 lhsLow1, lhsHigh1;
+        vector_s32 lhsLow0, lhsHigh0, lhsLow1, lhsHigh1;
+        vector_s32 rhsLow, rhsHigh;
         vbr(rhsLow, static_cast<uint32_t>(scalar));
         vbr(rhsHigh, static_cast<uint32_t>(static_cast<uint64_t>(scalar) >> 32));
         uint16_t rows = validRows;
+        constexpr int32_t dstRepeatStride = 2 * elementsPerRepeat / 32;
         for (uint16_t row = 0; row < rows; ++row) {
             __ubuf__ uint32_t* rowDst = (__ubuf__ uint32_t*)(dst + row * DstRowBytes);
-            uint32_t remainingCols = validCols;
-            for (uint16_t pairRepeat = 0; pairRepeat < pairRepeatTimes; ++pairRepeat) {
-                uint32_t colOffset0, colOffset1;
-                MaskReg mask0, mask1, result0, result1;
-                Int64ComparePairArgs<elementsPerRepeat>(
-                    pairRepeat, remainingCols, colOffset0, colOffset1, mask0, mask1);
-                vlds(lhsLow0, lhsHigh0, (__ubuf__ int32_t*)src + (row * SrcCols + colOffset0) * 2, 0, DINTLV_B32);
-                vlds(lhsLow1, lhsHigh1, (__ubuf__ int32_t*)src + (row * SrcCols + colOffset1) * 2, 0, DINTLV_B32);
-                Int64CompareRegs<T>(result0, lhsLow0, lhsHigh0, rhsLow, rhsHigh, mode, mask0);
-                Int64CompareRegs<T>(result1, lhsLow1, lhsHigh1, rhsLow, rhsHigh, mode, mask1);
-                Int64CompareStorePairResult(rowDst, pairRepeat, result0, result1);
-                remainingCols -= elementsPerRepeat * 2;
-            }
-            if ((repeatTimes & 1) != 0) {
-                uint32_t colOffset;
-                MaskReg mask, packedMask;
-                MaskReg result, packed;
-                Int64CompareTailArgs<elementsPerRepeat>(pairRepeatTimes, remainingCols, colOffset, mask, packedMask);
-                vlds(lhsLow0, lhsHigh0, (__ubuf__ int32_t*)src + (row * SrcCols + colOffset) * 2, 0, DINTLV_B32);
-                Int64CompareRegs<T>(result, lhsLow0, lhsHigh0, rhsLow, rhsHigh, mode, mask);
-                ppack(packed, result, LOWER);
-                ppack(packed, packed, LOWER);
-                pand(packed, packed, packedMask, packedMask);
-                psts(packed, rowDst + pairRepeatTimes * 2, 0, NORM);
+            uint32_t sreg = validCols;
+            for (uint16_t j = 0; j < (uint16_t)(repeatTimes / 2); ++j) {
+                MaskReg preg;
+                MaskReg result0, result1, dstReg, tmpMask;
+                uint32_t colOffset0 = j * 2 * elementsPerRepeat;
+                vlds(lhsLow0, lhsHigh0, (__ubuf__ int32_t*)src, (row * SrcCols + colOffset0) * 2, DINTLV_B32);
+                preg = plt_b32(sreg, POST_UPDATE);
+                Int64CompareRegs<T>(result0, lhsLow0, lhsHigh0, rhsLow, rhsHigh, mode, preg);
+                uint32_t colOffset1 = (j * 2 + 1) * elementsPerRepeat;
+                vlds(lhsLow1, lhsHigh1, (__ubuf__ int32_t*)src, (row * SrcCols + colOffset1) * 2, DINTLV_B32);
+                preg = plt_b32(sreg, POST_UPDATE);
+                Int64CompareRegs<T>(result1, lhsLow1, lhsHigh1, rhsLow, rhsHigh, mode, preg);
+                pdintlv_b8(dstReg, tmpMask, result0, result1);
+                psts(dstReg, rowDst + j * dstRepeatStride, 0, PK);
             }
         }
     }

@@ -167,17 +167,17 @@ PTO_INTERNAL void Int64SelectImpl(
         }
         uint16_t colRepeats = CeilDivision(validCols, elementsPerRepeat);
         for (uint16_t row = 0; row < (uint16_t)validRows; ++row) {
-            uint32_t sreg = validCols;
+            uint32_t remainingCols = validCols;
             for (uint16_t colRepeat = 0; colRepeat < colRepeats; ++colRepeat) {
-                uint32_t colOffset = colRepeat * elementsPerRepeat;
-                MaskReg preg = CreatePredicate<uint32_t>(sreg);
-                MaskReg packed;
-                plds(packed, (__ubuf__ uint32_t*)packedMask, row * MaskRowBytes + colOffset / 8, US);
-                MaskReg selectMask, unused;
-                pintlv_b16(selectMask, unused, packed, packed);
+                uint32_t colOffset;
+                MaskReg selectMask, validMask;
+                Int64SelectRepeatMask<elementsPerRepeat, MaskRowBytes>(
+                    packedMask, row, colRepeat, remainingCols, colOffset, selectMask, validMask);
                 Int64SelectStoreByMode<Scalar, T, DstCols, Src0Cols, Src1Cols>(
-                    dst, src0, src1, row, colOffset, selectMask, preg, dstLow, dstHigh, src0Low, src0High, src1Low,
+                    dst, src0, src1, row, colOffset, selectMask, validMask, dstLow, dstHigh, src0Low, src0High, src1Low,
                     src1High);
+                if (remainingCols > elementsPerRepeat)
+                    remainingCols -= elementsPerRepeat;
             }
         }
     }

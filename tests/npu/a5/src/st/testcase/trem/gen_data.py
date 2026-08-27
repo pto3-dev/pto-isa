@@ -29,11 +29,11 @@ def gen_golden_data_trem(case_name, param):
         value_min = np.finfo(dtype).min / 100
 
     if dtype == np.int64:
-        input1 = np.random.randint(-1000000, 1000000, size=(tile_row, tile_col)).astype(dtype)
-        input2 = np.random.randint(1, 1000, size=(tile_row, tile_col)).astype(dtype)
+        input1 = np.random.randint(-1000000, 1000000, size=(h_valid, w_valid)).astype(dtype)
+        input2 = np.random.randint(1, 1000, size=(h_valid, w_valid)).astype(dtype)
         input1.flat[:4] = [np.iinfo(np.int64).min, -7, 7, np.iinfo(np.int64).max]
         input2.flat[:4] = [-1, 3, -3, 0]
-        golden = np.zeros([tile_row, tile_col]).astype(dtype)
+        golden = np.zeros_like(input1)
         for i in range(h_valid):
             for j in range(w_valid):
                 lhs = int(input1[i, j])
@@ -45,23 +45,28 @@ def gen_golden_data_trem(case_name, param):
                     quotient = -quotient if (lhs < 0) != (rhs < 0) else quotient
                     golden[i, j] = lhs - quotient * rhs
     elif dtype == np.uint64:
-        input1 = np.random.randint(0, 2000000, size=(tile_row, tile_col)).astype(dtype)
-        input2 = np.random.randint(1, 1000, size=(tile_row, tile_col)).astype(dtype)
+        input1 = np.random.randint(0, 2000000, size=(h_valid, w_valid)).astype(dtype)
+        input2 = np.random.randint(1, 1000, size=(h_valid, w_valid)).astype(dtype)
         input1.flat[:3] = [np.iinfo(np.uint64).max, 7, 0]
         input2.flat[:3] = [3, 0, np.iinfo(np.uint64).max]
-        golden = np.zeros([tile_row, tile_col]).astype(dtype)
-        for i in range(h_valid):
-            for j in range(w_valid):
-                if input2[i, j] != 0:
-                    golden[i, j] = input1[i, j] % input2[i, j]
+        golden = np.zeros_like(input1)
+        nonzero = input2 != 0
+        golden[nonzero] = input1[nonzero] % input2[nonzero]
     else:
-        input1 = np.random.uniform(low=value_min, high=value_max, size=(tile_row, tile_col)).astype(dtype)
-        input2 = np.random.uniform(low=value_min, high=value_max, size=(tile_row, tile_col)).astype(dtype)
-        golden = np.zeros([tile_row, tile_col]).astype(dtype)
-        golden[0:h_valid, 0:w_valid] = input1[0:h_valid, 0:w_valid] % input2[0:h_valid, 0:w_valid]
+        input1 = np.random.uniform(low=value_min, high=value_max, size=(h_valid, w_valid)).astype(dtype)
+        input2 = np.random.uniform(low=value_min, high=value_max, size=(h_valid, w_valid)).astype(dtype)
+        golden = input1 % input2
 
-    if "inplace" in case_name and w_valid < tile_col:
-        golden[0:h_valid, w_valid:tile_col] = input1[0:h_valid, w_valid:tile_col]
+    if "inplace" in case_name and (w_valid < tile_col or h_valid < tile_row):
+        full_input1 = np.zeros([tile_row, tile_col]).astype(dtype)
+        full_input2 = np.zeros([tile_row, tile_col]).astype(dtype)
+        full_golden = np.zeros([tile_row, tile_col]).astype(dtype)
+        full_input1[0:h_valid, 0:w_valid] = input1
+        full_input2[0:h_valid, 0:w_valid] = input2
+        full_golden[0:h_valid, 0:w_valid] = golden
+        input1 = full_input1
+        input2 = full_input2
+        golden = full_golden
 
     # Apply valid region constraints
     output = np.zeros(h_valid * w_valid).astype(dtype)
@@ -95,6 +100,7 @@ if __name__ == "__main__":
     case_params_list = [
         TremParams("TREMTest.case1", np.uint16, 64, 64, 64, 64),
         TremParams("TREMTest.case2", np.uint16, 64, 64, 63, 63),
+        TremParams("TREMTest.case3", np.uint16, 1, 16384, 1, 16384),
         TremParams("TREMTest.case4", np.uint16, 2048, 16, 2048, 16),
         TremParams("TREMTest.case5", np.float32, 32, 32, 32, 32),
         TremParams("TREMTest.case6", np.uint32, 8, 8, 8, 8),
