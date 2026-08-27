@@ -1,4 +1,4 @@
-﻿# TGATHERB
+# TGATHERB
 
 ## 指令示意图
 

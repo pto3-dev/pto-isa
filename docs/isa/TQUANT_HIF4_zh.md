@@ -1,4 +1,4 @@
-﻿# TQUANT HiFloat4（BF16 → HiF4）— 算法与 CCE 映射
+# TQUANT HiFloat4（BF16 → HiF4）— 算法与 CCE 映射
 
 ## 1. HiFloat4 标准（arXiv:2602.11287）
 

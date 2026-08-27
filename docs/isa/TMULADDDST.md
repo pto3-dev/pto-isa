@@ -1,4 +1,4 @@
-﻿# TMULADDDST
+# TMULADDDST
 
 ## Tile Operation Diagram
 

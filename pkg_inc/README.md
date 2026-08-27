@@ -1,4 +1,4 @@
-﻿# pkg_inc/
+# pkg_inc/
 
 This directory stores **non-external (internal)** headers that are **not exposed**
 to upper-layer consumers. It follows the CANN packaging convention:

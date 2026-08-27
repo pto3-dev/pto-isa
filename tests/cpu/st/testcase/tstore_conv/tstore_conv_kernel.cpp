@@ -67,4 +67,5 @@ void LaunchTStoreConv(T* out, T* src, void* stream)
 /*-------------------6D---------------------------*/
 template void LaunchTStoreConv<float, 2, 1, 1, 1, 2, 8, 1, 1, 1, 2, 8, 1>(float* out, float* src, void* stream);
 template void LaunchTStoreConv<float, 2, 3, 4, 1, 7, 8, 3, 4, 1, 7, 8, 2>(float* out, float* src, void* stream);
-template void LaunchTStoreConv<int32_t, 2, 2, 4, 16, 8, 16, 2, 4, 16, 8, 16, 1>(int32_t* out, int32_t* src, void* stream);
+template void LaunchTStoreConv<int32_t, 2, 2, 4, 16, 8, 16, 2, 4, 16, 8, 16, 1>(
+    int32_t* out, int32_t* src, void* stream);

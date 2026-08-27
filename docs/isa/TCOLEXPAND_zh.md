@@ -1,4 +1,4 @@
-﻿# TCOLEXPAND
+# TCOLEXPAND
 
 ## 指令示意图
 

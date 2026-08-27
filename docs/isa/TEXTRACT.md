@@ -1,4 +1,4 @@
-﻿# TEXTRACT
+# TEXTRACT
 
 
 ## Tile Operation Diagram

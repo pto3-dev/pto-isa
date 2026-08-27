@@ -1,4 +1,4 @@
-﻿# SET_IMG2COL_PADDING
+# SET_IMG2COL_PADDING
 
 ## 指令示意图
 

@@ -1,4 +1,4 @@
-﻿# TFMODS
+# TFMODS
 
 
 ## Tile Operation Diagram

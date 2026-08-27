@@ -1,4 +1,4 @@
-﻿# TSTORE
+# TSTORE
 
 
 ## Tile Operation Diagram

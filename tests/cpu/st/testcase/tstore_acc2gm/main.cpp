@@ -22,8 +22,7 @@ template <int tilingKey>
 void LaunchTStoreAcc2gmScalarNz2nd(uint8_t* out, uint8_t* src0, uint8_t* src1, void* stream, float scalarQuant);
 
 template <int tilingKey>
-void LaunchTStoreAcc2gmScalarNz2NDC1HWC0(
-    uint8_t* out, uint8_t* src0, uint8_t* src1, void* stream, float scalarQuant);
+void LaunchTStoreAcc2gmScalarNz2NDC1HWC0(uint8_t* out, uint8_t* src0, uint8_t* src1, void* stream, float scalarQuant);
 
 class TStoreAcc2gmTest : public testing::Test {
 protected:

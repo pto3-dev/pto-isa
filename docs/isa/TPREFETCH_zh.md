@@ -1,4 +1,4 @@
-﻿# TPREFETCH
+# TPREFETCH
 
 ## 指令示意图
 

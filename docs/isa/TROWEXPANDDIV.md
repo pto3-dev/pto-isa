@@ -1,4 +1,4 @@
-﻿# TROWEXPANDDIV
+# TROWEXPANDDIV
 
 
 ## Tile Operation Diagram

@@ -1,4 +1,4 @@
-﻿# TMATMUL_BIAS
+# TMATMUL_BIAS
 
 ## 指令示意图
 

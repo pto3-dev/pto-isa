@@ -1,4 +1,4 @@
-﻿# TCOLEXPANDDIV
+# TCOLEXPANDDIV
 
 
 ## Tile Operation Diagram

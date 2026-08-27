@@ -1,4 +1,4 @@
-﻿# TAND
+# TAND
 
 
 ## Tile Operation Diagram

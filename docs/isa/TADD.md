@@ -1,4 +1,4 @@
-﻿# TADD
+# TADD
 
 
 ## Tile Operation Diagram

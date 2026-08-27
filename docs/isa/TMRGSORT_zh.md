@@ -1,4 +1,4 @@
-﻿# TMRGSORT
+# TMRGSORT
 
 ## 指令示意图
 

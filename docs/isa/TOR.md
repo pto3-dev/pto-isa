@@ -1,4 +1,4 @@
-﻿# TOR
+# TOR
 
 
 ## Tile Operation Diagram

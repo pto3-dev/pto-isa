@@ -1,4 +1,4 @@
-﻿# TANDS
+# TANDS
 
 
 ## Tile Operation Diagram

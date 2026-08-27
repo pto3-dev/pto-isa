@@ -1,4 +1,4 @@
-﻿# TROWMIN
+# TROWMIN
 
 ## 指令示意图
 

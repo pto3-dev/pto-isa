@@ -1,4 +1,4 @@
-﻿# TTRI
+# TTRI
 
 
 ## Tile Operation Diagram

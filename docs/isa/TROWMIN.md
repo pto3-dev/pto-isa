@@ -1,4 +1,4 @@
-﻿# TROWMIN
+# TROWMIN
 
 
 ## Tile Operation Diagram

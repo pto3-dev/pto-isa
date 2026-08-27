@@ -1,4 +1,4 @@
-﻿# TNOT
+# TNOT
 
 
 ## Tile Operation Diagram

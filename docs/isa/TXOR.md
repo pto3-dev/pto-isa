@@ -1,4 +1,4 @@
-﻿# TXOR
+# TXOR
 
 
 ## Tile Operation Diagram

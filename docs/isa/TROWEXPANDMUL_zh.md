@@ -1,4 +1,4 @@
-﻿# TROWEXPANDMUL
+# TROWEXPANDMUL
 
 ## 指令示意图
 

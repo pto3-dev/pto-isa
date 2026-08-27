@@ -1,4 +1,4 @@
-﻿# TINSERT
+# TINSERT
 
 
 ## Tile Operation Diagram

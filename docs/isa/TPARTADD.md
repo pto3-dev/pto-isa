@@ -1,4 +1,4 @@
-﻿# TPARTADD
+# TPARTADD
 
 
 ## Tile Operation Diagram

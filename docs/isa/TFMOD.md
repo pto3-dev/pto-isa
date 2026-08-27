@@ -1,4 +1,4 @@
-﻿# TFMOD
+# TFMOD
 
 
 ## Tile Operation Diagram

@@ -1,4 +1,4 @@
-﻿# TREDUCE
+# TREDUCE
 
 ## Introduction
 

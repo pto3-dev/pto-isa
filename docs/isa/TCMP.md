@@ -1,4 +1,4 @@
-﻿# TCMP
+# TCMP
 
 
 ## Tile Operation Diagram

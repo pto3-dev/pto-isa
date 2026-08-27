@@ -1,4 +1,4 @@
-# pto.tput
+# TPUT
 
 ## Introduction
 

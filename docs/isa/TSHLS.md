@@ -1,4 +1,4 @@
-﻿# TSHLS
+# TSHLS
 
 
 ## Tile Operation Diagram

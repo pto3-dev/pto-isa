@@ -1,4 +1,4 @@
-# pto.tgather
+# TGATHER
 
 ## Introduction
 

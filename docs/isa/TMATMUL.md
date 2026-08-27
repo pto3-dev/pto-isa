@@ -1,4 +1,4 @@
-﻿# TMATMUL
+# TMATMUL
 
 
 ## Tile Operation Diagram

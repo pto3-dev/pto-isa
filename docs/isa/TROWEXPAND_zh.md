@@ -1,4 +1,4 @@
-﻿# TROWEXPAND
+# TROWEXPAND
 
 ## 指令示意图
 

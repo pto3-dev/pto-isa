@@ -1,4 +1,4 @@
-﻿# TCI
+# TCI
 
 
 ## Tile Operation Diagram

@@ -1,4 +1,4 @@
-﻿# TSort32
+# TSort32
 
 ## Tile Operation Diagram
 

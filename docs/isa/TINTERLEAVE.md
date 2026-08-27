@@ -1,4 +1,4 @@
-﻿# TINTERLEAVE
+# TINTERLEAVE
 
 
 ## Tile Operation Diagram

@@ -1,4 +1,4 @@
-﻿# TDEINTERLEAVE
+# TDEINTERLEAVE
 
 ## 指令示意图
 

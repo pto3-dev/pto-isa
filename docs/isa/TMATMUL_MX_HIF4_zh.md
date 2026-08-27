@@ -1,4 +1,4 @@
-﻿# TMATMUL_MX HiF4（HiFloat4 Cube矩阵乘）
+# TMATMUL_MX HiF4（HiFloat4 Cube矩阵乘）
 
 ## 简介
 

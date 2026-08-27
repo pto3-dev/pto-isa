@@ -1,4 +1,4 @@
-﻿# TROWEXPANDMAX
+# TROWEXPANDMAX
 
 
 ## Tile Operation Diagram

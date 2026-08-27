@@ -1,4 +1,4 @@
-﻿﻿# TABS
+# TABS
 
 
 ## Tile Operation Diagram

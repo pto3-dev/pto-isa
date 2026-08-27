@@ -1,4 +1,4 @@
-﻿# TGATHERB
+# TGATHERB
 
 
 ## Tile Operation Diagram

@@ -313,7 +313,7 @@ public:
 
     static float4_e2m1x2_t infinity() noexcept { return float4_e2m1x2_t(); }
     static float4_e2m1x2_t quiet_NaN() noexcept { return float4_e2m1x2_t(); }
-    static float4_e2m1x2_t signaling_NaN() noexcept { return float4_e2m1x2_t(); } 
+    static float4_e2m1x2_t signaling_NaN() noexcept { return float4_e2m1x2_t(); }
 };
 
 } // namespace std

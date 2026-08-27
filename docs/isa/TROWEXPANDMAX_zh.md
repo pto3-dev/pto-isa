@@ -1,4 +1,4 @@
-﻿# TROWEXPANDMAX
+# TROWEXPANDMAX
 
 ## 指令示意图
 

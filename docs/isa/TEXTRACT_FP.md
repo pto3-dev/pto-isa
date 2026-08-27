@@ -1,4 +1,4 @@
-﻿# TEXTRACT_FP
+# TEXTRACT_FP
 
 
 ## Tile Operation Diagram

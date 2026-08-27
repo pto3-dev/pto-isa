@@ -1,4 +1,4 @@
-﻿# TRESHAPE
+# TRESHAPE
 
 
 ## Tile Operation Diagram

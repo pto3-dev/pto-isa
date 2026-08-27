@@ -1,4 +1,4 @@
-﻿# TLOAD
+# TLOAD
 
 
 ## Tile Operation Diagram

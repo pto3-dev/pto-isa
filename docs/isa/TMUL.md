@@ -1,4 +1,4 @@
-﻿# TMUL
+# TMUL
 
 
 ## Tile Operation Diagram

@@ -1,4 +1,4 @@
-﻿# TMOV
+# TMOV
 
 
 ## Tile Operation Diagram

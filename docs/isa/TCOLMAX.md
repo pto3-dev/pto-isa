@@ -1,4 +1,4 @@
-﻿# TCOLMAX
+# TCOLMAX
 
 
 ## Tile Operation Diagram

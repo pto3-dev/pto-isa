@@ -1,4 +1,4 @@
-﻿# TROWMAX
+# TROWMAX
 
 
 ## Tile Operation Diagram

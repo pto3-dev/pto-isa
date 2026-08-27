@@ -1,4 +1,4 @@
-﻿# TASSIGN
+# TASSIGN
 
 
 ## Tile Operation Diagram

@@ -1,4 +1,4 @@
-﻿# TRSQRT
+# TRSQRT
 
 ## 指令示意图
 
