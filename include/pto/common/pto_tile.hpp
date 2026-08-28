@@ -11,6 +11,8 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #ifndef PTO_TILE_HPP
 #define PTO_TILE_HPP
 
+#include <type_traits>
+
 #include "pto/common/memory.hpp"
 #include <pto/common/type.hpp>
 #include <pto/common/constants.hpp>
@@ -660,13 +662,35 @@ const typename GlobalTensor<Element_, Shape_, Stride_, Layout_>::Stride
 template <typename T, int64_t rows = DYNAMIC, int64_t cols = DYNAMIC, Layout Layout_ = Layout::ND>
 struct TileShape2D;
 
+template <typename T>
+constexpr int64_t GetNZC0Size()
+{
+    using RawT = std::remove_cv_t<T>;
+
+#if defined(__CPU_SIM)
+    if constexpr (IsTwinType<RawT>()) {
+        return B4_C0_SIZE;
+    }
+#elif defined(PTO_NPU_ARCH_A5) || defined(PTO_NPU_ARCH_A6)
+    if constexpr (
+        std::is_same_v<RawT, float4_e2m1x2_t> || std::is_same_v<RawT, float4_e1m2x2_t>
+#if defined(PTO_NPU_ARCH_A6)
+        || std::is_same_v<RawT, hifloat4x2_t>
+#endif
+    ) {
+        return B4_C0_SIZE;
+    }
+#endif
+    return C0_SIZE_BYTE / sizeof(T);
+}
+
 template <typename T, int64_t cols>
 constexpr int64_t GetTileShape2DNZCols()
 {
     if constexpr (cols == DYNAMIC) {
         return DYNAMIC;
     } else {
-        return static_cast<int64_t>(cols / (C0_SIZE_BYTE / sizeof(T)));
+        return static_cast<int64_t>(cols / GetNZC0Size<T>());
     }
 }
 
@@ -681,10 +705,10 @@ constexpr int64_t GetTileShape2DNZRows()
 }
 
 template <typename T, int64_t rows, int64_t cols>
-struct TileShape2D<T, rows, cols, Layout::NZ> : public Shape<
-                                                    1, GetTileShape2DNZCols<T, cols>(), GetTileShape2DNZRows<T, rows>(),
-                                                    FRACTAL_NZ_ROW, C0_SIZE_BYTE / sizeof(T)> {
-    static constexpr int C0Size = C0_SIZE_BYTE / sizeof(T);
+struct TileShape2D<T, rows, cols, Layout::NZ>
+    : public Shape<
+          1, GetTileShape2DNZCols<T, cols>(), GetTileShape2DNZRows<T, rows>(), FRACTAL_NZ_ROW, GetNZC0Size<T>()> {
+    static constexpr int C0Size = GetNZC0Size<T>();
     using Parent = Shape<1, GetTileShape2DNZCols<T, cols>(), GetTileShape2DNZRows<T, rows>(), FRACTAL_NZ_ROW, C0Size>;
 
     static_assert((rows == DYNAMIC) || (rows % FRACTAL_NZ_ROW == 0), "rows must be divisible by 16 for Layout::NZ");
@@ -746,7 +770,7 @@ constexpr int64_t GetBaseShape2DNZCols()
     if constexpr (cols == DYNAMIC) {
         return DYNAMIC;
     } else {
-        return static_cast<int64_t>(cols / (C0_SIZE_BYTE / sizeof(T)));
+        return static_cast<int64_t>(cols / GetNZC0Size<T>());
     }
 }
 
@@ -765,16 +789,16 @@ constexpr int64_t GetBaseShape2DStride1()
     if constexpr (rows == DYNAMIC) {
         return DYNAMIC;
     } else {
-        return static_cast<int64_t>(rows * (C0_SIZE_BYTE / sizeof(T)));
+        return static_cast<int64_t>(rows * GetNZC0Size<T>());
     }
 }
 template <typename T, int64_t rows, int64_t cols>
 struct BaseShape2D<T, rows, cols, Layout::NZ>
     : public Stride<
-          GetBaseShape2DStride0<T, rows, cols>(), GetBaseShape2DStride1<T, rows>(),
-          FRACTAL_NZ_ROW*(C0_SIZE_BYTE / sizeof(T)), C0_SIZE_BYTE / sizeof(T), 1> {
-    static constexpr int C0Size = C0_SIZE_BYTE / sizeof(T);
-    static constexpr int FractalNZSize = FRACTAL_NZ_ROW * (C0_SIZE_BYTE / sizeof(T));
+          GetBaseShape2DStride0<T, rows, cols>(), GetBaseShape2DStride1<T, rows>(), FRACTAL_NZ_ROW * GetNZC0Size<T>(),
+          GetNZC0Size<T>(), 1> {
+    static constexpr int C0Size = GetNZC0Size<T>();
+    static constexpr int FractalNZSize = FRACTAL_NZ_ROW * C0Size;
     using Parent =
         Stride<GetBaseShape2DStride0<T, rows, cols>(), GetBaseShape2DStride1<T, rows>(), FractalNZSize, C0Size, 1>;
     static_assert((rows == DYNAMIC) || (rows % FRACTAL_NZ_ROW == 0), "rows must be divisible by 16 for Layout::NZ");
