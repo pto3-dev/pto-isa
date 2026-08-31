@@ -469,10 +469,15 @@ __tf__ PTO_INTERNAL void TMovDnTo2Zz(
     __VEC_SCOPE__ { GenerateB8IndicesDN2ZZToUB<DstTileData, SrcTileData>(dstPtr, srcPtr, tmpPtr, hatM, colsN); }
 }
 
+// Both pointers are re-seeded from their bases at the top of every column group instead of
+// being unwound with post-update fixups. vsstb's repeat stride (low half of cfgVsstb) only
+// decides where the base lands after a store, never where the data goes, so the group wrap
+// needs no dedicated last-iteration config and the row walk carries no "rows - 1" term --
+// rows == 0 is then a natural no-op rather than an unsigned underflow.
 template <typename WorkT, typename SrcTileData>
 PTO_INTERNAL void TMovNd2NzLoop(
-    __ubuf__ WorkT* srcPtr, __ubuf__ WorkT* dstPtr, uint16_t repeatTimes, uint16_t innerLoopNum, uint32_t validCol,
-    uint32_t cfgVsstb, uint32_t cfgVsstbLast, uint32_t srcOffset)
+    __ubuf__ WorkT* srcBase, __ubuf__ WorkT* dstBase, uint16_t repeatTimes, uint16_t rows, uint32_t validCol,
+    uint32_t cfgVsstb, uint32_t virtualRow)
 {
     constexpr uint32_t elementsPerRepeat = CCE_VL / sizeof(WorkT);
     RegTensor<WorkT> vreg;
@@ -481,13 +486,14 @@ PTO_INTERNAL void TMovNd2NzLoop(
     for (uint16_t j = 0; j < repeatTimes; ++j) {
         uint32_t count = cols - static_cast<uint32_t>(cols > elementsPerRepeat) * (cols - elementsPerRepeat);
         preg = CreatePredicate<WorkT>(count);
-        for (uint16_t i = 0; i < innerLoopNum; ++i) {
-            vlds(vreg, srcPtr, SrcTileData::RowStride, NORM, POST_UPDATE);
-            vsstb(vreg, dstPtr, cfgVsstb, preg, POST_UPDATE);
+        // A column group covers 8 fractal panels of virtualRow rows each, i.e.
+        // 8 * virtualRow * c0Elems == virtualRow * elementsPerRepeat elements.
+        __ubuf__ WorkT* psrc = srcBase + static_cast<uint32_t>(j) * elementsPerRepeat;
+        __ubuf__ WorkT* pdst = dstBase + static_cast<uint32_t>(j) * virtualRow * elementsPerRepeat;
+        for (uint16_t i = 0; i < rows; ++i) {
+            vlds(vreg, psrc, SrcTileData::RowStride, NORM, POST_UPDATE);
+            vsstb(vreg, pdst, cfgVsstb, preg, POST_UPDATE);
         }
-        vlds(vreg, srcPtr, elementsPerRepeat, NORM, POST_UPDATE);
-        vsstb(vreg, dstPtr, cfgVsstbLast, preg, POST_UPDATE);
-        srcPtr -= srcOffset;
         cols -= elementsPerRepeat;
     }
 }
@@ -519,25 +525,24 @@ __tf__ PTO_INTERNAL void TMovToVecNd2Nz(
     uint32_t blockStride = isOptForConflict ? ((alignRow + 1) * C0_SIZE_BYTE) / BLOCK_BYTE_SIZE :
                                               (alignRow * C0_SIZE_BYTE) / BLOCK_BYTE_SIZE;
     uint32_t virtualRow = isOptForConflict ? alignRow + 1 : alignRow;
-    uint32_t repeatStride = 1;
-    uint16_t innerLoopNum = srcValidRow - 1;
     uint32_t cfgVsstb = (blockStride << 16u) | (1 & 0xFFFFU);
-    uint32_t repeatStrideLast = (CCE_VL * virtualRow - innerLoopNum * BLOCK_BYTE_SIZE) / BLOCK_BYTE_SIZE;
-    uint32_t cfgVsstbLast = (blockStride << 16u) | (repeatStrideLast & 0xFFFFU);
-    uint32_t srcOffset = innerLoopNum * SrcTileData::RowStride;
+    // The dst fractal geometry above is derived from validRow, so the row walk must stay
+    // within it: a source with more valid rows than the destination would spill into the
+    // next fractal panel.
+    PTO_ASSERT(srcValidRow > 0, "Fix: TMOV ND->NZ source validRow is 0.");
+    PTO_ASSERT(srcValidRow <= validRow, "Fix: TMOV ND->NZ source validRow exceeds destination validRow.");
+    uint16_t moveRow = static_cast<uint16_t>((srcValidRow < validRow) ? srcValidRow : validRow);
     constexpr bool isByte = (sizeof(T) == 1);
     __VEC_SCOPE__
     {
         if constexpr (isByte) {
             // For 1-byte types (hifloat8_t, int8_t, float8_e4m3_t, etc.), cast to uint8_t
             // since vlds/vsstb don't directly support these types.
-            __ubuf__ uint8_t*& srcU8 = (__ubuf__ uint8_t*&)srcPtr;
-            __ubuf__ uint8_t*& dstU8 = (__ubuf__ uint8_t*&)dstPtr;
             TMovNd2NzLoop<uint8_t, SrcTileData>(
-                srcU8, dstU8, repeatTimes, innerLoopNum, validCol, cfgVsstb, cfgVsstbLast, srcOffset);
+                (__ubuf__ uint8_t*)srcPtr, (__ubuf__ uint8_t*)dstPtr, repeatTimes, moveRow, validCol, cfgVsstb,
+                virtualRow);
         } else {
-            TMovNd2NzLoop<T, SrcTileData>(
-                srcPtr, dstPtr, repeatTimes, innerLoopNum, validCol, cfgVsstb, cfgVsstbLast, srcOffset);
+            TMovNd2NzLoop<T, SrcTileData>(srcPtr, dstPtr, repeatTimes, moveRow, validCol, cfgVsstb, virtualRow);
         }
     } // end of VF
 }
