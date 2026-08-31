@@ -378,7 +378,7 @@ PTO_INTERNAL void Int64ShiftRegs(
     if constexpr (!Right) {
         vshl(lo0, sl, norm, mask, MODE_ZEROING);
         vshl(hi0, sh, norm, mask, MODE_ZEROING);
-        vshr(t, sl, cm, mask, MODE_ZEROING);
+        vshr((vector_u32&)t, (vector_u32&)sl, cm, mask, MODE_ZEROING);
         vor(hi0, hi0, t, mask);
         vsub(c32, norm, bias, mask);
         vshl(hi1, sl, c32, mask, MODE_ZEROING);
