@@ -173,7 +173,9 @@ __tf__ PTO_INTERNAL void TConcatIdx(
         bool isAligned = (src0Num % elementsPerBlock) == 0;
 
         SetWaitFlag<PIPE_S, PIPE_V>();
-        vcopy((copyType)(dstPtr + i * dstStride), (copyType)(src0Ptr + i * src0Stride), src0RepeatTime, 1, 1, 8, 8);
+        if (src0RepeatTime > 0) {
+            vcopy((copyType)(dstPtr + i * dstStride), (copyType)(src0Ptr + i * src0Stride), src0RepeatTime, 1, 1, 8, 8);
+        }
         if (src0MaskNum > 0) {
             SetContinuousMask(src0MaskNum);
             vcopy(
@@ -183,9 +185,11 @@ __tf__ PTO_INTERNAL void TConcatIdx(
         }
 
         if (isAligned) {
-            vcopy(
-                (copyType)(dstPtr + i * dstStride + src0Num), (copyType)(src1Ptr + i * src1Stride), src1RepeatTime, 1,
-                1, 8, 8);
+            if (src1RepeatTime > 0) {
+                vcopy(
+                    (copyType)(dstPtr + i * dstStride + src0Num), (copyType)(src1Ptr + i * src1Stride), src1RepeatTime,
+                    1, 1, 8, 8);
+            }
             if (src1MaskNum > 0) {
                 SetContinuousMask(src1MaskNum);
                 vcopy(

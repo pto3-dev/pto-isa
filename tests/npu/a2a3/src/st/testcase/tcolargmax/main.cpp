@@ -136,6 +136,8 @@ protected:
         aclrtMalloc(&dstDeviceIdx, dstIdxByteSize, ACL_MEM_MALLOC_HUGE_FIRST);
         aclrtMalloc(&dstDeviceVal, dstValByteSize, ACL_MEM_MALLOC_HUGE_FIRST);
         aclrtMalloc(&srcDevice, srcByteSize, ACL_MEM_MALLOC_HUGE_FIRST);
+        aclrtMemset(dstDeviceIdx, dstIdxByteSize, 0, dstIdxByteSize);
+        aclrtMemset(dstDeviceVal, dstValByteSize, 0, dstValByteSize);
 
         ReadFile(GetGoldenDir() + "/input.bin", srcByteSize, srcHost, srcByteSize);
         aclrtMemcpy(srcDevice, srcByteSize, srcHost, srcByteSize, ACL_MEMCPY_HOST_TO_DEVICE);

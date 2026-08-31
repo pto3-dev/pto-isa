@@ -78,6 +78,8 @@ void test_tconcat()
     aclrtMalloc((void**)&src0IdxDevice, fileSizeSrc0Idx, ACL_MEM_MALLOC_HUGE_FIRST);
     aclrtMalloc((void**)&src1IdxDevice, fileSizeSrc1Idx, ACL_MEM_MALLOC_HUGE_FIRST);
     aclrtMalloc((void**)&dstIdxDevice, fileSizeDstIdx, ACL_MEM_MALLOC_HUGE_FIRST);
+    aclrtMemset(dstDevice, fileSizeDst, 0, fileSizeDst);
+    aclrtMemset(dstIdxDevice, fileSizeDstIdx, 0, fileSizeDstIdx);
 
     ReadFile(GetGoldenDir() + "/input0.bin", fileSizeSrc0, src0Host, fileSizeSrc0);
     ReadFile(GetGoldenDir() + "/input1.bin", fileSizeSrc1, src1Host, fileSizeSrc1);

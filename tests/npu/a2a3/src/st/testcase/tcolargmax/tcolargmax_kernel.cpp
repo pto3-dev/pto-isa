@@ -65,8 +65,8 @@ PTO_INTERNAL void runTColIdxValMax(__gm__ TVal __out__* outVal, __gm__ TIdx __ou
     using GlobalDataDstIdx = GlobalTensor<TIdx, dstShapeDim5, dstStridDim5>;
 
     GlobalDataSrc srcGlobal(src, SrcShapeDim5(srcValidRow, validCol), srcStridDim5(srcRow, col));
-    GlobalDataDstIdx dstIdxGlobal(outIdx, dstShapeDim5(dstRow, validCol), dstStridDim5(srcRow, col));
-    GlobalDataDstVal dstValGlobal(outVal, dstShapeDim5(dstRow, validCol), dstStridDim5(srcRow, col));
+    GlobalDataDstIdx dstIdxGlobal(outIdx, dstShapeDim5(dstRow, validCol), dstStridDim5(dstRow, col));
+    GlobalDataDstVal dstValGlobal(outVal, dstShapeDim5(dstRow, validCol), dstStridDim5(dstRow, col));
 
     using SrcTileData = Tile<TileType::Vec, TVal, srcRow, col, BLayout::RowMajor, -1, -1>;
     using DstIdxTileData = Tile<TileType::Vec, TIdx, dstRow, col, BLayout::RowMajor, -1, -1>;

@@ -53,6 +53,7 @@ void test_gather_mask()
     aclrtMallocHost((void**)(&srcHost), srcSize);
     aclrtMalloc((void**)&dstDevice, dstSize, ACL_MEM_MALLOC_HUGE_FIRST);
     aclrtMalloc((void**)&srcDevice, srcSize, ACL_MEM_MALLOC_HUGE_FIRST);
+    aclrtMemset(dstDevice, dstSize, 0, dstSize);
 
     ReadFile(GetGoldenDir() + "/input.bin", srcSize, srcHost, srcSize);
     aclrtMemcpy(srcDevice, srcSize, srcHost, srcSize, ACL_MEMCPY_HOST_TO_DEVICE);

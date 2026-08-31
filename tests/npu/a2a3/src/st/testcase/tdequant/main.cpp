@@ -64,6 +64,7 @@ void test_tdequant()
     aclrtMalloc((void**)&srcDevice, srcFileSize, ACL_MEM_MALLOC_HUGE_FIRST);
     aclrtMalloc((void**)&scaleDevice, paraFileSize, ACL_MEM_MALLOC_HUGE_FIRST);
     aclrtMalloc((void**)&offsetDevice, paraFileSize, ACL_MEM_MALLOC_HUGE_FIRST);
+    aclrtMemset(dstDevice, dstFileSize, 0, dstFileSize);
 
     ReadFile(GetGoldenDir() + "/srcInput.bin", srcFileSize, srcHost, srcFileSize);
     ReadFile(GetGoldenDir() + "/scaleInput.bin", paraFileSize, scaleHost, paraFileSize);
