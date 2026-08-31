@@ -27,6 +27,10 @@ template <
     typename TMask, int dstTileH, int dstTileW, int maskTileH, int maskTileW, int srcTileH, int srcTileW, int vRows,
     int vCols>
 void LaunchTSelsHalf(aclFloat16* out, TMask* mask, aclFloat16* src, aclFloat16 scalar, void* stream);
+template <
+    typename TMask, int dstTileH, int dstTileW, int maskTileH, int maskTileW, int srcTileH, int srcTileW, int vRows,
+    int vCols>
+void LaunchTSelsBf16(aclFloat16* out, TMask* mask, aclFloat16* src, aclFloat16 scalar, void* stream);
 
 class TSELSTest : public testing::Test {
 private:
@@ -118,12 +122,15 @@ protected:
 
     template <
         typename T, typename TMask, int dstTileH, int dstTileW, int maskTileH, int maskTileW, int srcTileH,
-        int srcTileW, int vRows, int vCols, bool isHalf = false>
+        int srcTileW, int vRows, int vCols, bool isHalf = false, bool isBf16 = false>
     void Launch()
     {
         T scalar;
         this->BeforeLaunch<T, TMask, dstTileH, dstTileW, maskTileH, maskTileW, srcTileH, srcTileW>(scalar);
-        if constexpr (isHalf) {
+        if constexpr (isBf16) {
+            LaunchTSelsBf16<TMask, dstTileH, dstTileW, maskTileH, maskTileW, srcTileH, srcTileW, vRows, vCols>(
+                (T*)this->dstDevice, (TMask*)this->maskDevice, (T*)this->srcDevice, scalar, this->stream);
+        } else if constexpr (isHalf) {
             LaunchTSelsHalf<TMask, dstTileH, dstTileW, maskTileH, maskTileW, srcTileH, srcTileW, vRows, vCols>(
                 (T*)this->dstDevice, (TMask*)this->maskDevice, (T*)this->srcDevice, scalar, this->stream);
         } else {
@@ -187,6 +194,18 @@ TEST_F(TSELSTest, case_half_uint16_2x16_2x16_2x16_2x16)
 TEST_F(TSELSTest, case_half_uint32_2x16_2x8_2x16_2x16)
 {
     this->Launch<aclFloat16, uint32_t, 2, 16, 2, 8, 2, 16, 2, 16, true>();
+}
+TEST_F(TSELSTest, case_bf16_uint8_2x16_2x32_2x16_2x16)
+{
+    this->Launch<aclFloat16, uint8_t, 2, 16, 2, 32, 2, 16, 2, 16, false, true>();
+}
+TEST_F(TSELSTest, case_bf16_uint16_2x16_2x16_2x16_2x16)
+{
+    this->Launch<aclFloat16, uint16_t, 2, 16, 2, 16, 2, 16, 2, 16, false, true>();
+}
+TEST_F(TSELSTest, case_bf16_uint32_2x16_2x8_2x16_2x16)
+{
+    this->Launch<aclFloat16, uint32_t, 2, 16, 2, 8, 2, 16, 2, 16, false, true>();
 }
 TEST_F(TSELSTest, case_float_uint8_2x8_2x32_2x8_2x8) { this->Launch<float, uint8_t, 2, 8, 2, 32, 2, 8, 2, 8>(); }
 TEST_F(TSELSTest, case_float_uint16_2x8_2x16_2x8_2x8) { this->Launch<float, uint16_t, 2, 8, 2, 16, 2, 8, 2, 8>(); }

@@ -15,7 +15,7 @@ See LICENSE in the root of the software repository for the full text of the Lice
 using namespace std;
 using namespace PtoTestCommon;
 
-template <typename T, int Rows, int Cols, int ValidRows, int ValidCols>
+template <typename T, int Rows, int Cols, int ValidRows, int ValidCols, bool isBf16 = false>
 void LaunchTSel(T* out, uint8_t* mask, T* src0, T* src1, void* stream);
 template <typename T, int Rows, int Cols, int ValidRows, int ValidCols>
 void LaunchTSelInplace(T* out, uint8_t* mask, T* src1, void* stream);
@@ -42,13 +42,13 @@ void CheckTSelResult(size_t fileSize)
     std::vector<T> devFinal(fileSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", fileSize, golden.data(), fileSize);
     ReadFile(GetGoldenDir() + "/output.bin", fileSize, devFinal.data(), fileSize);
-    if constexpr (std::is_same_v<T, int64_t> || std::is_same_v<T, uint64_t>)
+    if constexpr (std::is_integral_v<T>)
         EXPECT_TRUE(ResultCmpExact(golden, devFinal.data()));
     else
         EXPECT_TRUE(ResultCmp<T>(golden, devFinal, 0.001f));
 }
 
-template <typename T, int Rows, int Cols, int ValidRows, int ValidCols>
+template <typename T, int Rows, int Cols, int ValidRows, int ValidCols, bool isBf16 = false>
 void test_tsel()
 {
     size_t fileSize = Rows * Cols * sizeof(T);
@@ -81,7 +81,7 @@ void test_tsel()
     aclrtMemcpy(src0Device, fileSize, src0Host, fileSize, ACL_MEMCPY_HOST_TO_DEVICE);
     aclrtMemcpy(src1Device, fileSize, src1Host, fileSize, ACL_MEMCPY_HOST_TO_DEVICE);
     aclrtMemcpy(maskDevice, maskFileSize, maskHost, maskFileSize, ACL_MEMCPY_HOST_TO_DEVICE);
-    LaunchTSel<T, Rows, Cols, ValidRows, ValidCols>(dstDevice, maskDevice, src0Device, src1Device, stream);
+    LaunchTSel<T, Rows, Cols, ValidRows, ValidCols, isBf16>(dstDevice, maskDevice, src0Device, src1Device, stream);
 
     aclrtSynchronizeStream(stream);
     aclrtMemcpy(dstHost, fileSize, dstDevice, fileSize, ACL_MEMCPY_DEVICE_TO_HOST);
@@ -181,3 +181,11 @@ TEST_F(TSELTest, case_uint64_4x32_inplace) { test_tsel_inplace<uint64_t, 4, 32, 
 TEST_F(TSELTest, case_int64_1x1024_inplace) { test_tsel_inplace<int64_t, 1, 1024, 1, 1024>(); }
 TEST_F(TSELTest, case_int64_4x64_4x40_inplace) { test_tsel_inplace<int64_t, 4, 64, 4, 40>(); }
 TEST_F(TSELTest, case_int64_1x2048_1x2045_inplace) { test_tsel_inplace<int64_t, 1, 2048, 1, 2045>(); }
+TEST_F(TSELTest, case_int8_1x1024) { test_tsel<int8_t, 1, 1024, 1, 1024>(); }
+TEST_F(TSELTest, case_int8_2x512) { test_tsel<int8_t, 2, 512, 2, 512>(); }
+TEST_F(TSELTest, case_int16_2x128) { test_tsel<int16_t, 2, 128, 2, 128>(); }
+TEST_F(TSELTest, case_int16_2x160) { test_tsel<int16_t, 2, 160, 2, 160>(); }
+TEST_F(TSELTest, case_int32_2x128) { test_tsel<int32_t, 2, 128, 2, 128>(); }
+TEST_F(TSELTest, case_int32_2x160) { test_tsel<int32_t, 2, 160, 2, 160>(); }
+TEST_F(TSELTest, case_bf16_2x128) { test_tsel<aclFloat16, 2, 128, 2, 128, true>(); }
+TEST_F(TSELTest, case_bf16_2x160) { test_tsel<aclFloat16, 2, 160, 2, 160, true>(); }

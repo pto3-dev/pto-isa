@@ -240,7 +240,7 @@ __tf__ PTO_INTERNAL void TSel_b16_8(
             for (uint16_t j = 0; j < (uint16_t)repeatTimes; ++j) {
                 vlds(vreg0, src0, i * src0RowStride + j * nRepeatElem, NORM);
                 vlds(vreg1, src1, i * src1RowStride + j * nRepeatElem, NORM);
-                plds(maskReg, mask, i * maskRowStride + j * 16, pldsMode);
+                plds(maskReg, mask, i * maskRowStride + j * (nRepeatElem / 8), pldsMode);
                 pReg = CreatePredicate<T>(sReg);
                 vsel(vreg2, vreg0, vreg1, maskReg);
                 vsts(vreg2, dst, i * dstRowStride + j * nRepeatElem, distValue, pReg);

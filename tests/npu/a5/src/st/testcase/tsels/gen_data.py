@@ -14,6 +14,13 @@ import os
 import math
 import numpy as np
 
+try:
+    import ml_dtypes
+
+    bfloat16 = ml_dtypes.bfloat16
+except ModuleNotFoundError:
+    bfloat16 = np.float16
+
 np.random.seed(19)
 
 
@@ -36,11 +43,10 @@ def gen_golden_data(case_name, param):
         input1 = np.random.randint(dtype_info.min, dtype_info.max, size=[src_tile_row, src_tile_col]).astype(dtype)
         input2 = np.random.randint(dtype_info.min, dtype_info.max, size=[1]).astype(dtype)
     else:
-        dtype_info = np.finfo(dtype)
-        input1 = np.random.uniform(low=dtype_info.min, high=dtype_info.max, size=[src_tile_row, src_tile_col]).astype(
-            dtype
-        )
-        input2 = np.random.uniform(low=dtype_info.min, high=dtype_info.max, size=[1]).astype(dtype)
+        # np.finfo does not support ml_dtypes.bfloat16; use f32 range then cast.
+        dtype_info = np.finfo(np.float32)
+        input1 = np.random.uniform(low=-10.0, high=10.0, size=[src_tile_row, src_tile_col]).astype(dtype)
+        input2 = np.random.uniform(low=-10.0, high=10.0, size=[1]).astype(dtype)
     mask_dtype_info = np.iinfo(param.dtype_mask)
     mask = np.random.randint(mask_dtype_info.min, mask_dtype_info.max, size=[mask_tile_row, mask_tile_col]).astype(
         param.dtype_mask
@@ -71,6 +77,7 @@ class TestParams:
     DTYPE_STR_TABLE = {
         np.float32: "float",
         np.float16: "half",
+        bfloat16: "bf16",
         np.int32: "int32",
         np.uint32: "uint32",
         np.int16: "int16",
@@ -138,6 +145,9 @@ if __name__ == "__main__":
         TestParams(np.float16, np.uint8, 2, 16, 2, 32, 2, 16, 2, 16),
         TestParams(np.float16, np.uint16, 2, 16, 2, 16, 2, 16, 2, 16),
         TestParams(np.float16, np.uint32, 2, 16, 2, 8, 2, 16, 2, 16),
+        TestParams(bfloat16, np.uint8, 2, 16, 2, 32, 2, 16, 2, 16),
+        TestParams(bfloat16, np.uint16, 2, 16, 2, 16, 2, 16, 2, 16),
+        TestParams(bfloat16, np.uint32, 2, 16, 2, 8, 2, 16, 2, 16),
         TestParams(np.float32, np.uint8, 2, 8, 2, 32, 2, 8, 2, 8),
         TestParams(np.float32, np.uint16, 2, 8, 2, 16, 2, 8, 2, 8),
         TestParams(np.float32, np.uint32, 2, 8, 2, 8, 2, 8, 2, 8),
@@ -157,7 +167,20 @@ if __name__ == "__main__":
         TestParams(np.int64, np.uint8, 1, 16368, 1, 2046, 1, 16368, 1, 16368),
         TestParams(np.uint64, np.uint8, 1, 16368, 1, 2046, 1, 16368, 1, 16368),
         TestParams(np.int64, np.uint8, 4, 32, 4, 32, 4, 32, 4, 32, is_inplace=True),
-TestParams(np.uint64, np.uint8, 4, 32, 4, 32, 4, 32, 4, 32, is_inplace=True, custom_name="TSELSTest.case_uint64_uint8_4x32_4x32_4x32_4x32_inplace"),
+        TestParams(
+            np.uint64,
+            np.uint8,
+            4,
+            32,
+            4,
+            32,
+            4,
+            32,
+            4,
+            32,
+            is_inplace=True,
+            custom_name="TSELSTest.case_uint64_uint8_4x32_4x32_4x32_4x32_inplace",
+        ),
         TestParams(np.int64, np.uint8, 1, 1024, 1, 128, 1, 1024, 1, 1024, is_inplace=True),
         TestParams(np.int64, np.uint8, 4, 40, 4, 5, 4, 40, 4, 40, is_inplace=True),
         TestParams(np.int64, np.uint8, 1, 2048, 1, 256, 1, 2048, 1, 2045, is_inplace=True),

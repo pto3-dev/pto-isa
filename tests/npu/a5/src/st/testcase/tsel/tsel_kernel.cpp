@@ -172,11 +172,14 @@ __global__ AICORE void runTSelInplace(__gm__ T __out__* out, __gm__ uint8_t __in
     out = dstGlobal.data();
 }
 
-template <typename T, int Rows, int Cols, int ValidRows, int ValidCols>
+template <typename T, int Rows, int Cols, int ValidRows, int ValidCols, bool isBf16 = false>
 void LaunchTSel(T* out, uint8_t* mask, T* src0, T* src1, void* stream)
 {
     constexpr int wideTileCols = 32;
-    if constexpr (std::is_same_v<T, aclFloat16>) {
+    if constexpr (isBf16) {
+        runTSel<bfloat16_t, Rows, Cols, ValidRows, ValidCols>
+            <<<1, nullptr, stream>>>((bfloat16_t*)(out), mask, (bfloat16_t*)(src0), (bfloat16_t*)(src1));
+    } else if constexpr (std::is_same_v<T, aclFloat16>) {
         runTSel<half, Rows, Cols, ValidRows, ValidCols>
             <<<1, nullptr, stream>>>((half*)(out), mask, (half*)(src0), (half*)(src1));
     } else if constexpr (
@@ -267,6 +270,21 @@ template void LaunchTSel<aclFloat16, 2, 160, 2, 160>(
 template void LaunchTSel<int8_t, 2, 128, 2, 128>(int8_t* out, uint8_t* mask, int8_t* src0, int8_t* src1, void* stream);
 template void LaunchTSel<int8_t, 2, 32, 2, 32>(int8_t* out, uint8_t* mask, int8_t* src0, int8_t* src1, void* stream);
 template void LaunchTSel<int8_t, 2, 160, 2, 160>(int8_t* out, uint8_t* mask, int8_t* src0, int8_t* src1, void* stream);
+template void LaunchTSel<int8_t, 1, 1024, 1, 1024>(
+    int8_t* out, uint8_t* mask, int8_t* src0, int8_t* src1, void* stream);
+template void LaunchTSel<int8_t, 2, 512, 2, 512>(int8_t* out, uint8_t* mask, int8_t* src0, int8_t* src1, void* stream);
+template void LaunchTSel<int16_t, 2, 128, 2, 128>(
+    int16_t* out, uint8_t* mask, int16_t* src0, int16_t* src1, void* stream);
+template void LaunchTSel<int16_t, 2, 160, 2, 160>(
+    int16_t* out, uint8_t* mask, int16_t* src0, int16_t* src1, void* stream);
+template void LaunchTSel<int32_t, 2, 128, 2, 128>(
+    int32_t* out, uint8_t* mask, int32_t* src0, int32_t* src1, void* stream);
+template void LaunchTSel<int32_t, 2, 160, 2, 160>(
+    int32_t* out, uint8_t* mask, int32_t* src0, int32_t* src1, void* stream);
+template void LaunchTSel<aclFloat16, 2, 128, 2, 128, true>(
+    aclFloat16* out, uint8_t* mask, aclFloat16* src0, aclFloat16* src1, void* stream);
+template void LaunchTSel<aclFloat16, 2, 160, 2, 160, true>(
+    aclFloat16* out, uint8_t* mask, aclFloat16* src0, aclFloat16* src1, void* stream);
 template void LaunchTSel<float, 2, 512, 2, 512>(float* out, uint8_t* mask, float* src0, float* src1, void* stream);
 template void LaunchTSel<int64_t, 4, 16, 4, 16>(
     int64_t* out, uint8_t* mask, int64_t* src0, int64_t* src1, void* stream);
