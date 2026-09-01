@@ -64,6 +64,15 @@ void TMatmulNzZn(TileAcc& dst, TileAcc* acc, TileLeft& src0, TileRight& src1)
     uint16_t K = src0.GetValidCol();
     uint16_t N = src1.GetValidCol();
 
+    // Materialize lazy tile storage before starting workers. Tile::data() is not
+    // thread-safe during its first access in CPU auto-allocation mode.
+    (void)dst.data();
+    if (acc != nullptr) {
+        (void)acc->data();
+    }
+    (void)src0.data();
+    (void)src1.data();
+
     cpu::parallel_for_1d(0, M, static_cast<std::size_t>(M) * N * K, [&](std::size_t i) {
         for (uint16_t j = 0; j < N; j++) {
             typename TileAcc::DType mul_acc = 0;
@@ -153,6 +162,18 @@ void TMatmulMX(
     uint16_t N = src1.GetValidCol();
     CheckMadMxValid<TileAcc, TileLeft, TileLeftScale, TileRight, TileRightScale>();
     CheckDynamicMmad(M, K, N);
+
+    // Materialize lazy tile storage before starting workers. Tile::data() is not
+    // thread-safe during its first access in CPU auto-allocation mode.
+    (void)dst.data();
+    if (acc != nullptr) {
+        (void)acc->data();
+    }
+    (void)src0.data();
+    (void)src1.data();
+    (void)scale0.data();
+    (void)scale1.data();
+
     cpu::parallel_for_1d(0, M, static_cast<std::size_t>(M) * N * K, [&](std::size_t i) {
         for (uint16_t j = 0; j < N; j++) {
             typename TileAcc::DType mul_acc = 0;

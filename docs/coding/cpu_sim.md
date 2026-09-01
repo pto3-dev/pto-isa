@@ -5,7 +5,8 @@ It has some limitations and differences comparing to NPU backends at this moment
   including the TileData `TPUSH`/`TPOP`/`TFREE` FIFO flow, are simulated with CPU synchronization primitives.
 - Specific memory model to mimic NPU memory (see below)
 - Multithreading support is not complete. Memory access in Tile objects is not synchronized across threads, so tiles
-  should not be shared across threads except through supported communication operations.
+  should not be shared across threads except through supported communication operations. Tile lazy allocation is also
+  not synchronized.
 
 ## Enabling CPU_SIM
 You may enable CPU backend (CPU_SIM) by setting `__CPU_SIM` compiler definition. In this case, programs can be built using standard CPU-targeted compiler (gcc or clang).
@@ -42,6 +43,10 @@ tiles must be bound explicitly before access.
 Fallback storage is allocated from host memory regardless of the tile location and does not overlap the simulated UB,
 L1, L0A, L0B, or L0C buffers. Use `TASSIGN` when the simulated memory location, offset, aliasing, or communication
 behavior matters. Tile abstractions that do not provide lazy fallback storage must still be explicitly bound.
+
+To avoid concurrent first access in `__PTO_AUTO__` mode, the CPU_SIM implementation of `TMATMUL` materializes the
+backing storage for the destination, optional accumulator, and both matrix input Tiles on the caller thread before
+launching parallel workers. The `TMATMUL_MX` path also materializes both scale Tiles.
 
 ### To summarize:
 For regular `Tile` objects, use one of these strategies:
