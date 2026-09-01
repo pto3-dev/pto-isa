@@ -82,7 +82,7 @@ inline int aclrtMalloc(void** p, size_t sz, int) { return aclrtMallocHost(p, sz)
 
 inline int aclrtMemcpy(void* dst, size_t szDst, const void* src, size_t szSrc, int)
 {
-    std::memcpy(dst, src, std::min(szDst, szSrc));
+    std::char_traits<char>::copy(static_cast<char*>(dst), static_cast<const char*>(src), std::min(szDst, szSrc));
     return 0;
 }
 
