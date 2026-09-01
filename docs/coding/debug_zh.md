@@ -30,7 +30,7 @@ PTO 使用三种常见的断言机制：
 - `FIX-A09` GlobalTensor 形状/步长不匹配或超出范围：确保 5-D 形状/步长与预期视图匹配并遵守后端约束（ND/DN/NZ 规则、维度的范围限制和对齐限制）。
 - `FIX-A10` Gather/scatter 连续性/对齐：某些 gather/scatter 路径需要连续的行/列或 32B 对齐——调整有效大小、布局或使用不同的路径。
 - `FIX-A11` 无效的数值域（例如除以零）：避免输入非法输入（在 `RECIP/RSQRT/DIV` 类操作之前添加 epsilon/clamp）。
-- `FIX-A12` `TASSIGN<Addr>(tile)` 地址/容量错误：确保目标内存空间在当前架构上存在（例如 `ScaleLeft`/`ScaleRight` 仅限 A5）；减小 tile 维度（`Rows`/`Cols`）或元素类型大小，使 `Rows * Cols * sizeof(DType) <= capacity`；选择 `Addr` 使得 `Addr + tile_size <= capacity` 且 `Addr` 是对齐值的整数倍（通常为 32 字节）。容量可通过 `-DPTO_xxx_SIZE_BYTES=<value>` 覆盖（参见 `include/pto/common/buffer_limits.hpp`）。
+- `FIX-A12` `TASSIGN<Addr>(tile)` 地址/容量错误：确保目标内存空间在当前架构上存在（例如 `ScaleLeft`/`ScaleRight` 支持 Ascend 950PR/Ascend 950DT 和 Ascend 960）；减小 tile 维度（`Rows`/`Cols`）或元素类型大小，使 `Rows * Cols * sizeof(DType) <= capacity`；选择 `Addr` 使得 `Addr + tile_size <= capacity` 且 `Addr` 是对齐值的整数倍（通常为 32 字节）。容量可通过 `-DPTO_xxx_SIZE_BYTES=<value>` 覆盖（参见 `include/pto/common/buffer_limits.hpp`）。
 
 ## 注意事项
 

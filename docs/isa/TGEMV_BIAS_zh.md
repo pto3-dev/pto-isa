@@ -76,6 +76,7 @@ pto.tgemv.bias ins(%a, %b, %bias : !pto.tile_buf<...>, !pto.tile_buf<...>, !pto.
 - 运行时有效尺寸约束：
     - `m` 必须为 `1`
     - `k` 和 `n`（取自 `bMatrix.GetValidRow()` 与 `bMatrix.GetValidCol()`）必须位于 `[1, 4095]`
+- `TMATMUL` 的 Acc 目的 Tile 约束同样适用。
 
 ### 数据类型约束
 

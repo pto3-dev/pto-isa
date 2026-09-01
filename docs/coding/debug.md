@@ -30,7 +30,7 @@ Use these codes referenced in the assertion index:
 - `FIX-A09` GlobalTensor shape/stride mismatch or out-of-range: ensure the 5-D shape/stride matches the intended view and obeys backend constraints (ND/DN/NZ rules, range limits for dims, and alignment restrictions).
 - `FIX-A10` Gather/scatter contiguity/alignment: some gather/scatter paths require continuous rows/cols or 32B alignment—adjust valid sizes, layout, or use a different path.
 - `FIX-A11` Invalid numeric domain (e.g., divide-by-zero): avoid feeding illegal inputs (add epsilon/clamp) before `RECIP/RSQRT/DIV`-like ops.
-- `FIX-A12` `TASSIGN<Addr>(tile)` address/capacity error: ensure the target memory space exists on the current architecture (e.g. `ScaleLeft`/`ScaleRight` are A5-only); reduce tile dimensions (`Rows`/`Cols`) or element size so that `Rows * Cols * sizeof(DType) <= capacity`; choose `Addr` so that `Addr + tile_size <= capacity` and `Addr` is a multiple of the alignment (typically 32 bytes). Capacities can be overridden via `-DPTO_xxx_SIZE_BYTES=<value>` (see `include/pto/common/buffer_limits.hpp`).
+- `FIX-A12` `TASSIGN<Addr>(tile)` address/capacity error: ensure the target memory space exists on the current architecture (e.g. `ScaleLeft`/`ScaleRight` are supported on A5 and A6); reduce tile dimensions (`Rows`/`Cols`) or element size so that `Rows * Cols * sizeof(DType) <= capacity`; choose `Addr` so that `Addr + tile_size <= capacity` and `Addr` is a multiple of the alignment (typically 32 bytes). Capacities can be overridden via `-DPTO_xxx_SIZE_BYTES=<value>` (see `include/pto/common/buffer_limits.hpp`).
 
 ## Notes
 

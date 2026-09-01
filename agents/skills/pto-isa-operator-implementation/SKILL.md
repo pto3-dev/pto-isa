@@ -678,7 +678,7 @@ TSTORE(dstGlobal, dstTile);
 
 ```
 ┌─────────────────────────────────────────────┐
-│         A5 AI Core Architecture             │
+│   Ascend 950PR/Ascend 950DT AI Core 架构    │
 ├─────────────────────────────────────────────┤
 │                                              │
 │  ┌──────────────┐  ┌──────────────────┐     │
@@ -862,7 +862,7 @@ MatPipe mPipe((__gm__ void *)(uint64_t)0x0, (uint32_t)0x0, (uint32_t)0x20000);
 
 #### FlagID分配策略
 
-A5架构提供**8个FlagID**（0-7），用于核间同步：
+Ascend 950PR/Ascend 950DT 提供**8个FlagID**（0-7），用于核间同步：
 
 | FlagID | 用途 | 说明 |
 |--------|------|------|

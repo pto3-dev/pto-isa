@@ -8,7 +8,8 @@
 
 带缩放Tile的GEMV变体，支持混合精度/量化矩阵向量计算。
 
-此指令当前仅在 A5 上实现（见 `include/pto/npu/a5/TMatmul.hpp`）。
+此指令当前仅在 Ascend 950PR/Ascend 950DT 和 Ascend 960 上实现（见 `include/pto/npu/a5/TMatmul.hpp`
+和 `include/pto/npu/a6/TMatmul.hpp`）。
 
 ## 数学语义
 

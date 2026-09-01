@@ -57,6 +57,11 @@ PTO_INST RecordEvent TMATMUL(TileRes &cMatrix, TileLeft &aMatrix, TileRight &bMa
 
 ## 约束
 
+- **Acc 目的 Tile 约束（CPU、Atlas A2/A3 训练系列产品/Atlas A2/A3 推理系列产品、Ascend 950PR/Ascend 950DT、Ascend 960、Kirin9030 和 KirinX90）**：
+    - 当静态非 compact `TileRes` 满足 `TileRes::Cols > FRACTAL_NZ_ROW` 时，必须满足
+      `((TileRes::ValidRow + 15) / 16) * 16 == TileRes::Rows`，其中 `FRACTAL_NZ_ROW` 为 16。
+    - 当 `TileRes::ValidRow == DYNAMIC`、`TileRes::Cols <= FRACTAL_NZ_ROW` 或
+      `TileRes::Compact != CompactMode::Null` 时，当前实现不强制该 Acc 步幅条件。
 - **实现检查 （Atlas A2/A3 训练系列产品/Atlas A2/A3 推理系列产品）**:
     - 支持的 `(CType, AType, BType)` 三元组：
     - `(int32_t, int8_t, int8_t)`

@@ -56,6 +56,12 @@ PTO_INST RecordEvent TMATMUL(TileRes &cMatrix, TileLeft &aMatrix, TileRight &bMa
 
 ## Constraints
 
+- **Accumulator destination constraint (CPU, A2A3, A5, A6, Kirin9030, and KirinX90)**:
+    - A static non-compact `TileRes` with `TileRes::Cols > FRACTAL_NZ_ROW` must satisfy
+      `((TileRes::ValidRow + 15) / 16) * 16 == TileRes::Rows`.
+    - `FRACTAL_NZ_ROW` is 16. This Acc-stride condition is not enforced when
+      `TileRes::ValidRow == DYNAMIC`, `TileRes::Cols <= FRACTAL_NZ_ROW`, or
+      `TileRes::Compact != CompactMode::Null`.
 - **Implementation checks (A2A3)**:
     - Supported `(CType, AType, BType)` triples:
     - `(int32_t, int8_t, int8_t)`

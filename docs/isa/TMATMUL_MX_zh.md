@@ -8,7 +8,8 @@
 
 带额外缩放Tile的矩阵乘法 (GEMM)，用于支持目标上的混合精度/量化矩阵乘法。
 
-该指令目前仅Ascend 950PR/Ascend 950DT实现（参见 `include/pto/npu/a5/TMatmul.hpp`）。
+该指令目前仅在 Ascend 950PR/Ascend 950DT 和 Ascend 960 上实现（参见
+`include/pto/npu/a5/TMatmul.hpp` 和 `include/pto/npu/a6/TMatmul.hpp`）。
 
 ## 数学语义
 

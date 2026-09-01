@@ -6,7 +6,7 @@
 HiF4（4位）压缩数据，各自附带三级 HiF4 缩放因子（Ea/Eb/Ec）。结果在 L0C 中以
 FP32 累加，通常通过 FIXPIPE 转换为 BF16 后存储。
 
-A6（dav-920r1）HiF4 矩阵乘流水线：
+Ascend 960（dav-920r1）HiF4 矩阵乘流水线：
 **TLOAD → TEXTRACT → TMATMUL_MX → TSTORE（FIXPIPE）**。
 
 ## 流水线

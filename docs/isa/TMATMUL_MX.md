@@ -9,7 +9,8 @@
 
 Matrix multiply (GEMM) with additional scaling tiles for mixed-precision / quantized matmul on supported targets.
 
-This instruction is currently implemented on A5 (see `include/pto/npu/a5/TMatmul.hpp`).
+This instruction is currently implemented on A5 and A6 (see
+`include/pto/npu/a5/TMatmul.hpp` and `include/pto/npu/a6/TMatmul.hpp`).
 
 ## Math Interpretation
 

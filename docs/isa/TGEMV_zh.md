@@ -97,6 +97,7 @@ PTO_INST RecordEvent TGEMV_BIAS(TileRes &cMatrix, TileLeft &aMatrix, TileRight &
 - 运行时有效尺寸约束：
     - `m` 必须为 `1`
     - `k` 和 `n`（取自 `bMatrix.GetValidRow()` 与 `bMatrix.GetValidCol()`）必须位于 `[1, 4095]`
+- `TMATMUL` 的 Acc 目的 Tile 约束同样适用。
 
 ### TGEMV / TGEMV_ACC数据类型约束
 

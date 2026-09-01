@@ -11,7 +11,8 @@ GEMV with scaling tiles for mixed-precision / quantized matrix-vector compute on
 
 This instruction family extends `TGEMV` with additional scale operands (mx path). Accumulator and scale handling are target-dependent.
 
-This instruction is currently implemented on A5 (see `include/pto/npu/a5/TMatmul.hpp`).
+This instruction is currently implemented on A5 and A6 (see
+`include/pto/npu/a5/TMatmul.hpp` and `include/pto/npu/a6/TMatmul.hpp`).
 
 ## Math Interpretation
 

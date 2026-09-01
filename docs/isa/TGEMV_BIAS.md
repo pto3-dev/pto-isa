@@ -76,6 +76,7 @@ pto.tgemv.bias ins(%a, %b, %bias : !pto.tile_buf<...>, !pto.tile_buf<...>, !pto.
 - Runtime valid-size constraints:
     - `m` must be `1`
     - `k` and `n` (taken from `bMatrix.GetValidRow()` and `bMatrix.GetValidCol()`) must be in `[1, 4095]`
+- The `TMATMUL` accumulator destination constraint also applies.
 
 ### Datatype constraints
 
