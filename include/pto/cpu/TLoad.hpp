@@ -153,7 +153,7 @@ PTO_INTERNAL void TLOAD_TILE_IMPL(TileData& dst, GlobalData& src)
 
     for (size_t row = 0; row < validRow; ++row) {
         for (size_t col = 0; col < validCol; ++col) {
-            const size_t dstOffset = MapTileIndicesToGlobalOffset<GlobalData>(row, col, shapes, strides);
+            const size_t dstOffset = MapTileIndicesToGlobalOffset<GlobalData, TileData>(row, col, shapes, strides);
             dst.SetElement(row, col, src.GetElement(dstOffset));
         }
     }

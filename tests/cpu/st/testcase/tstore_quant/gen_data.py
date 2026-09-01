@@ -161,40 +161,21 @@ def gen_golden_data(case_name, gInfo):
     g_shape_2 = gInfo.g_shape_2
     g_shape_3 = gInfo.g_shape_3
     g_shape_4 = gInfo.g_shape_4
-    g_whole_shape_0 = gInfo.g_whole_shape_0
-    g_whole_shape_1 = gInfo.g_whole_shape_1
-    g_whole_shape_2 = gInfo.g_whole_shape_2
-    g_whole_shape_3 = gInfo.g_whole_shape_3
-    g_whole_shape_4 = gInfo.g_whole_shape_4
 
-    # 1. Generate Raw Input Data
-    if gInfo.format in ["ND", "NZ"]:
-        input_shape = (g_whole_shape_0, g_whole_shape_1, g_whole_shape_2, g_whole_shape_3, g_whole_shape_4)
-        active_slice = (slice(0, g_shape_0), slice(0, g_shape_1), slice(0, g_shape_2), slice(0, g_shape_3), slice(0, g_shape_4))
+    if gInfo.format == "ND":
+        row = g_shape_0 * g_shape_1 * g_shape_2 * g_shape_3
+        col = g_shape_4
     elif gInfo.format == "DN":
-        # Note the swap of 3 and 4 for DN layout
-        input_shape = (g_whole_shape_0, g_whole_shape_1, g_whole_shape_2, g_whole_shape_4, g_whole_shape_3)
-        active_slice = (slice(0, g_shape_0), slice(0, g_shape_1), slice(0, g_shape_2), slice(0, g_shape_4), slice(0, g_shape_3))
+        row = g_shape_3
+        col = g_shape_0 * g_shape_1 * g_shape_2 * g_shape_4
 
-    input_arr = np.random.randint(-5, 5, size=input_shape).astype(src_type)
-    
-    # 2. Prepare for Quantization
-    # We collapse everything except the last physical dimension into "Rows"
-    # This matches how vector quantization usually applies per-channel (last dim)
-    original_shape = input_arr.shape
-    rows = np.prod(original_shape[:-1])
-    cols = original_shape[-1]
-    reshaped_input = input_arr.reshape((rows, cols))
+    input_arr = np.random.randint(-5, 5, size=[row, col]).astype(src_type)
 
-    # 3. Generate Quantization Parameters
-    # If is_v_quant (vector quant), we need 'cols' parameters. Else, just 1.
-    quant_num = cols if gInfo.is_v_quant else 1
+    quant_num = col if gInfo.is_v_quant else 1
     quant_array = get_quant_vector(dst_type, quant_num)
 
-    # 4. Apply Quantization
-    # We pass the reshaped 2D data into your existing process_quant
-    quantized_2d = process_quant(
-        reshaped_input, 
+    output_arr = process_quant(
+        input_arr,
         quant_array, 
         src_dtype=src_type, 
         dst_dtype=dst_type, # Or your target dst_dtype
@@ -203,17 +184,13 @@ def gen_golden_data(case_name, gInfo):
         saturate_inf=gInfo.saturate_inf
     )
 
-    # 5. Restore Shape and handle Padding
-    output_arr = quantized_2d.reshape(original_shape)
+    if gInfo.format == "DN":
+        input_arr = input_arr.transpose(1, 0)
+        output_arr = output_arr.transpose(1, 0)
     
-    # Masking: Ensure only the "active" shape contains quantized data, 
-    # and the padding (WholeShape - Shape) is zeroed out as per your requirement.
-    final_output = np.zeros_like(output_arr)
-    final_output[active_slice] = output_arr[active_slice]
-
     # 6. Save Files
     input_arr.tofile("./input.bin")
-    final_output.tofile("./golden.bin")
+    output_arr.tofile("./golden.bin")
     quant_array.tofile("./quant.bin")
 
 
@@ -222,8 +199,7 @@ class GlobalTensorInfo:
                 is_v_quant: bool, 
                 saturate_inf: bool,
                 use_relu: bool,
-                g_shape_0, g_shape_1, g_shape_2, g_shape_3, g_shape_4,
-                g_whole_shape_0, g_whole_shape_1, g_whole_shape_2, g_whole_shape_3, g_whole_shape_4):
+                g_shape_0, g_shape_1, g_shape_2, g_shape_3, g_shape_4):
         self.src_type = src_type
         self.dst_type = dst_type
         self.format = layout_format
@@ -235,11 +211,6 @@ class GlobalTensorInfo:
         self.g_shape_2 = g_shape_2
         self.g_shape_3 = g_shape_3
         self.g_shape_4 = g_shape_4
-        self.g_whole_shape_0 = g_whole_shape_0
-        self.g_whole_shape_1 = g_whole_shape_1
-        self.g_whole_shape_2 = g_whole_shape_2
-        self.g_whole_shape_3 = g_whole_shape_3
-        self.g_whole_shape_4 = g_whole_shape_4
 
 if __name__ == "__main__":
     # 用例名称
@@ -256,15 +227,15 @@ if __name__ == "__main__":
     ]
 
     case_params_list = [
-        GlobalTensorInfo(np.float32, np.int8, "ND", True, True, True, 1, 1, 1, 2, 128, 1, 1, 1, 2, 128),
-        GlobalTensorInfo(np.int32, np.int16, "ND", True, True, False, 1, 2, 1, 23, 121, 3, 2, 2, 35, 125),
-        GlobalTensorInfo(np.int32, np.int8, "ND", True, False, True, 2, 2, 3, 23, 47, 3, 3, 4, 32, 50),
-        GlobalTensorInfo(np.float32, np.float16, "DN",False, True, True, 1, 1, 1, 4, 21, 1, 1, 1, 8, 32),
-        GlobalTensorInfo(np.float32, np.float16, "DN", False, False, False, 3, 1, 1, 1, 124, 5, 1, 1, 2, 128),
-        GlobalTensorInfo(np.int32, np.int8, "DN", False, True, False, 2, 1, 2, 32, 32, 3, 4, 3, 64, 35),
-        GlobalTensorInfo(np.float32, np.float16, "DN", False, False, True, 1, 1, 1, 16, 8, 1, 1, 2, 16, 8),
-        GlobalTensorInfo(np.int32, np.int16, "DN", False, False, False, 2, 2, 2, 16, 16, 5, 3, 3, 16, 16),
-        GlobalTensorInfo(np.int32, np.int8, "DN", True, True, True, 1, 2, 1, 16, 32, 2, 4, 2, 16, 32),
+        GlobalTensorInfo(np.float32, np.int8, "ND", True, True, True, 1, 1, 1, 2, 128),
+        GlobalTensorInfo(np.int32, np.int16, "ND", True, True, False, 1, 2, 1, 23, 121),
+        GlobalTensorInfo(np.int32, np.int8, "ND", True, False, True, 2, 2, 3, 23, 47),
+        GlobalTensorInfo(np.float32, np.float16, "DN",False, True, True, 1, 1, 1, 4, 21),
+        GlobalTensorInfo(np.float32, np.float16, "DN", False, False, False, 3, 1, 1, 1, 124),
+        GlobalTensorInfo(np.int32, np.int8, "DN", False, True, False, 2, 1, 2, 32, 32),
+        GlobalTensorInfo(np.float32, np.float16, "DN", False, False, True, 1, 1, 1, 16, 8),
+        GlobalTensorInfo(np.int32, np.int16, "DN", False, False, False, 2, 2, 2, 16, 16),
+        GlobalTensorInfo(np.int32, np.int8, "DN", True, True, True, 1, 2, 1, 16, 32),
     ]
 
     for i, case_name  in enumerate(case_name_list):

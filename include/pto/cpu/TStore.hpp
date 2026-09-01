@@ -22,7 +22,7 @@ namespace pto {
 template <typename GlobalData, typename TileData>
 PTO_INLINE void CheckTileDataStore(GlobalData& dst, TileData& src)
 {
-    constexpr size_t C0 = GetC0ElemCount<typename GlobalData::DType>();
+    constexpr size_t C0 = GetC0ElemCount<typename GlobalData::DType, TileData>();
     if constexpr (GlobalData::layout == pto::Layout::NZ) {
         assert(
             src.GetValidRow() == dst.GetShape(GlobalTensorDim::DIM_2) * dst.GetShape(GlobalTensorDim::DIM_3) &&
@@ -64,11 +64,11 @@ __tf__ PTO_INLINE void TStore(GlobalData& dst, TileData& src, const std::vector<
     for (size_t row = 0; row < validRow; ++row) {
         for (size_t col = 0; col < validCol; ++col) {
             if constexpr (quantMode != QuantMode_t::NoQuant) {
-                scalar = scalars[TileData::isRowMajor ? col : row];
+                scalar = scalars[col];
             }
             ST val = src.GetElement(row, col);
             DT dstVal = ConvertStoreValue<DT, ST, quantMode, applyRelu>(val, scalar);
-            const size_t dstOffset = MapTileIndicesToGlobalOffset<GlobalData>(row, col, shapes, strides);
+            const size_t dstOffset = MapTileIndicesToGlobalOffset<GlobalData, TileData>(row, col, shapes, strides);
             if constexpr (atomicType == AtomicType::AtomicAdd) {
                 dst.AddToElement(dstOffset, dstVal);
             } else {
@@ -157,13 +157,7 @@ __aicore__ void TSTORE_IMPL(GlobalData& dst, TileData& src, uint64_t preQuantSca
     (void)Phase;
     constexpr QuantMode_t quantPre = GetScalarPreQuantMode<typename TileData::DType, typename GlobalData::DType>();
     constexpr bool useRelu = reluPreMode == ReluPreMode::NormalRelu;
-    size_t vector_size = 0;
-    if constexpr (TileData::isRowMajor) {
-        vector_size = src.GetValidCol();
-    } else {
-        vector_size = src.GetValidRow();
-    }
-    std::vector<uint64_t> scalars(vector_size, preQuantScalar);
+    std::vector<uint64_t> scalars(src.GetValidCol(), preQuantScalar);
     TSTORE_IMPL<TileData, GlobalData, quantPre, useRelu, atomicType>(dst, src, scalars);
 }
 

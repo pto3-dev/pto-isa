@@ -19,7 +19,7 @@ using namespace pto;
 template <typename T, int N, int D, int C1, int H, int W, int C0>
 __global__ AICORE void runTStoreConv_NDC1HWC0(__gm__ T __out__* out, __gm__ T __in__* src)
 {
-    constexpr size_t kC0 = std::is_same_v<T, int32_t> ? 16 : 32 / sizeof(T);
+    constexpr size_t kC0 = 32 / sizeof(T);
     static_assert(C0 == kC0);
 
     // Define the dimensions for readability
@@ -67,5 +67,4 @@ void LaunchTStoreConv(T* out, T* src, void* stream)
 /*-------------------6D---------------------------*/
 template void LaunchTStoreConv<float, 2, 1, 1, 1, 2, 8, 1, 1, 1, 2, 8, 1>(float* out, float* src, void* stream);
 template void LaunchTStoreConv<float, 2, 3, 4, 1, 7, 8, 3, 4, 1, 7, 8, 2>(float* out, float* src, void* stream);
-template void LaunchTStoreConv<int32_t, 2, 2, 4, 16, 8, 16, 2, 4, 16, 8, 16, 1>(
-    int32_t* out, int32_t* src, void* stream);
+template void LaunchTStoreConv<int32_t, 2, 2, 4, 16, 8, 8, 2, 4, 16, 8, 8, 1>(int32_t* out, int32_t* src, void* stream);

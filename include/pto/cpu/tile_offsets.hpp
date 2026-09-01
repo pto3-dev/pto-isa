@@ -16,11 +16,15 @@ See LICENSE in the root of the software repository for the full text of the Lice
 
 namespace pto {
 
-template <typename T>
+template <typename T, typename TileData = void>
 constexpr size_t GetC0ElemCount()
 {
-    return std::is_same_v<T, int32_t> ? static_cast<size_t>(ACC_C0_SIZE) :
-                                        static_cast<size_t>(C0_SIZE_BYTE) / sizeof(T);
+    if constexpr (!std::is_same_v<TileData, void>) {
+        if constexpr (std::is_same_v<T, int32_t> && TileData::Loc == TileType::Acc) {
+            return static_cast<size_t>(ACC_C0_SIZE);
+        }
+    }
+    return static_cast<size_t>(C0_SIZE_BYTE) / sizeof(T);
 }
 
 template <typename T, typename = void>
@@ -173,7 +177,7 @@ size_t inline GetGlobalElementOffsetPlain(GlobalData& gdata, size_t r, size_t c)
     return r * gdata.GetStride(GlobalTensorDim::DIM_3) + c;
 }
 
-template <typename GlobalData>
+template <typename GlobalData, typename TileData = void>
 size_t inline MapTileIndicesToGlobalOffset(
     size_t r, size_t c, const std::vector<int64_t>& globalShapes, const std::vector<int64_t>& globalStrides)
 {
@@ -183,7 +187,7 @@ size_t inline MapTileIndicesToGlobalOffset(
     const size_t shape3 = static_cast<size_t>(globalShapes[GlobalTensorDim::DIM_3]);
     const size_t shape4 = static_cast<size_t>(globalShapes[GlobalTensorDim::DIM_4]);
 
-    constexpr size_t C0 = GetC0ElemCount<typename GlobalData::DType>();
+    constexpr size_t C0 = GetC0ElemCount<typename GlobalData::DType, TileData>();
     static_assert(C0 != 0, "Divider cannot be equal to zero");
 
     int64_t i0, i1, i2, i3, i4, c0 = 0;
