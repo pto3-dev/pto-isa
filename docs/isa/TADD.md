@@ -23,13 +23,13 @@ Synchronous form:
 %dst = tadd %src0, %src1 : !pto.tile<...>
 ```
 
-### AS Level 1 (SSA)
+### IR Level 1 (SSA)
 
 ```text
 %dst = pto.tadd %src0, %src1 : (!pto.tile<...>, !pto.tile<...>) -> !pto.tile<...>
 ```
 
-### AS Level 2 (DPS)
+### IR Level 2 (DPS)
 
 ```text
 pto.tadd ins(%src0, %src1 : !pto.tile_buf<...>, !pto.tile_buf<...>) outs(%dst : !pto.tile_buf<...>)
@@ -46,15 +46,21 @@ PTO_INST RecordEvent TADD(TileDataDst &dst, TileDataSrc0 &src0, TileDataSrc1 &sr
 ## Constraints
 
 - **Implementation checks (A2A3)**:
-    - `TileData::DType` must be one of: `int32_t`, `int16_t`, `half`, `float`.
-    - Tile layout must be row-major (`TileData::isRowMajor`).
+    - The dtypes of `dst`, `src0`, and `src1` must be identical and one of: `int32_t`, `int16_t`, `half`, `float`.
+    - The layouts of `dst`, `src0`, and `src1` must all be row-major (`TileData::isRowMajor`).
 - **Implementation checks (A5)**:
-    - `TileData::DType` must be one of: `int32_t`, `uint32_t`, `int64_t`, `uint64_t`, `float`, `int16_t`, `uint16_t`, `half`, `bfloat16_t`, `uint8_t`, `int8_t`.
-    - Tile layout must be row-major (`TileData::isRowMajor`).
+    - The dtypes of `dst`, `src0`, and `src1` must be identical and one of: `int32_t`, `uint32_t`, `int64_t`, `uint64_t`, `float`, `int16_t`, `uint16_t`, `half`, `bfloat16_t`, `uint8_t`, `int8_t`.
+    - The layouts of `dst`, `src0`, and `src1` must all be row-major (`TileData::isRowMajor`).
+- **Implementation checks (CPU_SIM)**:
+    - The three operand dtypes must be identical. CPU_SIM has no additional row-major-only restriction; row-major,
+      column-major, and other supported Tile layouts use their corresponding per-operand offset calculation.
 - **Valid region**:
     - The op uses `dst.GetValidRow()` / `dst.GetValidCol()` as the iteration domain.
-    - CPU_SIM explicitly checks that `src0`, `src1`, and `dst` have identical valid row and column counts and triggers
-      an assertion failure on mismatch.
+    - `dst`, `src0`, and `src1` may have distinct C++ Tile types, including different static or dynamic
+      `ValidRow`/`ValidCol` template arguments, provided that their element types are identical.
+    - A2A3, A5, and CPU_SIM require `src0`, `src1`, and `dst` to have identical runtime valid row and column counts and
+      trigger an assertion failure on mismatch. CPU_SIM computes each operand's address from that operand's own Tile
+      layout and physical shape.
 
 ## Examples
 
@@ -68,6 +74,22 @@ using namespace pto;
 void example_auto() {
   using TileT = Tile<TileType::Vec, float, 16, 16>;
   TileT src0, src1, dst;
+  TADD(dst, src0, src1);
+}
+```
+
+### Auto (mixed static and dynamic valid shapes)
+
+```cpp
+#include <pto/pto-inst.hpp>
+
+using namespace pto;
+
+void example_mixed_valid_shape() {
+  using DynamicTile = Tile<TileType::Vec, int32_t, 16, 16, BLayout::RowMajor, -1, -1>;
+  using StaticTile = Tile<TileType::Vec, int32_t, 16, 16, BLayout::RowMajor, 16, 16>;
+  DynamicTile dst(16, 16), src1(16, 16);
+  StaticTile src0;
   TADD(dst, src0, src1);
 }
 ```
@@ -112,6 +134,6 @@ void example_manual() {
 
 ```text
 %dst = tadd %src0, %src1 : !pto.tile<...>
-# AS Level 2 (DPS)
+# IR Level 2 (DPS)
 pto.tadd ins(%src0, %src1 : !pto.tile_buf<...>, !pto.tile_buf<...>) outs(%dst : !pto.tile_buf<...>)
 ```

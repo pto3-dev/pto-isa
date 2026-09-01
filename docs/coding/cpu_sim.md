@@ -60,6 +60,9 @@ correctness testing and does not model a specific on-chip address.
 
 ## Supported behavior and backend differences
 
+- CPU_SIM `TADD` accepts independently typed `dst`, `src0`, and `src1` Tiles when their element types and runtime
+  valid shapes match. This includes mixing static and dynamic `ValidRow`/`ValidCol` template arguments. Each operand
+  is indexed using its own Tile layout and physical shape; a runtime valid-shape mismatch triggers an assertion.
 - TileData `TPUSH`/`TPOP`/`TFREE` use a host-side `TPipe` FIFO model. The model waits for free slots and ready data,
   keeps C2V and V2C traffic separate for `Direction::DIR_BOTH`, and coordinates split lanes through the simulated
   block/subblock context. `TFREE` participates in the CPU FIFO release protocol; it is not the A2A3 TileData no-op.

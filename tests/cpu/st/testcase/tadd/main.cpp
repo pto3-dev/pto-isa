@@ -36,8 +36,11 @@ std::string GetGoldenDir()
 template <typename T, int kGRows_, int kGCols_, int kTRows_, int kTCols_>
 void LaunchTAdd(T* out, T* src0, T* src1, void* stream);
 
-template <typename T, int kGRows_, int kGCols_, int kTRows_, int kTCols_>
-void test_tadd()
+template <int kRows, int kCols>
+void LaunchTAddMixedValidShape(int32_t* out, int32_t* src0, int32_t* src1, void* stream);
+
+template <typename T, int kGRows_, int kGCols_, int kTRows_, int kTCols_, bool mixedValidShape = false>
+void test_tadd(const std::string& goldenDir = GetGoldenDir())
 {
     size_t fileSize = kGRows_ * kGCols_ * sizeof(T);
 
@@ -58,17 +61,23 @@ void test_tadd()
     aclrtMalloc((void**)&src1Device, fileSize, ACL_MEM_MALLOC_HUGE_FIRST);
     aclrtMemset(dstDevice, fileSize, 0, fileSize);
 
-    CHECK_RESULT_GTEST(ReadFile(GetGoldenDir() + "/input1.bin", fileSize, src0Host, fileSize));
-    CHECK_RESULT_GTEST(ReadFile(GetGoldenDir() + "/input2.bin", fileSize, src1Host, fileSize));
+    CHECK_RESULT_GTEST(ReadFile(goldenDir + "/input1.bin", fileSize, src0Host, fileSize));
+    CHECK_RESULT_GTEST(ReadFile(goldenDir + "/input2.bin", fileSize, src1Host, fileSize));
 
     aclrtMemcpy(src0Device, fileSize, src0Host, fileSize, ACL_MEMCPY_HOST_TO_DEVICE);
     aclrtMemcpy(src1Device, fileSize, src1Host, fileSize, ACL_MEMCPY_HOST_TO_DEVICE);
-    LaunchTAdd<T, kGRows_, kGCols_, kTRows_, kTCols_>(dstDevice, src0Device, src1Device, stream);
+    if constexpr (mixedValidShape) {
+        LaunchTAddMixedValidShape<kTRows_, kTCols_>(
+            reinterpret_cast<int32_t*>(dstDevice), reinterpret_cast<int32_t*>(src0Device),
+            reinterpret_cast<int32_t*>(src1Device), stream);
+    } else {
+        LaunchTAdd<T, kGRows_, kGCols_, kTRows_, kTCols_>(dstDevice, src0Device, src1Device, stream);
+    }
 
     aclrtSynchronizeStream(stream);
     aclrtMemcpy(dstHost, fileSize, dstDevice, fileSize, ACL_MEMCPY_DEVICE_TO_HOST);
 
-    WriteFile(GetGoldenDir() + "/output.bin", dstHost, fileSize);
+    WriteFile(goldenDir + "/output.bin", dstHost, fileSize);
 
     aclrtFree(dstDevice);
     aclrtFree(src0Device);
@@ -83,8 +92,8 @@ void test_tadd()
 
     std::vector<T> golden(fileSize / sizeof(T));
     std::vector<T> devFinal(fileSize / sizeof(T));
-    CHECK_RESULT_GTEST(ReadFile(GetGoldenDir() + "/golden.bin", fileSize, golden.data(), fileSize));
-    CHECK_RESULT_GTEST(ReadFile(GetGoldenDir() + "/output.bin", fileSize, devFinal.data(), fileSize));
+    CHECK_RESULT_GTEST(ReadFile(goldenDir + "/golden.bin", fileSize, golden.data(), fileSize));
+    CHECK_RESULT_GTEST(ReadFile(goldenDir + "/output.bin", fileSize, devFinal.data(), fileSize));
 
     bool ret = ResultCmp<T>(golden, devFinal, 0.001f);
 
@@ -95,6 +104,11 @@ TEST_F(TADDTest, case_float_64x64_64x64_64x64) { test_tadd<float, 64, 64, 64, 64
 TEST_F(TADDTest, case_int32_64x64_64x64_64x64) { test_tadd<int32_t, 64, 64, 64, 64>(); }
 TEST_F(TADDTest, case_int16_64x64_64x64_64x64) { test_tadd<int16_t, 64, 64, 64, 64>(); }
 TEST_F(TADDTest, case_half_16x256_16x256_16x256) { test_tadd<aclFloat16, 16, 256, 16, 256>(); }
+
+TEST_F(TADDTest, case_int32_64x64_mixed_static_valid)
+{
+    test_tadd<int32_t, 64, 64, 64, 64, true>("../TADDTest.case_int32_64x64_64x64_64x64");
+}
 
 #ifdef CPU_SIM_BFLOAT_ENABLED
 TEST_F(TADDTest, case_bf16_16x256_16x256_16x256) { test_tadd<bfloat16_t, 16, 256, 16, 256>(); }
