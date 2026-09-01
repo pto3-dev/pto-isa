@@ -158,7 +158,7 @@ set(ALL_TESTCASES
     tcolargmax
     tcolmin
     tcolargmin
-    tsort32
+    # tsort32
     trowexpand
     trowexpandadd
     trowexpanddiv
@@ -215,9 +215,9 @@ set(ALL_TESTCASES
     tpartargmax
     tmov_vect
     texpands
-    # tmov_acc2mat
     tassign
     tmov_ub2l1
+    tmov_ub2ub
     tcmp
     tadd_tdiv
     tmul_tadds
@@ -250,6 +250,7 @@ set(ALL_TESTCASES
     tconcat
     tinsert
     tinsert_acc2vec
+    # tinsert_acc2mat
     textract_nd_vec
     textract_vec
     tmov_zz

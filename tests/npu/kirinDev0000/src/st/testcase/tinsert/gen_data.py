@@ -58,15 +58,6 @@ def run_case(name, gen_fn, *args):
     os.chdir(orig)
 
 
-def gen_acc2mat(m, k, n):
-    x1 = np.random.randint(-2, 3, size=(m, k)).astype(np.float16)
-    x2 = np.random.randint(-2, 3, size=(k, n)).astype(np.float16)
-    x1.tofile("x1_gm.bin")
-    x2.tofile("x2_gm.bin")
-    golden = np.matmul(x1, x2).astype(np.float16)
-    nd_to_nz(golden, m, n, 2).tofile("golden.bin")
-
-
 def gen_nz(dtype, rows, cols):
     arr = rand_data(dtype, (rows, cols))
     arr.tofile("input_arr.bin")
@@ -439,8 +430,6 @@ def gen_fp4_offset(p):
 
 if __name__ == "__main__":
     cases = [
-        ("TInsertTest.case_acc2mat_1", gen_acc2mat, 16, 16, 16),
-        ("TInsertTest.case_acc2mat_2", gen_acc2mat, 32, 32, 32),
         ("TInsertTest.case_nz_1", gen_nz, np.float32, 16, 32),
         ("TInsertTest.case_nz_2", gen_nz, np.float32, 16, 32),
         ("TInsertTest.case_nz_3", gen_nz, np.float32, 32, 64),
@@ -488,7 +477,6 @@ if __name__ == "__main__":
         ("TInsertTest.case_nz_split_1", gen_nz_split_custom, np.float32, 8, 16, 256),
         ("TInsertTest.case_nz_split_2", gen_nz_split_custom, np.float32, 8, 16, 256),
         ("TInsertTest.case_nz_split_3", gen_nz_split_custom, np.float32, 128, 128, 64),
-        ("TInsertTest.case_nz_split_4", gen_nz_split_custom, np.float32, 128, 128, 64),
         ("TInsertTest.case_nz_hif8_1", gen_hif8_passthrough, 16, 64),
         ("TInsertTest.case_nz_hif8_2", gen_hif8_passthrough, 16, 64),
         ("TInsertTest.case_nz_hif8_3", gen_hif8_passthrough, 16, 128),

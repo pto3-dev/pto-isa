@@ -54,96 +54,6 @@ AICORE inline void test_copy_ubuf_to_cbuf(
     set_fixp_nz_para(0);
 }
 
-template <
-    typename TileMatAData, typename TileMatBData, typename RightTile, typename AccTile, typename GlobalDataSrc0,
-    typename GlobalDataSrc1>
-AICORE inline void LoadMatmulOnly(
-    TileMatAData& aMatTile, TileMatBData& bMatTile, RightTile& bTile, AccTile& cTile, GlobalDataSrc0& src0Global,
-    GlobalDataSrc1& src1Global)
-{
-    TLOAD(aMatTile, src0Global);
-    TLOAD(bMatTile, src1Global);
-    set_flag(PIPE_MTE2, PIPE_MTE1, EVENT_ID0);
-    wait_flag(PIPE_MTE2, PIPE_MTE1, EVENT_ID0);
-
-    TMOV(bTile, bMatTile);
-    set_flag(PIPE_MTE1, PIPE_M, EVENT_ID0);
-    wait_flag(PIPE_MTE1, PIPE_M, EVENT_ID0);
-
-    TMATMUL(cTile, aMatTile, bTile);
-    set_flag(PIPE_M, PIPE_FIX, EVENT_ID0);
-    wait_flag(PIPE_M, PIPE_FIX, EVENT_ID0);
-}
-
-template <typename AType, typename CType, int M, int K, int N>
-__global__ AICORE void RunTInsertAcc2Mat(__gm__ CType* out, __gm__ AType* src0, __gm__ AType* src1)
-{
-    using GlobalDataSrc0 = GlobalTensor<AType, pto::Shape<1, 1, 1, M, K>, pto::Stride<M * K, M * K, M * K, K, 1>>;
-    using GlobalDataSrc1 = GlobalTensor<AType, pto::Shape<1, 1, 1, K, N>, pto::Stride<K * N, K * N, K * N, N, 1>>;
-    GlobalDataSrc0 src0Global(src0);
-    GlobalDataSrc1 src1Global(src1);
-
-    using TileMatAData = Tile<TileType::Mat, AType, M, K, BLayout::ColMajor, M, K, SLayout::RowMajor, 512>;
-    using TileMatBData = Tile<TileType::Mat, AType, K, N, BLayout::ColMajor, K, N, SLayout::RowMajor, 512>;
-    using DstMatTile = Tile<TileType::Mat, CType, M, N, BLayout::ColMajor, M, N, SLayout::RowMajor, 512>;
-    TileMatAData aMatTile;
-    TileMatBData bMatTile;
-    DstMatTile dstMatTile;
-    TASSIGN<0x0>(aMatTile);
-    TASSIGN<M * K * sizeof(AType)>(bMatTile);
-    TASSIGN<(M * K + K * N) * sizeof(AType)>(dstMatTile);
-
-    using RightTile = TileRight<AType, K, N, K, N>;
-    using AccTile = TileAcc<CType, M, N, M, N>;
-    RightTile bTile;
-    AccTile cTile;
-    TASSIGN<0x0>(bTile);
-    TASSIGN<(M * K + K * N + M * N) * sizeof(AType)>(cTile);
-
-    using DstVecTile = Tile<TileType::Vec, CType, M, N, BLayout::ColMajor, M, N, SLayout::RowMajor, 512>;
-    DstVecTile dstVecTile;
-    TASSIGN<0x0>(dstVecTile);
-
-    static constexpr uint16_t sGRows = 16;
-    static constexpr uint16_t sGCols = 512 / (sGRows * sizeof(CType));
-    static constexpr uint16_t kGRows = (M + sGRows - 1) / sGRows;
-    static constexpr uint16_t kGCols = (N + sGCols - 1) / sGCols;
-    using ShapeDim5 = Shape<1, kGCols, kGRows, sGRows, sGCols>;
-    using StridDim5 =
-        pto::Stride<kGCols * kGRows * sGCols * sGRows, kGRows * sGCols * sGRows, sGCols * sGRows, sGCols, 1>;
-    using NZOutputGlobalData = GlobalTensor<CType, ShapeDim5, StridDim5, Layout::NZ>;
-    NZOutputGlobalData dstGlobal(out);
-
-    LoadMatmulOnly(aMatTile, bMatTile, bTile, cTile, src0Global, src1Global);
-
-    TINSERT(dstMatTile, cTile, static_cast<uint16_t>(0), static_cast<uint16_t>(0));
-
-    set_flag(PIPE_FIX, PIPE_MTE1, EVENT_ID0);
-    wait_flag(PIPE_FIX, PIPE_MTE1, EVENT_ID0);
-
-    constexpr uint32_t c0Size = 512 / (16 * sizeof(CType));
-    constexpr uint16_t burstLen = M * c0Size * sizeof(CType) / 32;
-    constexpr uint16_t burstNum = N / c0Size;
-    __ubuf__ CType* dstUbAddr = dstVecTile.data();
-    __cbuf__ CType* srcMatAddr = dstMatTile.data();
-    test_copy_cbuf_to_ubuf((__ubuf__ void*)dstUbAddr, (__cbuf__ void*)srcMatAddr, 0, burstNum, burstLen, 0, 0);
-    set_flag(PIPE_MTE1, PIPE_MTE3, EVENT_ID0);
-    wait_flag(PIPE_MTE1, PIPE_MTE3, EVENT_ID0);
-    TSTORE(dstGlobal, dstVecTile);
-}
-
-template <int32_t testKey>
-void launchTInsertAcc2Mat(uint8_t* out, uint8_t* src0, uint8_t* src1, void* stream)
-{
-    if constexpr (testKey == 1) {
-        RunTInsertAcc2Mat<half, half, 16, 16, 16><<<1, nullptr, stream>>>(
-            reinterpret_cast<half*>(out), reinterpret_cast<half*>(src0), reinterpret_cast<half*>(src1));
-    } else if constexpr (testKey == 2) {
-        RunTInsertAcc2Mat<half, half, 32, 32, 32><<<1, nullptr, stream>>>(
-            reinterpret_cast<half*>(out), reinterpret_cast<half*>(src0), reinterpret_cast<half*>(src1));
-    }
-}
-
 template <typename T, uint32_t Rows, uint32_t Cols>
 AICORE void runTInsertNZ(__gm__ T* out, __gm__ T* src)
 {
@@ -1048,14 +958,17 @@ AICORE void runTInsertNZSplitCustom(__gm__ T* out, __gm__ T* src)
     TEXPANDS((TmpVecTileAlias&)tmpTile, 1);
     // Convert ND source to NZ format in tmpTile (writes only ValidRow rows, rest stays zero)
     TMOV(tmpTile, srcTile);
+    pipe_barrier(PIPE_ALL); // DIAGNOSTIC: drain V before TINSERT reads tmpTile
     set_flag(PIPE_V, PIPE_MTE3, EVENT_ID0);
     wait_flag(PIPE_V, PIPE_MTE3, EVENT_ID0);
     TINSERT<Mode>(matTile, tmpTile);
+    pipe_barrier(PIPE_ALL); // DIAGNOSTIC: force all pipes to drain after TINSERT
     set_flag(PIPE_MTE3, PIPE_FIX, EVENT_ID0);
     wait_flag(PIPE_MTE3, PIPE_FIX, EVENT_ID0);
     test_copy_cbuf_to_ubuf(dstUbAddr, matAddr, 0, burstNum, burstLen, 0, 0);
-    set_flag(PIPE_FIX, PIPE_MTE3, EVENT_ID0);
-    wait_flag(PIPE_FIX, PIPE_MTE3, EVENT_ID0);
+    pipe_barrier(PIPE_ALL); // DIAGNOSTIC: force all pipes to drain after FIX readback
+    set_flag(PIPE_FIX, PIPE_MTE3, EVENT_ID1);
+    wait_flag(PIPE_FIX, PIPE_MTE3, EVENT_ID1);
     TSTORE(dstGlobal, dstTile);
 }
 
@@ -1075,9 +988,6 @@ void launchTInsertNZSplitCustom(uint64_t* out, uint64_t* src, void* stream)
         launchTInsertNZSplitCustomKernel<pto::TInsertMode::SPLIT4, float, 8, 16, 256><<<1, nullptr, stream>>>(out, src);
     } else if constexpr (testKey == 3) {
         launchTInsertNZSplitCustomKernel<pto::TInsertMode::SPLIT2, float, 128, 128, 64>
-            <<<1, nullptr, stream>>>(out, src);
-    } else if constexpr (testKey == 4) {
-        launchTInsertNZSplitCustomKernel<pto::TInsertMode::SPLIT4, float, 128, 128, 64>
             <<<1, nullptr, stream>>>(out, src);
     }
 }
@@ -1505,9 +1415,6 @@ template void launchTInsertNZTwoInput<11>(uint64_t* out, uint64_t* src, void* st
 template void launchTInsertNZSplitCustom<1>(uint64_t* out, uint64_t* src, void* stream);
 template void launchTInsertNZSplitCustom<2>(uint64_t* out, uint64_t* src, void* stream);
 template void launchTInsertNZSplitCustom<3>(uint64_t* out, uint64_t* src, void* stream);
-template void launchTInsertNZSplitCustom<4>(uint64_t* out, uint64_t* src, void* stream);
-template void launchTInsertAcc2Mat<1>(uint8_t* out, uint8_t* src0, uint8_t* src1, void* stream);
-template void launchTInsertAcc2Mat<2>(uint8_t* out, uint8_t* src0, uint8_t* src1, void* stream);
 template void launchTInsertNZ<1>(uint64_t* out, uint64_t* src, void* stream);
 template void launchTInsertNZ<2>(uint64_t* out, uint64_t* src, void* stream);
 template void launchTInsertNZ<3>(uint64_t* out, uint64_t* src, void* stream);

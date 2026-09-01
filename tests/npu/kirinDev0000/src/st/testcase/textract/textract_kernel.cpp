@@ -76,13 +76,13 @@ AICORE inline void runTEXTRACT(__gm__ T* out, __gm__ U* src0, __gm__ S* src1)
     wait_flag(PIPE_MTE1, PIPE_M, EVENT_ID0);
 
     TMATMUL(cTile, aMatTile, bTile);
-    set_flag(PIPE_M, PIPE_MTE1, EVENT_ID0);
-    wait_flag(PIPE_M, PIPE_MTE1, EVENT_ID0);
+    set_flag(PIPE_M, PIPE_FIX, EVENT_ID0);
+    wait_flag(PIPE_M, PIPE_FIX, EVENT_ID0);
 
     /****************************************TMOV + TSTORE*****************************************/
     TMOV(cVecTile, cTile);
-    set_flag(PIPE_MTE1, PIPE_MTE3, EVENT_ID0);
-    wait_flag(PIPE_MTE1, PIPE_MTE3, EVENT_ID0);
+    set_flag(PIPE_FIX, PIPE_MTE3, EVENT_ID0);
+    wait_flag(PIPE_FIX, PIPE_MTE3, EVENT_ID0);
 
     TSTORE(dstGlobal, cVecTile);
     out = dstGlobal.data();
@@ -156,13 +156,13 @@ AICORE inline void runTEXTRACT_DYNAMIC(__gm__ T* out, __gm__ U* src0, __gm__ S* 
     wait_flag(PIPE_MTE1, PIPE_M, EVENT_ID0);
 
     TMATMUL(cTile, aMatTile, bTile);
-    set_flag(PIPE_M, PIPE_MTE1, EVENT_ID0);
-    wait_flag(PIPE_M, PIPE_MTE1, EVENT_ID0);
+    set_flag(PIPE_M, PIPE_FIX, EVENT_ID0);
+    wait_flag(PIPE_M, PIPE_FIX, EVENT_ID0);
 
     /****************************************TMOV + TSTORE*****************************************/
     TMOV(cVecTile, cTile);
-    set_flag(PIPE_MTE1, PIPE_MTE3, EVENT_ID0);
-    wait_flag(PIPE_MTE1, PIPE_MTE3, EVENT_ID0);
+    set_flag(PIPE_FIX, PIPE_MTE3, EVENT_ID0);
+    wait_flag(PIPE_FIX, PIPE_MTE3, EVENT_ID0);
 
     TSTORE(dstGlobal, cVecTile);
     out = dstGlobal.data();

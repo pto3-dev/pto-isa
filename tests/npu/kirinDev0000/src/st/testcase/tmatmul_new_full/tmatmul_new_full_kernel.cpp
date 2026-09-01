@@ -134,13 +134,13 @@ __global__ AICORE void RunTMATMUL(
         TMATMUL(cMatTile, aMatTile, bTile, cfg);
     }
 
-    set_flag(PIPE_M, PIPE_MTE1, EVENT_ID0);
-    wait_flag(PIPE_M, PIPE_MTE1, EVENT_ID0);
+    set_flag(PIPE_M, PIPE_FIX, EVENT_ID0);
+    wait_flag(PIPE_M, PIPE_FIX, EVENT_ID0);
 
     TMOV(cVecTile, cMatTile);
 
-    set_flag(PIPE_MTE1, PIPE_MTE3, EVENT_ID0);
-    wait_flag(PIPE_MTE1, PIPE_MTE3, EVENT_ID0);
+    set_flag(PIPE_FIX, PIPE_MTE3, EVENT_ID0);
+    wait_flag(PIPE_FIX, PIPE_MTE3, EVENT_ID0);
 
     TSTORE(dstGlobal, cVecTile);
 
@@ -264,13 +264,13 @@ __global__ AICORE void RunTMATMULRelu(
         TMATMUL(cMatTile, aMatTile, bTile, cfg);
     }
 
-    set_flag(PIPE_M, PIPE_MTE1, EVENT_ID0);
-    wait_flag(PIPE_M, PIPE_MTE1, EVENT_ID0);
+    set_flag(PIPE_M, PIPE_FIX, EVENT_ID0);
+    wait_flag(PIPE_M, PIPE_FIX, EVENT_ID0);
 
     TMOV(cVecTile, cMatTile);
 
-    set_flag(PIPE_MTE1, PIPE_MTE3, EVENT_ID0);
-    wait_flag(PIPE_MTE1, PIPE_MTE3, EVENT_ID0);
+    set_flag(PIPE_FIX, PIPE_MTE3, EVENT_ID0);
+    wait_flag(PIPE_FIX, PIPE_MTE3, EVENT_ID0);
 
     TSTORE(dstGlobal, cVecTile);
 
@@ -390,13 +390,13 @@ __global__ AICORE void RunTMATMULNormalRelu(
         TMATMUL(cMatTile, aMatTile, bTile, cfg);
     }
 
-    set_flag(PIPE_M, PIPE_MTE1, EVENT_ID0);
-    wait_flag(PIPE_M, PIPE_MTE1, EVENT_ID0);
+    set_flag(PIPE_M, PIPE_FIX, EVENT_ID0);
+    wait_flag(PIPE_M, PIPE_FIX, EVENT_ID0);
 
     TMOV(cVecTile, cMatTile);
 
-    set_flag(PIPE_MTE1, PIPE_MTE3, EVENT_ID0);
-    wait_flag(PIPE_MTE1, PIPE_MTE3, EVENT_ID0);
+    set_flag(PIPE_FIX, PIPE_MTE3, EVENT_ID0);
+    wait_flag(PIPE_FIX, PIPE_MTE3, EVENT_ID0);
 
     TSTORE(dstGlobal, cVecTile);
 
@@ -531,13 +531,13 @@ __global__ AICORE void RunTMATMULVectorRelu(
         TMATMUL(cMatTile, aMatTile, bTile, cfg);
     }
 
-    set_flag(PIPE_M, PIPE_MTE1, EVENT_ID0);
-    wait_flag(PIPE_M, PIPE_MTE1, EVENT_ID0);
+    set_flag(PIPE_M, PIPE_FIX, EVENT_ID0);
+    wait_flag(PIPE_M, PIPE_FIX, EVENT_ID0);
 
     TMOV(cVecTile, cMatTile);
 
-    set_flag(PIPE_MTE1, PIPE_MTE3, EVENT_ID0);
-    wait_flag(PIPE_MTE1, PIPE_MTE3, EVENT_ID0);
+    set_flag(PIPE_FIX, PIPE_MTE3, EVENT_ID0);
+    wait_flag(PIPE_FIX, PIPE_MTE3, EVENT_ID0);
 
     TSTORE(dstGlobal, cVecTile);
 
@@ -655,13 +655,13 @@ __global__ AICORE void RunGEMV(
         TMATMUL(cMatTile, aMatTile, bTile, cfg);
     }
 
-    set_flag(PIPE_M, PIPE_MTE1, EVENT_ID0);
-    wait_flag(PIPE_M, PIPE_MTE1, EVENT_ID0);
+    set_flag(PIPE_M, PIPE_FIX, EVENT_ID0);
+    wait_flag(PIPE_M, PIPE_FIX, EVENT_ID0);
 
     TMOV(cVecTile, cMatTile);
 
-    set_flag(PIPE_MTE1, PIPE_MTE3, EVENT_ID0);
-    wait_flag(PIPE_MTE1, PIPE_MTE3, EVENT_ID0);
+    set_flag(PIPE_FIX, PIPE_MTE3, EVENT_ID0);
+    wait_flag(PIPE_FIX, PIPE_MTE3, EVENT_ID0);
 
     TSTORE(dstGlobal, cVecTile);
 
@@ -804,13 +804,13 @@ __global__ AICORE void RunTMATMUL_SPLIT_K(
         wait_flag(PIPE_M, PIPE_MTE2, EVENT_ID0);
     }
 
-    set_flag(PIPE_M, PIPE_MTE1, EVENT_ID0);
-    wait_flag(PIPE_M, PIPE_MTE1, EVENT_ID0);
+    set_flag(PIPE_M, PIPE_FIX, EVENT_ID0);
+    wait_flag(PIPE_M, PIPE_FIX, EVENT_ID0);
 
     TMOV(cVecTile, outMatTile);
 
-    set_flag(PIPE_MTE1, PIPE_MTE3, EVENT_ID0);
-    wait_flag(PIPE_MTE1, PIPE_MTE3, EVENT_ID0);
+    set_flag(PIPE_FIX, PIPE_MTE3, EVENT_ID0);
+    wait_flag(PIPE_FIX, PIPE_MTE3, EVENT_ID0);
 
     TSTORE(dstGlobal, cVecTile);
 

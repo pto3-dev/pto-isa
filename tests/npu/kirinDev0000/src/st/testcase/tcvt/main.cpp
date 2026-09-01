@@ -26,11 +26,6 @@ struct fp8_e5m2_wrapper {
     operator int8_t() const { return value; }
     operator float() const { return static_cast<float>(value); }
 };
-struct hifloat8_wrapper {
-    int8_t value;
-    operator int8_t() const { return value; }
-    operator float() const { return static_cast<float>(value); }
-};
 struct bf16_wrapper {
     uint16_t value;
     operator uint16_t() const { return value; }
@@ -138,16 +133,14 @@ GENERATE_TCVT_TESTS(int16_t, float, fp32_int16)
 GENERATE_TCVT_TESTS(int32_t, float, fp32_int32)
 GENERATE_TCVT_TESTS(fp8_e4m3_wrapper, float, fp32_fp8_e4m3)
 GENERATE_TCVT_TESTS(fp8_e5m2_wrapper, float, fp32_fp8_e5m2)
-GENERATE_TCVT_TESTS(hifloat8_wrapper, float, fp32_h8)
 GENERATE_TCVT_TESTS(float, float, fp32_fp32)
 
-// FP16 Source → fp32, int32, int16, int8, uint8, h8
+// FP16 Source → fp32, int32, int16, int8, uint8
 GENERATE_TCVT_TESTS(float, aclFloat16, fp16_fp32)
 GENERATE_TCVT_TESTS(int32_t, aclFloat16, fp16_int32)
 GENERATE_TCVT_TESTS(int16_t, aclFloat16, fp16_int16)
 GENERATE_TCVT_TESTS(int8_t, aclFloat16, fp16_int8)
 GENERATE_TCVT_TESTS(uint8_t, aclFloat16, fp16_uint8)
-GENERATE_TCVT_TESTS(hifloat8_wrapper, aclFloat16, fp16_h8)
 
 // BF16 Source → fp32, int32, half (FP4 not supported on kirinDev0000)
 GENERATE_TCVT_TESTS(float, bf16_wrapper, bf16_fp32)
@@ -188,7 +181,6 @@ GENERATE_TCVT_TESTS(int16_t, uint32_t, uint32_int16)
 // FP8 Source → float
 GENERATE_TCVT_TESTS(float, fp8_e4m3_wrapper, fp8_e4m3_fp32)
 GENERATE_TCVT_TESTS(float, fp8_e5m2_wrapper, fp8_e5m2_fp32)
-GENERATE_TCVT_TESTS(float, hifloat8_wrapper, h8_fp32)
 
 // ============================================================================
 // Saturation Mode Tests

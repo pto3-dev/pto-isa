@@ -14,6 +14,15 @@ See LICENSE in the root of the software repository for the full text of the Lice
 
 using namespace pto;
 
+template <typename T>
+AICORE constexpr inline T CeilAlign(T num_1, T num_2)
+{
+    if (num_2 == 0) {
+        return 0;
+    }
+    return (num_1 + num_2 - 1) / num_2 * num_2;
+}
+
 template <
     typename T, int dstTileH, int dstTileW, int src0TileH, int src0TileW, int src1TileH, int src1TileW, int vRows,
     int vCols, bool highPrecision>
@@ -38,9 +47,12 @@ __global__ AICORE void runTDIV(__gm__ T __out__* out, __gm__ T __in__* src0, __g
     TileDataDst dstTile(vRows, vCols);
     TileDataSrc0 src0Tile(vRows, vCols);
     TileDataSrc1 src1Tile(vRows, vCols);
-    TASSIGN(src0Tile, 0x0);
-    TASSIGN(src1Tile, 0x10000);
-    TASSIGN(dstTile, 0x20000);
+    constexpr std::size_t blockAlign = 32;
+    constexpr std::size_t src0TileSize = CeilAlign<std::size_t>(src0TileH * src0TileW * sizeof(T), blockAlign);
+    constexpr std::size_t src1TileSize = CeilAlign<std::size_t>(src1TileH * src1TileW * sizeof(T), blockAlign);
+    TASSIGN<0x0>(src0Tile);
+    TASSIGN<src0TileSize>(src1Tile);
+    TASSIGN<src0TileSize + src1TileSize>(dstTile);
 
     TLOAD(src0Tile, src0Global);
     TLOAD(src1Tile, src1Global);
