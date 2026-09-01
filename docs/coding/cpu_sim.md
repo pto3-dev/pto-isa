@@ -60,7 +60,7 @@ correctness testing and does not model a specific on-chip address.
 
 ## Supported behavior and backend differences
 
-- CPU_SIM `TADD` accepts independently typed `dst`, `src0`, and `src1` Tiles when their element types and runtime
+- CPU_SIM `TADD` and `TABS` accept independently typed operand Tiles when their element types and runtime
   valid shapes match. This includes mixing static and dynamic `ValidRow`/`ValidCol` template arguments. Each operand
   is indexed using its own Tile layout and physical shape; a runtime valid-shape mismatch triggers an assertion.
 - TileData `TPUSH`/`TPOP`/`TFREE` use a host-side `TPipe` FIFO model. The model waits for free slots and ready data,

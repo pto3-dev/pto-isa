@@ -36,8 +36,11 @@ std::string GetGoldenDir()
 template <typename T, int kGRows_, int kGCols_, int kTRows_, int kTCols_>
 void LaunchTAbs(T* out, T* src, void* stream);
 
-template <typename T, int kGRows_, int kGCols_, int kTRows_, int kTCols_>
-void test_tabs()
+template <int kRows, int kCols>
+void LaunchTAbsMixedValidShape(int32_t* out, int32_t* src, void* stream);
+
+template <typename T, int kGRows_, int kGCols_, int kTRows_, int kTCols_, bool mixedValidShape = false>
+void test_tabs(const std::string& goldenDir = GetGoldenDir())
 {
     size_t fileSize = kGRows_ * kGCols_ * sizeof(T);
 
@@ -56,15 +59,20 @@ void test_tabs()
     aclrtMalloc((void**)&srcDevice, fileSize, ACL_MEM_MALLOC_HUGE_FIRST);
     aclrtMemset(dstDevice, fileSize, 0, fileSize);
 
-    CHECK_RESULT_GTEST(ReadFile(GetGoldenDir() + "/input1.bin", fileSize, srcHost, fileSize));
+    CHECK_RESULT_GTEST(ReadFile(goldenDir + "/input1.bin", fileSize, srcHost, fileSize));
 
     aclrtMemcpy(srcDevice, fileSize, srcHost, fileSize, ACL_MEMCPY_HOST_TO_DEVICE);
-    LaunchTAbs<T, kGRows_, kGCols_, kTRows_, kTCols_>(dstDevice, srcDevice, stream);
+    if constexpr (mixedValidShape) {
+        LaunchTAbsMixedValidShape<kTRows_, kTCols_>(
+            reinterpret_cast<int32_t*>(dstDevice), reinterpret_cast<int32_t*>(srcDevice), stream);
+    } else {
+        LaunchTAbs<T, kGRows_, kGCols_, kTRows_, kTCols_>(dstDevice, srcDevice, stream);
+    }
 
     aclrtSynchronizeStream(stream);
     aclrtMemcpy(dstHost, fileSize, dstDevice, fileSize, ACL_MEMCPY_DEVICE_TO_HOST);
 
-    WriteFile(GetGoldenDir() + "/output.bin", dstHost, fileSize);
+    WriteFile(goldenDir + "/output.bin", dstHost, fileSize);
 
     aclrtFree(dstDevice);
     aclrtFree(srcDevice);
@@ -77,8 +85,8 @@ void test_tabs()
 
     std::vector<T> golden(fileSize / sizeof(T));
     std::vector<T> devFinal(fileSize / sizeof(T));
-    CHECK_RESULT_GTEST(ReadFile(GetGoldenDir() + "/golden.bin", fileSize, golden.data(), fileSize));
-    CHECK_RESULT_GTEST(ReadFile(GetGoldenDir() + "/output.bin", fileSize, devFinal.data(), fileSize));
+    CHECK_RESULT_GTEST(ReadFile(goldenDir + "/golden.bin", fileSize, golden.data(), fileSize));
+    CHECK_RESULT_GTEST(ReadFile(goldenDir + "/output.bin", fileSize, devFinal.data(), fileSize));
 
     bool ret = ResultCmp<T>(golden, devFinal, 0.001f);
 
@@ -90,6 +98,11 @@ TEST_F(TABSTest, case_int32_64x64_64x64_64x64) { test_tabs<int32_t, 64, 64, 64, 
 TEST_F(TABSTest, case_int16_64x64_64x64_64x64) { test_tabs<int16_t, 64, 64, 64, 64>(); }
 TEST_F(TABSTest, case_int8_64x64_64x64_64x64) { test_tabs<int8_t, 64, 64, 64, 64>(); }
 TEST_F(TABSTest, case_half_16x256_16x256_16x256) { test_tabs<aclFloat16, 16, 256, 16, 256>(); }
+
+TEST_F(TABSTest, case_int32_64x64_mixed_static_valid)
+{
+    test_tabs<int32_t, 64, 64, 64, 64, true>("../TABSTest.case_int32_64x64_64x64_64x64");
+}
 #ifdef CPU_SIM_BFLOAT_ENABLED
 TEST_F(TABSTest, case_bf16_16x256_16x256_16x256) { test_tabs<bfloat16_t, 16, 256, 16, 256>(); }
 #endif

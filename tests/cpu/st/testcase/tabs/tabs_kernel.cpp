@@ -47,6 +47,42 @@ void LaunchTAbs(T* out, T* src, void* stream)
         runTAbs<T, kGRows_, kGCols_, kTRows_, kTCols_>(out, src);
 }
 
+template <int kRows, int kCols>
+AICORE void runTAbsMixedValidShape(__gm__ int32_t __out__* out, __gm__ int32_t __in__* src)
+{
+    using DynShapeDim5 = Shape<1, 1, 1, kRows, kCols>;
+    using DynStridDim5 = Stride<1, 1, 1, kCols, 1>;
+    using GlobalData = GlobalTensor<int32_t, DynShapeDim5, DynStridDim5>;
+    using DynamicTile = Tile<TileType::Vec, int32_t, kRows, kCols, BLayout::RowMajor, -1, -1>;
+    using StaticTile = Tile<TileType::Vec, int32_t, kRows, kCols, BLayout::RowMajor, kRows, kCols>;
+
+    StaticTile srcTile;
+    DynamicTile dstTile(kRows, kCols);
+    TASSIGN(srcTile, 0x0);
+    TASSIGN(dstTile, 0x8000);
+
+    GlobalData srcGlobal(src);
+    GlobalData dstGlobal(out);
+
+    TLOAD(srcTile, srcGlobal);
+    set_flag(PIPE_MTE2, PIPE_V, EVENT_ID0);
+    wait_flag(PIPE_MTE2, PIPE_V, EVENT_ID0);
+    TABS(dstTile, srcTile);
+    set_flag(PIPE_V, PIPE_MTE3, EVENT_ID0);
+    wait_flag(PIPE_V, PIPE_MTE3, EVENT_ID0);
+    TSTORE(dstGlobal, dstTile);
+    out = dstGlobal.data();
+}
+
+template <int kRows, int kCols>
+void LaunchTAbsMixedValidShape(int32_t* out, int32_t* src, void* stream)
+{
+    (void)stream;
+    runTAbsMixedValidShape<kRows, kCols>(out, src);
+}
+
+template void LaunchTAbsMixedValidShape<64, 64>(int32_t* out, int32_t* src, void* stream);
+
 template void LaunchTAbs<float, 64, 64, 64, 64>(float* out, float* src, void* stream);
 template void LaunchTAbs<int32_t, 64, 64, 64, 64>(int32_t* out, int32_t* src, void* stream);
 template void LaunchTAbs<aclFloat16, 16, 256, 16, 256>(aclFloat16* out, aclFloat16* src, void* stream);

@@ -46,7 +46,10 @@ PTO_INST RecordEvent TABS(TileDataDst &dst, TileDataSrc &src, WaitEvents &... ev
 ## Constraints
 
 - **Implementation checks (CPU sim)**:
-    - `TileData::DType` must be one of: `int32_t`, `int`, `int16_t`, `int8_t`, `half`, `bfloat16_t`, `float`.
+    - The dtypes of `dst` and `src` must be identical and one of: `int32_t`, `int`, `int16_t`, `int8_t`, `half`,
+      `bfloat16_t`, `float`.
+    - Runtime: `src.GetValidRow() == dst.GetValidRow()` and `src.GetValidCol() == dst.GetValidCol()`; a mismatch
+      triggers an assertion failure.
     - The implementation iterates over `dst.GetValidRow()` / `dst.GetValidCol()`.
 - **Implementation checks (Costmodel)**:
     - `TileData::DType` must be one of: `int32_t`, `int16_t`, `int8_t`, `uint8_t`, `half`, `float`.
@@ -59,6 +62,9 @@ PTO_INST RecordEvent TABS(TileDataDst &dst, TileDataSrc &src, WaitEvents &... ev
     - Tile layout must be row-major (`TileData::isRowMajor`).
 - **Valid region**:
     - The op uses `dst.GetValidRow()` / `dst.GetValidCol()` as the iteration domain.
+    - `dst` and `src` may have distinct C++ Tile types, including different static or dynamic `ValidRow`/`ValidCol`
+      template arguments, provided that their element types are identical. CPU_SIM computes each operand's address
+      from that operand's own Tile layout and physical shape.
 
 ## Examples
 
@@ -72,6 +78,22 @@ using namespace pto;
 void example_auto() {
   using TileT = Tile<TileType::Vec, float, 16, 16>;
   TileT src, dst;
+  TABS(dst, src);
+}
+```
+
+### Auto (mixed static and dynamic valid shapes)
+
+```cpp
+#include <pto/pto-inst.hpp>
+
+using namespace pto;
+
+void example_mixed_valid_shape() {
+  using DynamicTile = Tile<TileType::Vec, int32_t, 16, 16, BLayout::RowMajor, -1, -1>;
+  using StaticTile = Tile<TileType::Vec, int32_t, 16, 16, BLayout::RowMajor, 16, 16>;
+  DynamicTile dst(16, 16);
+  StaticTile src;
   TABS(dst, src);
 }
 ```
