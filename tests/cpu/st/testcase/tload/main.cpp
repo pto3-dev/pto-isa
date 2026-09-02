@@ -9,6 +9,7 @@ See LICENSE in the root of the software repository for the full text of the Lice
 */
 
 #include <pto/pto-inst.hpp>
+#include <pto/cpu/NPUMemoryModel.hpp>
 #include "test_common.h"
 #include <gtest/gtest.h>
 #include <filesystem>
@@ -44,6 +45,9 @@ std::string GetGoldenDir()
 template <int32_t testKey, typename T, int32_t kBlock>
 void tload_test()
 {
+    pto::NPU_MEMORY_INIT();
+    pto::NPU_MEMORY_CLEAR();
+
     uint32_t M = 1024;
     uint32_t N = 1024;
 
@@ -173,3 +177,331 @@ TEST_F(TLOADTest, case_float4_e1m2x2_GT_128_128_VT_128_128_BLK1) { tload_test<17
 TEST_F(TLOADTest, case_float4_e1m2x2_GT_2_2_2_256_64_VT_256_64_BLK8) { tload_test<18, float4_e1m2x2_t, 8>(); }
 
 TEST_F(TLOADTest, case_float4_e1m2x2_GT_128_127_VT_128_128_BLK1_PADMAX) { tload_test<19, float4_e1m2x2_t, 1>(); }
+
+TEST_F(TLOADTest, MatNzRowViewsPreservePreviouslyLoadedRows)
+{
+    pto::NPU_MEMORY_INIT();
+    pto::NPU_MEMORY_CLEAR();
+
+    constexpr int kRows = 128;
+    constexpr int kCols = 512;
+    constexpr int kL1Offset = 32 * 1024;
+    constexpr int kRowOffsetBytes = 32;
+
+    using ParentTile = pto::Tile<
+        pto::TileType::Mat, int16_t, kRows, kCols, pto::BLayout::ColMajor, kRows, kCols, pto::SLayout::RowMajor, 512>;
+    using RowView = pto::Tile<
+        pto::TileType::Mat, int16_t, kRows, kCols, pto::BLayout::ColMajor, 1, kCols, pto::SLayout::RowMajor, 512>;
+    using SrcGlobal =
+        pto::GlobalTensor<int16_t, pto::Shape<1, 1, 1, 1, kCols>, pto::Stride<kCols, kCols, kCols, kCols, 1>>;
+
+    ParentTile parentTile;
+    pto::TASSIGN(parentTile, kL1Offset);
+
+    std::vector<int16_t> src(kCols);
+    for (int row = 0; row < kRows; ++row) {
+        for (int col = 0; col < kCols; ++col) {
+            src[col] = static_cast<int16_t>((row * 17 + col) % 30000 + 1);
+        }
+
+        RowView rowView;
+        pto::TASSIGN(rowView, kL1Offset + row * kRowOffsetBytes);
+        SrcGlobal srcGlobal(src.data());
+        pto::TLOAD(rowView, srcGlobal);
+    }
+
+    for (int row = 0; row < kRows; ++row) {
+        for (int col = 0; col < kCols; ++col) {
+            const int16_t expected = static_cast<int16_t>((row * 17 + col) % 30000 + 1);
+            EXPECT_EQ(parentTile.GetElement(row, col), expected) << "row=" << row << " col=" << col;
+        }
+    }
+}
+
+TEST_F(TLOADTest, VecNdPreservesFullBlockGapsAndInactiveRows)
+{
+    pto::NPU_MEMORY_INIT();
+    pto::NPU_MEMORY_CLEAR();
+
+    constexpr int kSentinel = 1234;
+    constexpr int kValidRows = 2;
+    constexpr int kValidCols = 17;
+    using VecTile = pto::Tile<
+        pto::TileType::Vec, int16_t, 4, 48, pto::BLayout::RowMajor, kValidRows, kValidCols, pto::SLayout::NoneBox, 512,
+        pto::PadValue::Max>;
+    using SrcGlobal = pto::GlobalTensor<
+        int16_t, pto::Shape<1, 1, 1, kValidRows, kValidCols>,
+        pto::Stride<kValidRows * kValidCols, kValidRows * kValidCols, kValidRows * kValidCols, kValidCols, 1>>;
+
+    VecTile dst;
+    pto::TASSIGN(dst, 4096);
+    for (int row = 0; row < VecTile::Rows; ++row) {
+        for (int col = 0; col < VecTile::Cols; ++col) {
+            dst.SetElement(row, col, kSentinel);
+        }
+    }
+
+    std::vector<int16_t> src(kValidRows * kValidCols);
+    for (size_t i = 0; i < src.size(); ++i) {
+        src[i] = static_cast<int16_t>(i + 1);
+    }
+    SrcGlobal srcGlobal(src.data());
+    pto::TLOAD(dst, srcGlobal);
+
+    for (int row = 0; row < VecTile::Rows; ++row) {
+        for (int col = 0; col < VecTile::Cols; ++col) {
+            int16_t expected = kSentinel;
+            if (row < kValidRows && col < kValidCols) {
+                expected = src[row * kValidCols + col];
+            } else if (row < kValidRows && col < 32) {
+                expected = std::numeric_limits<int16_t>::max();
+            }
+            EXPECT_EQ(dst.GetElement(row, col), expected) << "row=" << row << " col=" << col;
+        }
+    }
+}
+
+TEST_F(TLOADTest, VecNullPadPreservesOutsideTransferRegion)
+{
+    pto::NPU_MEMORY_INIT();
+    pto::NPU_MEMORY_CLEAR();
+
+    constexpr int kSentinel = 1234;
+    constexpr int kValidCols = 17;
+    using VecTile = pto::Tile<
+        pto::TileType::Vec, int16_t, 2, 32, pto::BLayout::RowMajor, 1, kValidCols, pto::SLayout::NoneBox, 512,
+        pto::PadValue::Null>;
+    using SrcGlobal = pto::GlobalTensor<
+        int16_t, pto::Shape<1, 1, 1, 1, kValidCols>, pto::Stride<kValidCols, kValidCols, kValidCols, kValidCols, 1>>;
+
+    VecTile dst;
+    pto::TASSIGN(dst, 4096);
+    for (int row = 0; row < VecTile::Rows; ++row) {
+        for (int col = 0; col < VecTile::Cols; ++col) {
+            dst.SetElement(row, col, kSentinel);
+        }
+    }
+
+    std::vector<int16_t> src(kValidCols);
+    for (size_t i = 0; i < src.size(); ++i) {
+        src[i] = static_cast<int16_t>(i + 1);
+    }
+    SrcGlobal srcGlobal(src.data());
+    pto::TLOAD(dst, srcGlobal);
+
+    for (int row = 0; row < VecTile::Rows; ++row) {
+        for (int col = 0; col < VecTile::Cols; ++col) {
+            const int16_t expected = row == 0 && col < kValidCols ? src[col] : kSentinel;
+            EXPECT_EQ(dst.GetElement(row, col), expected) << "row=" << row << " col=" << col;
+        }
+    }
+}
+
+TEST_F(TLOADTest, VecDnPreservesFullBlockGapsAndInactiveCols)
+{
+    pto::NPU_MEMORY_INIT();
+    pto::NPU_MEMORY_CLEAR();
+
+    constexpr int kSentinel = 1234;
+    constexpr int kValidRows = 17;
+    constexpr int kValidCols = 2;
+    using VecTile = pto::Tile<
+        pto::TileType::Vec, int16_t, 48, 4, pto::BLayout::ColMajor, kValidRows, kValidCols, pto::SLayout::NoneBox, 512,
+        pto::PadValue::Min>;
+    using SrcGlobal = pto::GlobalTensor<
+        int16_t, pto::Shape<1, 1, 1, kValidRows, kValidCols>,
+        pto::Stride<kValidRows * kValidCols, kValidRows * kValidCols, kValidRows * kValidCols, 1, kValidRows>,
+        pto::Layout::DN>;
+
+    VecTile dst;
+    pto::TASSIGN(dst, 4096);
+    for (int row = 0; row < VecTile::Rows; ++row) {
+        for (int col = 0; col < VecTile::Cols; ++col) {
+            dst.SetElement(row, col, kSentinel);
+        }
+    }
+
+    std::vector<int16_t> src(kValidRows * kValidCols);
+    for (int col = 0; col < kValidCols; ++col) {
+        for (int row = 0; row < kValidRows; ++row) {
+            src[col * kValidRows + row] = static_cast<int16_t>(col * 100 + row + 1);
+        }
+    }
+    SrcGlobal srcGlobal(src.data());
+    pto::TLOAD(dst, srcGlobal);
+
+    for (int row = 0; row < VecTile::Rows; ++row) {
+        for (int col = 0; col < VecTile::Cols; ++col) {
+            int16_t expected = kSentinel;
+            if (row < kValidRows && col < kValidCols) {
+                expected = src[col * kValidRows + row];
+            } else if (row < 32 && col < kValidCols) {
+                expected = std::numeric_limits<int16_t>::min();
+            }
+            EXPECT_EQ(dst.GetElement(row, col), expected) << "row=" << row << " col=" << col;
+        }
+    }
+}
+
+TEST_F(TLOADTest, VecNzPreservesOutsideTransferRegion)
+{
+    pto::NPU_MEMORY_INIT();
+    pto::NPU_MEMORY_CLEAR();
+
+    constexpr int kSentinel = 1234;
+    constexpr int kValidRows = 16;
+    constexpr int kValidCols = 16;
+    using VecTile = pto::Tile<
+        pto::TileType::Vec, int16_t, 32, 32, pto::BLayout::ColMajor, kValidRows, kValidCols, pto::SLayout::RowMajor,
+        512, pto::PadValue::Max>;
+    using SrcGlobal = pto::GlobalTensor<
+        int16_t, pto::Shape<1, 1, 1, kValidRows, kValidCols>,
+        pto::Stride<kValidRows * kValidCols, kValidRows * kValidCols, kValidRows * kValidCols, kValidCols, 1>,
+        pto::Layout::NZ>;
+
+    VecTile dst;
+    pto::TASSIGN(dst, 4096);
+    for (int row = 0; row < VecTile::Rows; ++row) {
+        for (int col = 0; col < VecTile::Cols; ++col) {
+            dst.SetElement(row, col, kSentinel);
+        }
+    }
+
+    std::vector<int16_t> src(kValidRows * kValidCols);
+    for (size_t i = 0; i < src.size(); ++i) {
+        src[i] = static_cast<int16_t>(i + 1);
+    }
+    SrcGlobal srcGlobal(src.data());
+    pto::TLOAD(dst, srcGlobal);
+
+    for (int row = 0; row < VecTile::Rows; ++row) {
+        for (int col = 0; col < VecTile::Cols; ++col) {
+            const int16_t expected = row < kValidRows && col < kValidCols ? src[row * kValidCols + col] : kSentinel;
+            EXPECT_EQ(dst.GetElement(row, col), expected) << "row=" << row << " col=" << col;
+        }
+    }
+}
+
+TEST_F(TLOADTest, A2A3MatNdPreservesOutsideAlignedTransferRegion)
+{
+    pto::NPU_MEMORY_INIT(pto::NPUArch::A2A3);
+    pto::NPU_MEMORY_CLEAR();
+
+    constexpr int kSentinel = 1234;
+    constexpr int kValidRows = 2;
+    constexpr int kValidCols = 16;
+    using MatTile = pto::Tile<
+        pto::TileType::Mat, int16_t, 4, 48, pto::BLayout::RowMajor, kValidRows, kValidCols, pto::SLayout::NoneBox, 512,
+        pto::PadValue::Max>;
+    using SrcGlobal = pto::GlobalTensor<
+        int16_t, pto::Shape<1, 1, 1, kValidRows, kValidCols>,
+        pto::Stride<kValidRows * kValidCols, kValidRows * kValidCols, kValidRows * kValidCols, kValidCols, 1>>;
+
+    MatTile dst;
+    pto::TASSIGN(dst, 4096);
+    for (int row = 0; row < MatTile::Rows; ++row) {
+        for (int col = 0; col < MatTile::Cols; ++col) {
+            dst.SetElement(row, col, kSentinel);
+        }
+    }
+
+    std::vector<int16_t> src(kValidRows * kValidCols);
+    for (size_t i = 0; i < src.size(); ++i) {
+        src[i] = static_cast<int16_t>(i + 1);
+    }
+    SrcGlobal srcGlobal(src.data());
+    pto::TLOAD(dst, srcGlobal);
+
+    for (int row = 0; row < MatTile::Rows; ++row) {
+        for (int col = 0; col < MatTile::Cols; ++col) {
+            const int16_t expected = row < kValidRows && col < kValidCols ? src[row * kValidCols + col] : kSentinel;
+            EXPECT_EQ(dst.GetElement(row, col), expected) << "row=" << row << " col=" << col;
+        }
+    }
+}
+
+TEST_F(TLOADTest, A2A3MatNdToNzZeroPadsOnlyFinalC0Tail)
+{
+    pto::NPU_MEMORY_INIT(pto::NPUArch::A2A3);
+    pto::NPU_MEMORY_CLEAR();
+
+    constexpr int kSentinel = 1234;
+    constexpr int kValidRows = 2;
+    constexpr int kValidCols = 17;
+    using MatTile = pto::Tile<
+        pto::TileType::Mat, int16_t, 16, 48, pto::BLayout::ColMajor, kValidRows, kValidCols, pto::SLayout::RowMajor,
+        512, pto::PadValue::Max>;
+    using SrcGlobal = pto::GlobalTensor<
+        int16_t, pto::Shape<1, 1, 1, kValidRows, kValidCols>,
+        pto::Stride<kValidRows * kValidCols, kValidRows * kValidCols, kValidRows * kValidCols, kValidCols, 1>>;
+
+    MatTile dst;
+    pto::TASSIGN(dst, 4096);
+    for (int row = 0; row < MatTile::Rows; ++row) {
+        for (int col = 0; col < MatTile::Cols; ++col) {
+            dst.SetElement(row, col, kSentinel);
+        }
+    }
+
+    std::vector<int16_t> src(kValidRows * kValidCols);
+    for (size_t i = 0; i < src.size(); ++i) {
+        src[i] = static_cast<int16_t>(i + 1);
+    }
+    SrcGlobal srcGlobal(src.data());
+    pto::TLOAD(dst, srcGlobal);
+
+    for (int row = 0; row < MatTile::Rows; ++row) {
+        for (int col = 0; col < MatTile::Cols; ++col) {
+            int16_t expected = kSentinel;
+            if (row < kValidRows && col < kValidCols) {
+                expected = src[row * kValidCols + col];
+            } else if (row < kValidRows && col < 32) {
+                expected = 0;
+            }
+            EXPECT_EQ(dst.GetElement(row, col), expected) << "row=" << row << " col=" << col;
+        }
+    }
+}
+
+TEST_F(TLOADTest, A5MatNdPadsOnlyFinalPartialBlock)
+{
+    pto::NPU_MEMORY_INIT(pto::NPUArch::A5);
+    pto::NPU_MEMORY_CLEAR();
+
+    constexpr int kSentinel = 1234;
+    constexpr int kValidRows = 2;
+    constexpr int kValidCols = 17;
+    using MatTile = pto::Tile<
+        pto::TileType::Mat, int16_t, 4, 48, pto::BLayout::RowMajor, kValidRows, kValidCols, pto::SLayout::NoneBox, 512,
+        pto::PadValue::Max>;
+    using SrcGlobal = pto::GlobalTensor<
+        int16_t, pto::Shape<1, 1, 1, kValidRows, kValidCols>,
+        pto::Stride<kValidRows * kValidCols, kValidRows * kValidCols, kValidRows * kValidCols, kValidCols, 1>>;
+
+    MatTile dst;
+    pto::TASSIGN(dst, 4096);
+    for (int row = 0; row < MatTile::Rows; ++row) {
+        for (int col = 0; col < MatTile::Cols; ++col) {
+            dst.SetElement(row, col, kSentinel);
+        }
+    }
+
+    std::vector<int16_t> src(kValidRows * kValidCols);
+    for (size_t i = 0; i < src.size(); ++i) {
+        src[i] = static_cast<int16_t>(i + 1);
+    }
+    SrcGlobal srcGlobal(src.data());
+    pto::TLOAD(dst, srcGlobal);
+
+    for (int row = 0; row < MatTile::Rows; ++row) {
+        for (int col = 0; col < MatTile::Cols; ++col) {
+            int16_t expected = kSentinel;
+            if (row < kValidRows && col < kValidCols) {
+                expected = src[row * kValidCols + col];
+            } else if (row < kValidRows && col < 32) {
+                expected = std::numeric_limits<int16_t>::max();
+            }
+            EXPECT_EQ(dst.GetElement(row, col), expected) << "row=" << row << " col=" << col;
+        }
+    }
+}

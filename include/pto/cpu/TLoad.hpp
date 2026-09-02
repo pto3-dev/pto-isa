@@ -13,6 +13,8 @@ See LICENSE in the root of the software repository for the full text of the Lice
 
 #include <unistd.h>
 #include <cassert>
+#include <pto/common/constants.hpp>
+#include <pto/cpu/NPUMemoryModel.hpp>
 #include "pto/cpu/parallel.hpp"
 #include "nz_utils.hpp"
 
@@ -123,6 +125,86 @@ PTO_INTERNAL void CheckConvTileData(TileData& dst, GlobalData& src)
     }
 }
 
+template <typename TileData, typename T>
+PTO_INTERNAL void FillTLoadRowTail(TileData& dst, size_t validRow, size_t validCol, size_t padCols, T padVal)
+{
+    for (size_t row = 0; row < validRow; ++row) {
+        for (size_t col = validCol; col < validCol + padCols; ++col) {
+            dst.SetElement(row, col, padVal);
+        }
+    }
+}
+
+template <typename TileData, typename T>
+PTO_INTERNAL void FillTLoadColTail(TileData& dst, size_t validRow, size_t validCol, size_t padRows, T padVal)
+{
+    for (size_t col = 0; col < validCol; ++col) {
+        for (size_t row = validRow; row < validRow + padRows; ++row) {
+            dst.SetElement(row, col, padVal);
+        }
+    }
+}
+
+template <typename TileData, typename GlobalData>
+PTO_INTERNAL void FillTLoadPadding(TileData& dst, size_t validRow, size_t validCol)
+{
+    constexpr size_t blockSizeElem = BLOCK_BYTE_SIZE / sizeof(typename TileData::DType);
+    constexpr auto tileLayout = GetTileLayoutCustom<TileData>();
+
+    if constexpr (TileData::Loc == TileType::Vec) {
+        // A2/A3 and A5 GM-to-UB DMA pad only the sub-32-byte tail. Full-block gaps are skipped.
+        if constexpr (TileData::PadVal == PadValue::Null || GlobalData::layout == Layout::NZ) {
+            return;
+        } else if constexpr (TileData::isRowMajor) {
+            const size_t padCols = (TileData::Cols - validCol) % blockSizeElem;
+            FillTLoadRowTail(dst, validRow, validCol, padCols, getPadValue<TileData>());
+        } else {
+            const size_t padRows = (TileData::Rows - validRow) % blockSizeElem;
+            FillTLoadColTail(dst, validRow, validCol, padRows, getPadValue<TileData>());
+        }
+        return;
+    }
+
+    if constexpr (TileData::Loc == TileType::Mat) {
+        // ND/DN-to-fractal DMA always zero-fills the final partial C0 block.
+        constexpr bool convertsToNz = tileLayout == TileLayoutCustom::NZ &&
+                                      (GlobalData::layout == Layout::ND || GlobalData::layout == Layout::DN);
+        constexpr bool convertsToZn = tileLayout == TileLayoutCustom::ZN && GlobalData::layout == Layout::DN;
+        if constexpr (convertsToNz) {
+            const size_t padCols = (TileData::Cols - validCol) % blockSizeElem;
+            FillTLoadRowTail(dst, validRow, validCol, padCols, typename TileData::DType(0));
+            return;
+        } else if constexpr (convertsToZn) {
+            const size_t padRows = (TileData::Rows - validRow) % blockSizeElem;
+            FillTLoadColTail(dst, validRow, validCol, padRows, typename TileData::DType(0));
+            return;
+        }
+
+        // A2/A3 uses ND-to-NZ DMA for the single-row/single-column Mat special case.
+        if (NPUMemoryModel::Instance().GetArch() == NPUArch::A2A3) {
+            if constexpr (
+                tileLayout == TileLayoutCustom::ND && GlobalData::layout == Layout::ND && TileData::Rows == 1) {
+                const size_t padCols = (TileData::Cols - validCol) % blockSizeElem;
+                FillTLoadRowTail(dst, validRow, validCol, padCols, typename TileData::DType(0));
+            } else if constexpr (
+                tileLayout == TileLayoutCustom::DN && GlobalData::layout == Layout::DN && TileData::Cols == 1) {
+                const size_t padRows = (TileData::Rows - validRow) % blockSizeElem;
+                FillTLoadColTail(dst, validRow, validCol, padRows, typename TileData::DType(0));
+            }
+            return;
+        }
+
+        // A5 aligned GM-to-L1 DMA pads only the final partial block for same-layout ND/DN loads.
+        if constexpr (tileLayout == TileLayoutCustom::ND && GlobalData::layout == Layout::ND) {
+            const size_t padCols = (TileData::Cols - validCol) % blockSizeElem;
+            FillTLoadRowTail(dst, validRow, validCol, padCols, getPadValue<TileData>());
+        } else if constexpr (tileLayout == TileLayoutCustom::DN && GlobalData::layout == Layout::DN) {
+            const size_t padRows = (TileData::Rows - validRow) % blockSizeElem;
+            FillTLoadColTail(dst, validRow, validCol, padRows, getPadValue<TileData>());
+        }
+    }
+}
+
 template <typename TileData, typename GlobalData>
 PTO_INTERNAL void TLOAD_TILE_IMPL(TileData& dst, GlobalData& src)
 {
@@ -130,17 +212,6 @@ PTO_INTERNAL void TLOAD_TILE_IMPL(TileData& dst, GlobalData& src)
 
     const size_t validRow = dst.GetValidRow();
     const size_t validCol = dst.GetValidCol();
-
-    // Filling padding
-    auto tmpPadVal = getPadValue<TileData>();
-    if constexpr (IsTwinType<typename TileData::DType>()) {
-        uint8_t padVal = getPadValue<TileData>().RawData();
-        std::fill(
-            reinterpret_cast<uint8_t*>(dst.data()), reinterpret_cast<uint8_t*>(dst.data()) + TileData::GetSizeInBytes(),
-            (padVal << HALF_BYTE_SHIFT) | padVal);
-    } else {
-        std::fill(dst.data(), dst.data() + TileData::GetSizeInUnits(), getPadValue<TileData>());
-    }
 
     const std::vector<int64_t> shapes = {
         src.GetShape(GlobalTensorDim::DIM_0), src.GetShape(GlobalTensorDim::DIM_1),
@@ -157,6 +228,8 @@ PTO_INTERNAL void TLOAD_TILE_IMPL(TileData& dst, GlobalData& src)
             dst.SetElement(row, col, src.GetElement(dstOffset));
         }
     }
+
+    FillTLoadPadding<TileData, GlobalData>(dst, validRow, validCol);
 }
 
 template <typename ConTile, typename GlobalData>
