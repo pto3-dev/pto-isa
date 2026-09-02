@@ -60,13 +60,20 @@ PTO_INST RecordEvent TCVT(TileDataD &dst, TileDataS &src, TmpTileData &tmp, Roun
 
 - `dst` and `src` must be compatible in shape/valid region as required by the implementation.
 - The conversion `(src element type) -> (dst element type)` must be supported by the target for the given `RoundMode`.
-- **Implementation notes (A2A3/A5)**:
+- **Implementation notes**:
     - One form accepts an explicit `SaturationMode`, and the specified saturation behavior is forwarded directly to the implementation.
     - The other form omits `SaturationMode`; in that case, the implementation chooses a target-defined default saturation behavior for the specific type pair.
-    - On CPU, only the form without explicit `SaturationMode` is currently implemented.
+    - CPU_SIM implements all four C++ overloads shown above. Its default saturation mode is `SaturationMode::OFF`.
 - **Temporary tile**:
-  - The C++ API provides overloads with an explicit `tmp` tile. On A2A3 this tmp tile is consumed by PyTorch-compatible non-saturating narrowing paths when `SaturationMode::OFF` is used for `float -> int16`, `half -> int16`, or `half -> int8`. Other conversions do not require tmp space.
-  - The implementation casts `tmp` to `int32_t *`; size the tile by bytes, independent of the declared `TmpTileData::DType`.
+  - **CPU_SIM**: The two overloads with `tmp` produce the same result as their corresponding no-`tmp` overloads.
+    CPU_SIM accepts `tmp` for source compatibility but neither calls `tmp.data()` nor accesses its storage. Portable
+    kernels must still declare and size `tmp` for the target NPU backend.
+  - **A2A3**: The tmp tile is consumed by PyTorch-compatible non-saturating narrowing paths when
+    `SaturationMode::OFF` is used for `float -> int16`, `half -> int16`, or `half -> int8`. Other conversions do not
+    require tmp space.
+  - **A5**: The two overloads with `tmp` accept and ignore the temporary Tile; their conversion and default
+    saturation behavior match the corresponding no-`tmp` overloads.
+  - The A2A3 implementation casts `tmp` to `int32_t *`; size the tile by bytes, independent of the declared `TmpTileData::DType`.
   - The formulas below give the minimum allocation size rounded to the 32-byte vector block granularity used by the implementation. If `C = 0`, no tmp-backed conversion is issued and the required tmp size is `0`.
   - **Common parameters**:
     - `R = dst.GetValidRow()`.
@@ -88,6 +95,9 @@ PTO_INST RecordEvent TCVT(TileDataD &dst, TileDataS &src, TmpTileData &tmp, Roun
     $$ \text{tmpFloatToInt16Bytes} = \max(\text{tmpHeadBytes}, \text{tmpTailBytes}) $$
     - A compact full-repeat upper bound for the main region is `REPEAT_MAX * REPEAT_BYTE = 65280` bytes, but tail sizing can be larger when `SS` is large because tail rows are written with source-row stride.
   - **`half -> int16`, non-saturating (`SaturationMode::OFF`)**:
+    - The A2A3 tmp-backed path converts `half -> int32` with saturation and then narrows `int32 -> int16`
+      without saturation. Finite values outside the `int16` range therefore wrap to their low 16 bits; `-inf`,
+      `+inf`, and `NaN` produce `0`, `-1`, and `0`, respectively.
     - The implementation processes each row in sub-chunks of at most `64` elements and reuses the same temp buffer for every sub-chunk. For `C > 0`, let:
     $$ H = \min(C, 64) $$
     - Minimum required tmp size for this path:
@@ -104,7 +114,8 @@ PTO_INST RecordEvent TCVT(TileDataD &dst, TileDataS &src, TmpTileData &tmp, Roun
     $$ \text{tmpSizeAllBytes} = \max(\text{tmpFloatToInt16Bytes},\ \text{tmpHalfToInt8Bytes}) $$
     - Equivalently, if the tile is non-empty and a compact shape-independent bound for the half paths is acceptable:
     $$ \text{tmpSizeAllBytes} = \max(\text{tmpFloatToInt16Bytes},\ 256) $$
-  - The no-`tmp` overload remains valid for conversions that do not need the PyTorch-compatible tmp-backed path, or when native saturation behavior is sufficient.
+  - On NPU backends, the no-`tmp` overload remains valid for conversions that do not need the PyTorch-compatible
+    tmp-backed path, or when native saturation behavior is sufficient.
 
 ## Supported Conversions (Side-by-Side: A2A3 vs A5)
 

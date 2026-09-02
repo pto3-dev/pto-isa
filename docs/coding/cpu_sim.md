@@ -63,6 +63,12 @@ correctness testing and does not model a specific on-chip address.
 - CPU_SIM `TADD` and `TABS` accept independently typed operand Tiles when their element types and runtime
   valid shapes match. This includes mixing static and dynamic `ValidRow`/`ValidCol` template arguments. Each operand
   is indexed using its own Tile layout and physical shape; a runtime valid-shape mismatch triggers an assertion.
+- CPU_SIM implements both `TCI(dst, start)` and `TCI(dst, start, tmp)`. The three-argument form accepts but does not
+  access `tmp`, and otherwise has the same ascending or descending sequence semantics as the two-argument form.
+  Keep the target-specific scratch allocation required by the NPU backend when writing portable kernels.
+- CPU_SIM implements all four `TCVT` overloads, with or without an explicit scratch Tile and `SaturationMode`.
+  Scratch-Tile forms accept but do not access `tmp` and match the corresponding no-scratch conversion. The default
+  CPU_SIM saturation mode is `SaturationMode::OFF`; portable kernels must retain any NPU scratch allocation.
 - TileData `TPUSH`/`TPOP`/`TFREE` use a host-side `TPipe` FIFO model. The model waits for free slots and ready data,
   keeps C2V and V2C traffic separate for `Direction::DIR_BOTH`, and coordinates split lanes through the simulated
   block/subblock context. `TFREE` participates in the CPU FIFO release protocol; it is not the A2A3 TileData no-op.

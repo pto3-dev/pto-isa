@@ -37,43 +37,43 @@ svg { font-family: Arial, Helvetica, sans-serif; }
 <text x="40" y="92" class="meta">Template: complex</text>
 <text x="1160" y="92" class="meta" text-anchor="end">Legend: outline=example; dashed=valid rows/cols (Rv,Cv); shaded=masked; r down / c right; ortho arrows=dataflow</text>
 <line x1="36" y1="104" x2="1164" y2="104" stroke="#e2e8f0" stroke-width="1.5" />
-<text x="600" y="140" class="subtitle" text-anchor="middle" fill="#C53A79">dst[r,c] = base + r*stride + c</text>
+<text x="600" y="140" class="subtitle" text-anchor="middle" fill="#C53A79">dst[0,c] = start + (descending ? -c : c)</text>
 <rect x="420" y="186" width="160" height="54" rx="10" class="scalarBox" />
-<text x="432" y="206" class="smallLabel">base</text>
-<text x="432" y="228" class="scalarValue" fill="#C53A79">base</text>
+<text x="432" y="206" class="smallLabel">start</text>
+<text x="432" y="228" class="scalarValue" fill="#C53A79">start</text>
 <rect x="620" y="186" width="160" height="54" rx="10" class="scalarBox" />
-<text x="632" y="206" class="smallLabel">stride</text>
-<text x="632" y="228" class="scalarValue" fill="#C53A79">stride</text>
-<text x="600" y="350" class="tileLabel" text-anchor="middle">dst</text>
+<text x="632" y="206" class="smallLabel">descending (template)</text>
+<text x="632" y="228" class="scalarValue" fill="#C53A79">-1 or +1</text>
+<text x="600" y="350" class="tileLabel" text-anchor="middle">dst (Rows=1)</text>
 <rect x="545" y="360" width="110" height="110" class="tileBorder" />
 <rect x="545" y="360" width="22" height="22" class="cell" />
 <rect x="567" y="360" width="22" height="22" class="cell" />
-<rect x="589" y="360" width="22" height="22" class="cell" />
+<rect x="589" y="360" width="22" height="22" class="cell cellHL" stroke="#C53A79" />
+<text x="600" y="372" class="cellText" text-anchor="middle" dominant-baseline="middle">start+...</text>
 <rect x="611" y="360" width="22" height="22" class="cell" />
 <rect x="633" y="360" width="22" height="22" class="cell cellMasked" />
-<rect x="545" y="382" width="22" height="22" class="cell" />
-<rect x="567" y="382" width="22" height="22" class="cell" />
-<rect x="589" y="382" width="22" height="22" class="cell cellHL" stroke="#C53A79" />
-<text x="600" y="394" class="cellText" text-anchor="middle" dominant-baseline="middle">base+...</text>
-<rect x="611" y="382" width="22" height="22" class="cell" />
+<rect x="545" y="382" width="22" height="22" class="cell cellMasked" />
+<rect x="567" y="382" width="22" height="22" class="cell cellMasked" />
+<rect x="589" y="382" width="22" height="22" class="cell cellMasked" />
+<rect x="611" y="382" width="22" height="22" class="cell cellMasked" />
 <rect x="633" y="382" width="22" height="22" class="cell cellMasked" />
-<rect x="545" y="404" width="22" height="22" class="cell" />
-<rect x="567" y="404" width="22" height="22" class="cell" />
-<rect x="589" y="404" width="22" height="22" class="cell" />
-<rect x="611" y="404" width="22" height="22" class="cell" />
+<rect x="545" y="404" width="22" height="22" class="cell cellMasked" />
+<rect x="567" y="404" width="22" height="22" class="cell cellMasked" />
+<rect x="589" y="404" width="22" height="22" class="cell cellMasked" />
+<rect x="611" y="404" width="22" height="22" class="cell cellMasked" />
 <rect x="633" y="404" width="22" height="22" class="cell cellMasked" />
-<rect x="545" y="426" width="22" height="22" class="cell" />
-<rect x="567" y="426" width="22" height="22" class="cell" />
-<rect x="589" y="426" width="22" height="22" class="cell" />
-<rect x="611" y="426" width="22" height="22" class="cell" />
+<rect x="545" y="426" width="22" height="22" class="cell cellMasked" />
+<rect x="567" y="426" width="22" height="22" class="cell cellMasked" />
+<rect x="589" y="426" width="22" height="22" class="cell cellMasked" />
+<rect x="611" y="426" width="22" height="22" class="cell cellMasked" />
 <rect x="633" y="426" width="22" height="22" class="cell cellMasked" />
 <rect x="545" y="448" width="22" height="22" class="cell cellMasked" />
 <rect x="567" y="448" width="22" height="22" class="cell cellMasked" />
 <rect x="589" y="448" width="22" height="22" class="cell cellMasked" />
 <rect x="611" y="448" width="22" height="22" class="cell cellMasked" />
 <rect x="633" y="448" width="22" height="22" class="cell cellMasked" />
-<rect x="545" y="360" width="88" height="88" class="validBox" stroke="#C53A79" />
-<text x="549" y="444" class="axisText">Rv</text>
+<rect x="545" y="360" width="88" height="22" class="validBox" stroke="#C53A79" />
+<text x="549" y="378" class="axisText">Rv</text>
 <text x="629" y="372" class="axisText" text-anchor="end">Cv</text>
 <path d="M 555 370 L 589 370" class="axisLine" marker-end="url(#axisArrow)" />
 <path d="M 555 370 L 555 404" class="axisLine" marker-end="url(#axisArrow)" />
@@ -88,9 +88,10 @@ svg { font-family: Arial, Helvetica, sans-serif; }
 <rect x="40" y="502" width="1120" height="194" class="procBox" />
 <text x="56" y="528" class="procTitle">Procedure (conceptual)</text>
 <text x="56" y="554" class="procText" xml:space="preserve">
-  <tspan x="56" dy="0">for r in 0..Rv-1:</tspan>
-  <tspan x="56" dy="16">  for c in 0..Cv-1:</tspan>
-  <tspan x="56" dy="16">    dst[r,c] = base + r*stride + c</tspan>
+  <tspan x="56" dy="0">direction = descending ? -1 : +1</tspan>
+  <tspan x="56" dy="16">for c in 0..Cv-1:</tspan>
+  <tspan x="56" dy="16">  dst[0,c] = start + direction*c</tspan>
+  <tspan x="56" dy="16">tmp (overload): backend-specific scratch; no effect on values</tspan>
 </text>
 <text x="56" y="680" class="meta">Note: semantics apply to the valid region unless stated otherwise.</text>
 </svg>

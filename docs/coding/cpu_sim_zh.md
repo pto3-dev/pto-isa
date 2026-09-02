@@ -72,6 +72,8 @@ CPU_SIM 默认提供至少 512 KiB 的 UB 临时空间。应在初始化内存�
 ## 已支持行为和后端差异
 
 - 当各操作数的元素类型及运行时有效形状一致时，CPU_SIM `TADD` 和 `TABS` 支持操作数使用不同的 Tile 类型，包括混用静态和动态 `ValidRow`/`ValidCol` 模板参数。CPU_SIM 按每个操作数自身的 Tile 布局和物理形状计算索引；运行时有效形状不一致会触发断言。
+- CPU_SIM 同时实现 `TCI(dst, start)` 和 `TCI(dst, start, tmp)`。三参数形式接受 `tmp` 但不访问其存储，其升序或降序序列语义与两参数形式相同。编写跨后端 kernel 时，仍须保留目标 NPU 后端要求的临时空间分配。
+- CPU_SIM 实现了 `TCVT` 带或不带临时 Tile、显式或省略 `SaturationMode` 的全部四种重载。带临时 Tile 的形式接受但不访问 `tmp`，并与对应的不带临时 Tile 形式保持相同转换结果。CPU_SIM 默认使用 `SaturationMode::OFF`；跨后端 kernel 仍须保留 NPU 所需的临时空间。
 - TileData `TPUSH`/`TPOP`/`TFREE` 使用主机侧 `TPipe` FIFO 模型。该模型会等待空闲槽位和就绪数据，在 `Direction::DIR_BOTH` 下区分 C2V 和 V2C 流量，并通过模拟的 block/subblock 上下文协调 split lane。`TFREE` 会参与 CPU FIFO 的释放协议，不是 A2A3 TileData 路径中的空操作。CPU_SIM 当前不支持公共 GlobalData `TALLOC`/`TPUSH`/`TPOP`/`TFREE` 流程。
 - CPU_SIM 中，Tile-vs-Tile `TCMPS` 重载逐元素比较 `src0[i,j]` 与 `src1[i,j]`。该行为与 A5 一致，与 A2/A3 的标量广播行为不同；标量重载仍按通常的标量比较语义执行。
 - CPU arg-reduce 实现（`TCOLARGMIN`、`TCOLARGMAX`、`TROWARGMIN` 和 `TROWARGMAX`）支持 integral、`half`、`bfloat16_t` 和 `float` 源元素。索引输出必须为 `int32_t` 或 `uint32_t`，临时 Tile 参数在 CPU_SIM 中不使用。

@@ -659,7 +659,10 @@ def _elementwise_special_spec(instr: str) -> Optional[Tuple[List[str], str, List
 def _elementwise_spec(instr: str) -> Tuple[List[str], str, List[str]]:
     if instr in UNARY_ELEMENTWISE_EXPR:
         expr = f"dst[r,c] = {UNARY_ELEMENTWISE_EXPR[instr]}"
-        return _elementwise_return(["src"], expr)
+        inputs, result_expr, proc = _elementwise_return(["src"], expr)
+        if instr == "TCVT":
+            proc.append("tmp overload: A2A3 may use scratch; CPU_SIM/A5 ignore tmp")
+        return (inputs, result_expr, proc)
     if instr in TERNARY_ELEMENTWISE_SPEC:
         op_expr, op_inputs = TERNARY_ELEMENTWISE_SPEC[instr]
         return _elementwise_return(op_inputs, f"dst[r,c] = {op_expr}")

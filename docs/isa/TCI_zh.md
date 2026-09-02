@@ -57,6 +57,9 @@ PTO_INST RecordEvent TCI(TileData &dst, T start, TileDataTmp &tmp, WaitEvents &.
 
 ## 约束
 
+- **实现检查（CPU_SIM）**：
+    - `TileData::DType` 必须与标量模板参数 `T` 的类型完全相同。
+    - `TileData::Rows == 1`。CPU_SIM 不访问临时 Tile，因此不会对 `tmp` 额外检查数据类型或容量。
 - **实现检查 (Atlas A2/A3 训练系列产品/Atlas A2/A3 推理系列产品/Ascend 950PR/Ascend 950DT)**:
     - `TileData::DType` 必须与标量模板参数 `T` 的类型完全相同。
     - `dst`/`scalar` 元素类型必须相同；支持类型因架构而异——**A2A3**：任意 2/4 字节类型（`int16_t`、`uint16_t`、`int32_t`、`uint32_t`、`half`、`bfloat16_t`、`float`）；**A5**：仅 `int16_t`、`uint16_t`、`int32_t`、`uint32_t`（仅整型，不含浮点）。
@@ -64,6 +67,7 @@ PTO_INST RecordEvent TCI(TileData &dst, T start, TileDataTmp &tmp, WaitEvents &.
 - **有效区域**:
     - 实现使用 `dst.GetValidCol()` 作为序列长度，不参考 `dst.GetValidRow()`。
 - **临时Tile**:
+    - **CPU_SIM**：支持两个 C++ 重载。带 `tmp` 的重载与不带 `tmp` 的重载生成相同结果；CPU_SIM 为保持源码兼容而接受 `tmp`，既不会调用 `tmp.data()`，也不会访问其存储。如果同一份代码还要在 NPU 上运行，仍须按下述目标 NPU 要求声明 `tmp` 并分配足够空间。
     - **Atlas A2/A3 训练系列产品/Atlas A2/A3 推理系列产品**：C++ API提供带显式 `tmp` Tile的重载，用于向量化实现路径。不带 `tmp` 的重载使用标量循环。`TileDataTmp::DType` 必须为4字节类型（`float`、`int32_t` 或 `uint32_t`）。实现将 `tmp` 转换为 `float *` 使用；应按字节数来规划tmp Tile大小，而不是按 `TileDataTmp::DType` 的类型理解。
     - **b32元素类型**（`int32_t`、`uint32_t`）：最小tmp大小 = 768字节（192个float元素）。
       向量化路径在 `tmp` 内使用两个float子缓冲区：`tmp0` 位于偏移0，`tmp1` 位于偏移 +128 floats。`tmp0` 最多持有64个float元素（256字节）用于初始分数序列，`tmp1` 最多持有64个float元素（256字节）用于累积结果。最高访问的字节偏移为128 × 4 + 64 × 4 = **768字节**（192个float元素）。

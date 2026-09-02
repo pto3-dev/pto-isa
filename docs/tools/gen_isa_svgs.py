@@ -1251,30 +1251,36 @@ def _render_complex(instr: str, summary: str, accent: str, bg: str) -> str:
     y_dst = DST_Y
 
     if instr == "TCI":
-        expr = "dst[r,c] = base + r*stride + c"
-        proc = ["for r in 0..Rv-1:", "  for c in 0..Cv-1:", f"    {expr}"]
+        expr = "dst[0,c] = start + (descending ? -c : c)"
+        proc = [
+            "direction = descending ? -1 : +1",
+            "for c in 0..Cv-1:",
+            "  dst[0,c] = start + direction*c",
+            "tmp (overload): backend-specific scratch; no effect on values",
+        ]
         _draw_expr(out, expr, accent)
         scalar_gap = 40
         scalar_y = y_src + 8
-        x_base = (CANVAS_W - (160 * 2 + scalar_gap)) // 2
-        x_stride = x_base + 160 + scalar_gap
-        _draw_scalar_box(out, x=x_base, y=scalar_y, label="base", value="base", accent=accent)
-        _draw_scalar_box(out, x=x_stride, y=scalar_y, label="stride", value="stride", accent=accent)
+        x_start = (CANVAS_W - (160 * 2 + scalar_gap)) // 2
+        x_direction = x_start + 160 + scalar_gap
+        _draw_scalar_box(out, x=x_start, y=scalar_y, label="start", value="start", accent=accent)
+        _draw_scalar_box(out, x=x_direction, y=scalar_y, label="descending (template)", value="-1 or +1", accent=accent)
 
-        override: Dict[Tuple[int, int], str] = {(EX_R, EX_C): "base+..."}
+        override: Dict[Tuple[int, int], str] = {(0, EX_C): "start+..."}
         x_dst = (CANVAS_W - tile_w) // 2
         _draw_tile_grid(
             out,
             x=x_dst,
             y=y_dst,
-            label="dst",
+            label="dst (Rows=1)",
             prefix="d",
             text_override=override,
-            highlight_cells=[(EX_R, EX_C)],
+            valid_box=(1, 4),
+            highlight_cells=[(0, EX_C)],
             accent=accent,
         )
         dx, dy = _tile_port_top(x=x_dst, y=y_dst, rows=TILE_ROWS, cols=TILE_COLS, c=EX_C)
-        sources = [_scalar_port_bottom(x=x_base, y=scalar_y), _scalar_port_bottom(x=x_stride, y=scalar_y)]
+        sources = [_scalar_port_bottom(x=x_start, y=scalar_y), _scalar_port_bottom(x=x_direction, y=scalar_y)]
         _draw_binary_flow(
             out,
             instr=instr,

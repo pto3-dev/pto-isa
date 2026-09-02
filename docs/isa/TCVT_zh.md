@@ -61,13 +61,19 @@ PTO_INST RecordEvent TCVT(TileDataD &dst, TileDataS &src, TmpTileData &tmp, Roun
 
 - `dst` 和 `src` 必须在形状/有效区域方面兼容，如实现所要求的。
 - 对于给定的 `RoundMode`，转换 `(src 元素类型) -> (dst 元素类型)` 必须被目标支持。
-- **实现说明 (Atlas A2/A3 训练系列产品/Atlas A2/A3 推理系列产品/Ascend 950PR/Ascend 950DT)**:
+- **实现说明**:
     - 一种形式接受显式的 `SaturationMode`，指定的饱和行为会直接传递给实现。
     - 另一种形式不显式给出 `SaturationMode`；此时实现会针对具体类型对选择目标定义的默认饱和行为。
-    - 在CPU实现中，目前仅实现了不显式传入 `SaturationMode` 的形式。
+    - CPU_SIM 实现了上面列出的全部四种 C++ 重载；其默认饱和模式为 `SaturationMode::OFF`。
 - **临时Tile**:
-  - C++ API提供显式传入 `tmp` Tile的重载。在Atlas A2/A3 训练系列产品/Atlas A2/A3 推理系列产品上，当 `SaturationMode::OFF` 用于 `float -> int16`、`half -> int16` 或 `half -> int8` 时，PyTorch兼容的非饱和窄化路径会使用该临时Tile。其他转换不需要tmp空间。
-  - 实现会将 `tmp` 转换为 `int32_t *` 使用；因此应按字节数来规划tmp Tile大小，而不是按 `TmpTileData::DType` 的类型理解。
+  - **CPU_SIM**：两个带 `tmp` 的重载与各自对应的不带 `tmp` 重载结果一致。CPU_SIM 为保持源码兼容而接受
+    `tmp`，但不会调用 `tmp.data()` 或访问其存储。跨后端 kernel 仍须按照目标 NPU 后端的要求声明并分配
+    `tmp`。
+  - **Atlas A2/A3 训练系列产品/Atlas A2/A3 推理系列产品**：当 `SaturationMode::OFF` 用于
+    `float -> int16`、`half -> int16` 或 `half -> int8` 时，PyTorch 兼容的非饱和窄化路径会使用临时 Tile；
+    其他转换不需要 tmp 空间。
+  - **Ascend 950PR/Ascend 950DT**：两个带 `tmp` 的重载会接受但不使用临时 Tile；转换行为和默认饱和行为与对应的不带 `tmp` 重载一致。
+  - Atlas A2/A3 实现会将 `tmp` 转换为 `int32_t *` 使用；因此应按字节数来规划tmp Tile大小，而不是按 `TmpTileData::DType` 的类型理解。
   - 下列公式给出按实现使用的32字节向量块粒度向上取整后的最小分配大小。若 `C = 0`，不会发起需要tmp的转换，所需tmp大小为 `0`。
   - **公共参数**:
     - `R = dst.GetValidRow()`。
@@ -89,6 +95,9 @@ PTO_INST RecordEvent TCVT(TileDataD &dst, TileDataS &src, TmpTileData &tmp, Roun
     $$ \text{tmpFloatToInt16Bytes} = \max(\text{tmpHeadBytes}, \text{tmpTailBytes}) $$
     - 对主区域而言，一个紧凑的完整repeat上界是 `REPEAT_MAX * REPEAT_BYTE = 65280` 字节；但当 `SS` 较大时，尾部会按源行stride写入，所需空间可能更大。
   - **`half -> int16`，非饱和 （`SaturationMode::OFF`）**:
+    - Atlas A2/A3 的 tmp-backed 路径先进行带饱和的 `half -> int32` 转换，再进行不饱和的
+      `int32 -> int16` 窄化。因此，超出 `int16` 范围的有限值按低 16 位回绕；`-inf`、`+inf` 和 `NaN`
+      的结果依次为 `0`、`-1` 和 `0`。
     - 实现按行处理，每行拆分为不超过 `64` 个元素的子块，并在每个子块之间复用同一段临时缓冲区。对于 `C > 0`，令：
     $$ H = \min(C, 64) $$
     - 该路径所需的最小tmp大小为：
@@ -105,7 +114,8 @@ PTO_INST RecordEvent TCVT(TileDataD &dst, TileDataS &src, TmpTileData &tmp, Roun
     $$ \text{tmpSizeAllBytes} = \max(\text{tmpFloatToInt16Bytes},\ \text{tmpHalfToInt8Bytes}) $$
     - 如果Tile非空，并且half路径使用形状无关的紧凑上界即可，也可写为：
     $$ \text{tmpSizeAllBytes} = \max(\text{tmpFloatToInt16Bytes},\ 256) $$
-  - 对于不需要PyTorch兼容tmp-backed路径的转换，或者原生饱和行为已经满足需求时，可以继续使用不带 `tmp` 的重载。
+  - 在 NPU 后端上，对于不需要 PyTorch 兼容 tmp-backed 路径的转换，或者原生饱和行为已经满足需求时，
+    可以继续使用不带 `tmp` 的重载。
 
 ## 支持的转换（Atlas A2/A3 训练系列产品/Atlas A2/A3 推理系列产品与Ascend 950PR/Ascend 950DT并排对比）
 

@@ -55,7 +55,7 @@
 | 逐元素（Tile-Tile） | `TLOG` | `elementwise` | `dst, src0, src1` | `docs/isa/TLOG_zh.md` |
 | 逐元素（Tile-Tile） | `TRECIP` | `elementwise` | `dst, src0, src1` | `docs/isa/TRECIP_zh.md` |
 | 逐元素（Tile-Tile） | `TPRELU` | `elementwise` | `dst, src0, src1` | `docs/isa/TPRELU_zh.md` |
-| 逐元素（Tile-Tile） | `TCVT` | `elementwise` | `dst, src0, src1` | `docs/isa/TCVT_zh.md` |
+| 逐元素（Tile-Tile） | `TCVT` | `elementwise` | `dst, src, tmp (overload)` | `docs/isa/TCVT_zh.md` |
 | 逐元素（Tile-Tile） | `TSEL` | `elementwise` | `dst, src0, src1` | `docs/isa/TSEL_zh.md` |
 | 逐元素（Tile-Tile） | `TRSQRT` | `elementwise` | `dst, src0, src1` | `docs/isa/TRSQRT_zh.md` |
 | 逐元素（Tile-Tile） | `TSQRT` | `elementwise` | `dst, src0, src1` | `docs/isa/TSQRT_zh.md` |
@@ -149,7 +149,7 @@
 | 复杂指令 | `TMRGSORT` | `complex` | `dst, src0, src1` | `docs/isa/TMRGSORT_zh.md` |
 | 复杂指令 | `TSORT32` | `complex` | `dst, src0, src1` | `docs/isa/TSORT32_zh.md` |
 | 复杂指令 | `TGATHER` | `complex` | `dst, src0, src1` | `docs/isa/TGATHER_zh.md` |
-| 复杂指令 | `TCI` | `complex` | `dst, src0, src1` | `docs/isa/TCI_zh.md` |
+| 复杂指令 | `TCI` | `complex` | `dst, start, tmp (overload)` | `docs/isa/TCI_zh.md` |
 | 复杂指令 | `TTRI` | `complex` | `dst, src0, src1` | `docs/isa/TTRI_zh.md` |
 | 复杂指令 | `TRANDOM` | `complex` | `dst, key, counter` | `docs/isa/TRANDOM_zh.md` |
 | 复杂指令 | `TPARTADD` | `complex` | `dst, src0, src1` | `docs/isa/TPARTADD_zh.md` |

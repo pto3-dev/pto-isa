@@ -56,6 +56,10 @@ PTO_INST RecordEvent TCI(TileData &dst, T start, TileDataTmp &tmp, WaitEvents &.
 
 ## Constraints
 
+- **Implementation checks (CPU_SIM)**:
+    - `TileData::DType` must be exactly the same type as the scalar template parameter `T`.
+    - `TileData::Rows == 1`. CPU_SIM does not impose an additional dtype or capacity constraint on `tmp`, because it
+      does not access the temporary Tile.
 - **Implementation checks (A2A3/A5)**:
     - `TileData::DType` must be exactly the same type as the scalar template parameter `T`.
     - `dst/scalar` element types must be identical; supported types differ by arch — **A2A3**: any 2- or 4-byte type (`int16_t`, `uint16_t`, `int32_t`, `uint32_t`, `half`, `bfloat16_t`, `float`); **A5**: `int16_t`, `uint16_t`, `int32_t`, `uint32_t` only (integers, no floating-point).
@@ -63,6 +67,9 @@ PTO_INST RecordEvent TCI(TileData &dst, T start, TileDataTmp &tmp, WaitEvents &.
 - **Valid region**:
     - The implementation uses `dst.GetValidCol()` as the sequence length and does not consult `dst.GetValidRow()`.
 - **Temporary tile**:
+    - **CPU_SIM**: Both C++ overloads are supported. The overload with `tmp` produces the same result as the
+      no-`tmp` overload; CPU_SIM accepts `tmp` for source compatibility and neither calls `tmp.data()` nor accesses
+      its storage. Code that also targets an NPU must still declare and size `tmp` for that NPU as described below.
     - **A2A3**: The C++ API provides an overload with an explicit `tmp` tile for the vectorized implementation path. The no-`tmp` overload uses a scalar loop. `TileDataTmp::DType` must be a 4-byte type (`float`, `int32_t`, or `uint32_t`). The implementation casts `tmp` to `float *`; size the tile by bytes, independent of the declared `TileDataTmp::DType`.
     - **b32 element types** (`int32_t`, `uint32_t`): minimum tmp size = 768 bytes (192 float elements).
       The vectorized path uses two float sub-buffers within `tmp`: `tmp0` at offset 0 and `tmp1` at offset +128 floats. `tmp0` holds up to 64 float elements (256 bytes) for the initial fractional sequence, and `tmp1` holds up to 64 float elements (256 bytes) for the accumulated result. The highest accessed byte is offset 128 × 4 + 64 × 4 = **768 bytes** (192 float elements).

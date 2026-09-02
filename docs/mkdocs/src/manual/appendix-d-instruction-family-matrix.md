@@ -55,7 +55,7 @@ This appendix is generated from `docs/isa/manifest.yaml` and provides a source-s
 | Elementwise (Tile-Tile) | `TLOG` | `elementwise` | `dst, src0, src1` | `docs/isa/TLOG.md` |
 | Elementwise (Tile-Tile) | `TRECIP` | `elementwise` | `dst, src0, src1` | `docs/isa/TRECIP.md` |
 | Elementwise (Tile-Tile) | `TPRELU` | `elementwise` | `dst, src0, src1` | `docs/isa/TPRELU.md` |
-| Elementwise (Tile-Tile) | `TCVT` | `elementwise` | `dst, src0, src1` | `docs/isa/TCVT.md` |
+| Elementwise (Tile-Tile) | `TCVT` | `elementwise` | `dst, src, tmp (overload)` | `docs/isa/TCVT.md` |
 | Elementwise (Tile-Tile) | `TSEL` | `elementwise` | `dst, src0, src1` | `docs/isa/TSEL.md` |
 | Elementwise (Tile-Tile) | `TRSQRT` | `elementwise` | `dst, src0, src1` | `docs/isa/TRSQRT.md` |
 | Elementwise (Tile-Tile) | `TSQRT` | `elementwise` | `dst, src0, src1` | `docs/isa/TSQRT.md` |
@@ -149,7 +149,7 @@ This appendix is generated from `docs/isa/manifest.yaml` and provides a source-s
 | Complex | `TMRGSORT` | `complex` | `dst, src0, src1` | `docs/isa/TMRGSORT.md` |
 | Complex | `TSORT32` | `complex` | `dst, src0, src1` | `docs/isa/TSORT32.md` |
 | Complex | `TGATHER` | `complex` | `dst, src0, src1` | `docs/isa/TGATHER.md` |
-| Complex | `TCI` | `complex` | `dst, src0, src1` | `docs/isa/TCI.md` |
+| Complex | `TCI` | `complex` | `dst, start, tmp (overload)` | `docs/isa/TCI.md` |
 | Complex | `TTRI` | `complex` | `dst, src0, src1` | `docs/isa/TTRI.md` |
 | Complex | `TRANDOM` | `complex` | `dst, key, counter` | `docs/isa/TRANDOM.md` |
 | Complex | `TPARTADD` | `complex` | `dst, src0, src1` | `docs/isa/TPARTADD.md` |

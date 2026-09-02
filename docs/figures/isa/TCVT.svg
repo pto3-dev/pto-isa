@@ -113,6 +113,7 @@ svg { font-family: Arial, Helvetica, sans-serif; }
   <tspan x="56" dy="0">for r in 0..Rv-1:</tspan>
   <tspan x="56" dy="16">  for c in 0..Cv-1:</tspan>
   <tspan x="56" dy="16">    dst[r,c] = convert(src, roundMode)</tspan>
+  <tspan x="56" dy="16">tmp overload: A2A3 may use scratch; CPU_SIM/A5 ignore tmp</tspan>
 </text>
 <text x="56" y="680" class="meta">Note: semantics apply to the valid region unless stated otherwise.</text>
 </svg>

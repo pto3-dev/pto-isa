@@ -18,6 +18,10 @@ using namespace PtoTestCommon;
 
 template <typename D, typename S, int kGRows_, int kGCols_, int kTRows_, int kTCols_, pto::SaturationMode saturation>
 void launchTCVT(D* dst, S* src, void* stream);
+template <typename D, typename S, int kGRows_, int kGCols_, int kTRows_, int kTCols_, pto::SaturationMode saturation>
+void launchTCVTWithTmp(D* dst, S* src, void* stream);
+template <typename D, typename S, int kGRows_, int kGCols_, int kTRows_, int kTCols_>
+void launchTCVTWithTmpDefault(D* dst, S* src, void* stream);
 
 class TCVTTest : public testing::Test {
 protected:
@@ -46,8 +50,8 @@ constexpr size_t StorageElements(size_t elements)
 
 template <
     typename D, typename S, int kGRows_, int kGCols_, int kTRows_, int kTCols_,
-    pto::SaturationMode saturation = pto::SaturationMode::OFF>
-void test_tcvt()
+    pto::SaturationMode saturation = pto::SaturationMode::OFF, bool withTmp = false, bool explicitSaturation = true>
+void test_tcvt(const std::string& goldenDir = GetGoldenDir())
 {
     uint32_t M = kGRows_;
     uint32_t N = kGCols_;
@@ -70,15 +74,21 @@ void test_tcvt()
     aclrtMalloc((void**)&dstDevice, dstFileSize, ACL_MEM_MALLOC_HUGE_FIRST);
     aclrtMalloc((void**)&srcDevice, srcFileSize, ACL_MEM_MALLOC_HUGE_FIRST);
 
-    CHECK_RESULT_GTEST(ReadFile(GetGoldenDir() + "/x1_gm.bin", srcFileSize, srcHost, srcFileSize));
+    CHECK_RESULT_GTEST(ReadFile(goldenDir + "/x1_gm.bin", srcFileSize, srcHost, srcFileSize));
 
     aclrtMemcpy(srcDevice, srcFileSize, srcHost, srcFileSize, ACL_MEMCPY_HOST_TO_DEVICE);
-    launchTCVT<D, S, kGRows_, kGCols_, kTRows_, kTCols_, saturation>(dstDevice, srcDevice, stream);
+    if constexpr (!withTmp) {
+        launchTCVT<D, S, kGRows_, kGCols_, kTRows_, kTCols_, saturation>(dstDevice, srcDevice, stream);
+    } else if constexpr (explicitSaturation) {
+        launchTCVTWithTmp<D, S, kGRows_, kGCols_, kTRows_, kTCols_, saturation>(dstDevice, srcDevice, stream);
+    } else {
+        launchTCVTWithTmpDefault<D, S, kGRows_, kGCols_, kTRows_, kTCols_>(dstDevice, srcDevice, stream);
+    }
 
     aclrtSynchronizeStream(stream);
     aclrtMemcpy(dstHost, dstFileSize, dstDevice, dstFileSize, ACL_MEMCPY_DEVICE_TO_HOST);
 
-    WriteFile(GetGoldenDir() + "/output_z.bin", dstHost, dstFileSize);
+    WriteFile(goldenDir + "/output_z.bin", dstHost, dstFileSize);
 
     aclrtFree(dstDevice);
     aclrtFree(srcDevice);
@@ -92,8 +102,8 @@ void test_tcvt()
 
     std::vector<D> golden(dstFileSize / sizeof(D));
     std::vector<D> devFinal(dstFileSize / sizeof(D));
-    CHECK_RESULT_GTEST(ReadFile(GetGoldenDir() + "/golden.bin", dstFileSize, golden.data(), dstFileSize));
-    CHECK_RESULT_GTEST(ReadFile(GetGoldenDir() + "/output_z.bin", dstFileSize, devFinal.data(), dstFileSize));
+    CHECK_RESULT_GTEST(ReadFile(goldenDir + "/golden.bin", dstFileSize, golden.data(), dstFileSize));
+    CHECK_RESULT_GTEST(ReadFile(goldenDir + "/output_z.bin", dstFileSize, devFinal.data(), dstFileSize));
 
     bool ret = ResultCmp<D>(golden, devFinal, 0.001f);
 
@@ -157,3 +167,13 @@ TEST_F(TCVTTest, case28) { test_tcvt<float4_e1m2x2_t, float, 64, 64, 64, 64>(); 
 TEST_F(TCVTTest, case29) { test_tcvt<float, float4_e1m2x2_t, 64, 64, 64, 64>(); }
 
 TEST_F(TCVTTest, case31) { test_tcvt<float, float4_e1m2x2_t, 64, 64, 64, 64, pto::SaturationMode::ON>(); }
+
+TEST_F(TCVTTest, case14_with_tmp_explicit_saturation)
+{
+    test_tcvt<int8_t, aclFloat16, 32, 32, 32, 32, pto::SaturationMode::ON, true, true>("../TCVTTest.case14");
+}
+
+TEST_F(TCVTTest, case9_with_tmp_default_saturation)
+{
+    test_tcvt<uint8_t, aclFloat16, 64, 64, 64, 64, pto::SaturationMode::OFF, true, false>("../TCVTTest.case9");
+}
