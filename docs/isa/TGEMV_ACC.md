@@ -38,7 +38,7 @@ For `0 <= j < N` (accumulates into the existing output tile):
 
 $$ \mathrm{C}_{0,j} \gets \mathrm{C}_{0,j} + \sum_{k=0}^{K-1} \mathrm{A}_{0,k} \cdot \mathrm{B}_{k,j} $$
 
-**Note:** Exact accumulator behavior and datatype promotion are target/implementation-defined.
+The existing `C` element is the initial accumulator value for the fused multiply-accumulate sequence. It is not added after computing an independent dot product from zero; this distinction can affect floating-point rounding across K tiles. Datatype promotion remains target/implementation-defined.
 
 ## Assembly Syntax
 

@@ -75,7 +75,7 @@ void TMatmulNzZn(TileAcc& dst, TileAcc* acc, TileLeft& src0, TileRight& src1)
 
     cpu::parallel_for_1d(0, M, static_cast<std::size_t>(M) * N * K, [&](std::size_t i) {
         for (uint16_t j = 0; j < N; j++) {
-            typename TileAcc::DType mul_acc = 0;
+            typename TileAcc::DType mul_acc = acc ? acc->GetElement(i, j) : 0;
 
             PTO_CPU_VECTORIZE_LOOP
             for (uint16_t k = 0; k < K; k++) {
@@ -88,7 +88,7 @@ void TMatmulNzZn(TileAcc& dst, TileAcc* acc, TileLeft& src0, TileRight& src1)
                 }
             }
 
-            dst.SetElement(i, j, acc ? acc->GetElement(i, j) + mul_acc : mul_acc);
+            dst.SetElement(i, j, mul_acc);
         }
     });
 }
@@ -176,7 +176,7 @@ void TMatmulMX(
 
     cpu::parallel_for_1d(0, M, static_cast<std::size_t>(M) * N * K, [&](std::size_t i) {
         for (uint16_t j = 0; j < N; j++) {
-            typename TileAcc::DType mul_acc = 0;
+            typename TileAcc::DType mul_acc = acc ? acc->GetElement(i, j) : 0;
 
             PTO_CPU_VECTORIZE_LOOP
             for (uint16_t k = 0; k < K; k++) {
@@ -186,7 +186,7 @@ void TMatmulMX(
                 mul_acc += src0.GetElement(i, k) * src1.GetElement(k, j) * scaleFactor;
             }
 
-            dst.SetElement(i, j, acc ? acc->GetElement(i, j) + mul_acc : mul_acc);
+            dst.SetElement(i, j, mul_acc);
         }
     });
 }

@@ -20,6 +20,8 @@
 
 $$ \mathrm{C1}_{i,j} = \mathrm{C0}_{i,j} + \sum_{k=0}^{K-1} \mathrm{A}_{i,k} \cdot \mathrm{B}_{k,j} $$
 
+`C0` 是融合乘加序列的初始累加值，并非先从零独立计算点积、再在末尾加上 `C0`；跨 K tile 累加时，两种顺序可能产生不同的浮点舍入结果。
+
 ## 汇编语法
 
 ### AS Level 1（SSA）

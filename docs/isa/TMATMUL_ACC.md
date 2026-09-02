@@ -21,6 +21,8 @@ For `0 <= i < M` and `0 <= j < N`:
 
 $$ \mathrm{C1}_{i,j} = \mathrm{C0}_{i,j} + \sum_{k=0}^{K-1} \mathrm{A}_{i,k} \cdot \mathrm{B}_{k,j} $$
 
+`C0` is the initial accumulator value for the fused multiply-accumulate sequence. It is not added after computing an independent dot product from zero; this distinction can affect floating-point rounding across K tiles.
+
 ## Assembly Syntax
 
 Synchronous form:

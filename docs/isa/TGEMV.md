@@ -29,13 +29,15 @@ For `0 <= j < N` (accumulates into existing tile):
 
 $$ \mathrm{C}_{0,j} \gets \mathrm{C}_{0,j} + \sum_{k=0}^{K-1} \mathrm{A}_{0,k} \cdot \mathrm{B}_{k,j} $$
 
+The existing `C` element is the initial accumulator value for the fused multiply-accumulate sequence. It is not added after computing an independent dot product from zero.
+
 ### 3. TGEMV_BIAS (Tile-based GEMV with Bias)
 
 For `0 <= j < N` (adds bias term to matrix product):
 
 $$ \mathrm{C}_{0,j} = \mathrm{Bias}_{0,j} + \sum_{k=0}^{K-1} \mathrm{A}_{0,k} \cdot \mathrm{B}_{k,j} $$
 
-**Note:** Exact accumulator behavior and datatype promotion are target/implementation-defined.
+**Note:** For `TGEMV_BIAS`, exact accumulator behavior (including whether the bias seeds the accumulation) and datatype promotion are target/implementation-defined.
 
 ## Assembly Syntax
 
