@@ -12,6 +12,7 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #define CONSTANTS_HPP
 #ifdef __CPU_SIM
 #include <bit>
+#include "pto/cpu/MXTypes.hpp"
 #endif
 #include <pto/common/type.hpp>
 #include <pto/common/memory.hpp>
@@ -447,29 +448,97 @@ struct PadValueMap<uint8_t, PadValue::Max> {
     static constexpr auto value = uint8_t(0xff);
 };
 
-#if defined(PTO_NPU_ARCH_A5)
-template <PadValue PadVal>
-struct PadValueMap<float4_e1m2x2_t, PadVal> {
+// Low-precision pad maps. Values are raw bit patterns, same as other PadValueMap
+// specializations. fp4x2 stores the same nibble in both halves.
+#if defined(PTO_NPU_ARCH_A5) || defined(__CPU_SIM)
+template <>
+struct PadValueMap<float8_e4m3_t, PadValue::Null> {
     static constexpr auto value = uint8_t(0);
 };
-template <PadValue PadVal>
-struct PadValueMap<float4_e2m1x2_t, PadVal> {
+template <>
+struct PadValueMap<float8_e4m3_t, PadValue::Zero> {
     static constexpr auto value = uint8_t(0);
+};
+template <>
+struct PadValueMap<float8_e4m3_t, PadValue::Min> {
+    static constexpr auto value = uint8_t(0xFE); // -448, no inf
+};
+template <>
+struct PadValueMap<float8_e4m3_t, PadValue::Max> {
+    static constexpr auto value = uint8_t(0x7E); // +448
+};
+
+template <>
+struct PadValueMap<float8_e5m2_t, PadValue::Null> {
+    static constexpr auto value = uint8_t(0);
+};
+template <>
+struct PadValueMap<float8_e5m2_t, PadValue::Zero> {
+    static constexpr auto value = uint8_t(0);
+};
+template <>
+struct PadValueMap<float8_e5m2_t, PadValue::Min> {
+    static constexpr auto value = uint8_t(0xFC); // -inf
+};
+template <>
+struct PadValueMap<float8_e5m2_t, PadValue::Max> {
+    static constexpr auto value = uint8_t(0x7C); // +inf
+};
+
+template <>
+struct PadValueMap<float4_e2m1x2_t, PadValue::Null> {
+    static constexpr auto value = uint8_t(0);
+};
+template <>
+struct PadValueMap<float4_e2m1x2_t, PadValue::Zero> {
+    static constexpr auto value = uint8_t(0);
+};
+template <>
+struct PadValueMap<float4_e2m1x2_t, PadValue::Min> {
+    static constexpr auto value = uint8_t(0xFF); // both nibbles -6
+};
+template <>
+struct PadValueMap<float4_e2m1x2_t, PadValue::Max> {
+    static constexpr auto value = uint8_t(0x77); // both nibbles +6
+};
+
+template <>
+struct PadValueMap<float4_e1m2x2_t, PadValue::Null> {
+    static constexpr auto value = uint8_t(0);
+};
+template <>
+struct PadValueMap<float4_e1m2x2_t, PadValue::Zero> {
+    static constexpr auto value = uint8_t(0);
+};
+template <>
+struct PadValueMap<float4_e1m2x2_t, PadValue::Min> {
+    static constexpr auto value = uint8_t(0xFF); // both nibbles min finite
+};
+template <>
+struct PadValueMap<float4_e1m2x2_t, PadValue::Max> {
+    static constexpr auto value = uint8_t(0x77); // both nibbles max finite
+};
+#endif
+
+#if defined(PTO_NPU_ARCH_A5)
+template <>
+struct PadValueMap<hifloat8_t, PadValue::Null> {
+    static constexpr auto value = uint8_t(0);
+};
+template <>
+struct PadValueMap<hifloat8_t, PadValue::Zero> {
+    static constexpr auto value = uint8_t(0);
+};
+template <>
+struct PadValueMap<hifloat8_t, PadValue::Min> {
+    static constexpr auto value = uint8_t(0xEF); // -inf  S1101111
+};
+template <>
+struct PadValueMap<hifloat8_t, PadValue::Max> {
+    static constexpr auto value = uint8_t(0x6F); // +inf  S1101111
 };
 template <PadValue PadVal>
 struct PadValueMap<float8_e8m0_t, PadVal> {
-    static constexpr auto value = uint8_t(0);
-};
-template <PadValue PadVal>
-struct PadValueMap<float8_e4m3_t, PadVal> {
-    static constexpr auto value = uint8_t(0);
-};
-template <PadValue PadVal>
-struct PadValueMap<float8_e5m2_t, PadVal> {
-    static constexpr auto value = uint8_t(0);
-};
-template <PadValue PadVal>
-struct PadValueMap<hifloat8_t, PadVal> {
     static constexpr auto value = uint8_t(0);
 };
 #endif

@@ -9,3 +9,10 @@
 # --------------------------------------------------------------------------------
 
 pto_vec_st(tfillpad)
+# Host main.cpp is compiled with -xc++ and does not get --cce-aicore-arch, so
+# PTO_NPU_ARCH_A5 is not defined via arch_macro.hpp. Define it for A5 ST so
+# the fp8/hif8/fp4 cases (23-39) are registered. A2A3 SOC_VERSION does not match.
+if(SOC_VERSION MATCHES "9599")
+    target_compile_definitions(tfillpad PRIVATE PTO_NPU_ARCH_A5)
+    target_compile_definitions(tfillpad_kernel PRIVATE PTO_NPU_ARCH_A5)
+endif()

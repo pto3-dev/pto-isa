@@ -430,6 +430,141 @@ extern "C" __global__ AICORE void launchTFILLPAD_22(
         (__gm__ int8_t*)out, (__gm__ int8_t*)src, gShape0, gShape1, gShape2, gRows, gCols, gLog);
 }
 
+#if defined(PTO_NPU_ARCH_A5)
+// Low-precision PadValue::Zero/Min/Max sugar (fp8 / hif8 / fp4x2)
+extern "C" __global__ AICORE void launchTFILLPAD_23(
+    __gm__ uint8_t* out, __gm__ uint8_t* src, int gShape0, int gShape1, int gShape2, int gRows, int gCols,
+    __gm__ uint64_t* gLog)
+{
+    static_assert(PadValueMap<float8_e4m3_t, PadValue::Zero>::value == uint8_t(0));
+    runTFILLPAD<float8_e4m3_t, 1, 1, 1, 1, 15, 1, 32, 0, PadValue::Null, PadValue::Zero>(
+        (__gm__ float8_e4m3_t*)out, (__gm__ float8_e4m3_t*)src, gShape0, gShape1, gShape2, gRows, gCols, gLog);
+}
+extern "C" __global__ AICORE void launchTFILLPAD_24(
+    __gm__ uint8_t* out, __gm__ uint8_t* src, int gShape0, int gShape1, int gShape2, int gRows, int gCols,
+    __gm__ uint64_t* gLog)
+{
+    static_assert(PadValueMap<float8_e4m3_t, PadValue::Min>::value == uint8_t(0xFE));
+    runTFILLPAD<float8_e4m3_t, 1, 1, 1, 1, 15, 1, 32, 0, PadValue::Null, PadValue::Min>(
+        (__gm__ float8_e4m3_t*)out, (__gm__ float8_e4m3_t*)src, gShape0, gShape1, gShape2, gRows, gCols, gLog);
+}
+extern "C" __global__ AICORE void launchTFILLPAD_25(
+    __gm__ uint8_t* out, __gm__ uint8_t* src, int gShape0, int gShape1, int gShape2, int gRows, int gCols,
+    __gm__ uint64_t* gLog)
+{
+    static_assert(PadValueMap<float8_e4m3_t, PadValue::Max>::value == uint8_t(0x7E));
+    runTFILLPAD<float8_e4m3_t, 1, 1, 1, 1, 15, 1, 32, 0, PadValue::Null, PadValue::Max>(
+        (__gm__ float8_e4m3_t*)out, (__gm__ float8_e4m3_t*)src, gShape0, gShape1, gShape2, gRows, gCols, gLog);
+}
+extern "C" __global__ AICORE void launchTFILLPAD_26(
+    __gm__ uint8_t* out, __gm__ uint8_t* src, int gShape0, int gShape1, int gShape2, int gRows, int gCols,
+    __gm__ uint64_t* gLog)
+{
+    runTFILLPAD<float8_e5m2_t, 1, 1, 1, 1, 15, 1, 32, 0, PadValue::Null, PadValue::Zero>(
+        (__gm__ float8_e5m2_t*)out, (__gm__ float8_e5m2_t*)src, gShape0, gShape1, gShape2, gRows, gCols, gLog);
+}
+extern "C" __global__ AICORE void launchTFILLPAD_27(
+    __gm__ uint8_t* out, __gm__ uint8_t* src, int gShape0, int gShape1, int gShape2, int gRows, int gCols,
+    __gm__ uint64_t* gLog)
+{
+    static_assert(PadValueMap<float8_e5m2_t, PadValue::Min>::value == uint8_t(0xFC));
+    runTFILLPAD<float8_e5m2_t, 1, 1, 1, 1, 15, 1, 32, 0, PadValue::Null, PadValue::Min>(
+        (__gm__ float8_e5m2_t*)out, (__gm__ float8_e5m2_t*)src, gShape0, gShape1, gShape2, gRows, gCols, gLog);
+}
+extern "C" __global__ AICORE void launchTFILLPAD_28(
+    __gm__ uint8_t* out, __gm__ uint8_t* src, int gShape0, int gShape1, int gShape2, int gRows, int gCols,
+    __gm__ uint64_t* gLog)
+{
+    static_assert(PadValueMap<float8_e5m2_t, PadValue::Max>::value == uint8_t(0x7C));
+    runTFILLPAD<float8_e5m2_t, 1, 1, 1, 1, 15, 1, 32, 0, PadValue::Null, PadValue::Max>(
+        (__gm__ float8_e5m2_t*)out, (__gm__ float8_e5m2_t*)src, gShape0, gShape1, gShape2, gRows, gCols, gLog);
+}
+extern "C" __global__ AICORE void launchTFILLPAD_29(
+    __gm__ uint8_t* out, __gm__ uint8_t* src, int gShape0, int gShape1, int gShape2, int gRows, int gCols,
+    __gm__ uint64_t* gLog)
+{
+    runTFILLPAD<hifloat8_t, 1, 1, 1, 1, 15, 1, 32, 0, PadValue::Null, PadValue::Zero>(
+        (__gm__ hifloat8_t*)out, (__gm__ hifloat8_t*)src, gShape0, gShape1, gShape2, gRows, gCols, gLog);
+}
+extern "C" __global__ AICORE void launchTFILLPAD_30(
+    __gm__ uint8_t* out, __gm__ uint8_t* src, int gShape0, int gShape1, int gShape2, int gRows, int gCols,
+    __gm__ uint64_t* gLog)
+{
+    static_assert(PadValueMap<hifloat8_t, PadValue::Min>::value == uint8_t(0xEF));
+    runTFILLPAD<hifloat8_t, 1, 1, 1, 1, 15, 1, 32, 0, PadValue::Null, PadValue::Min>(
+        (__gm__ hifloat8_t*)out, (__gm__ hifloat8_t*)src, gShape0, gShape1, gShape2, gRows, gCols, gLog);
+}
+extern "C" __global__ AICORE void launchTFILLPAD_31(
+    __gm__ uint8_t* out, __gm__ uint8_t* src, int gShape0, int gShape1, int gShape2, int gRows, int gCols,
+    __gm__ uint64_t* gLog)
+{
+    static_assert(PadValueMap<hifloat8_t, PadValue::Max>::value == uint8_t(0x6F));
+    runTFILLPAD<hifloat8_t, 1, 1, 1, 1, 15, 1, 32, 0, PadValue::Null, PadValue::Max>(
+        (__gm__ hifloat8_t*)out, (__gm__ hifloat8_t*)src, gShape0, gShape1, gShape2, gRows, gCols, gLog);
+}
+extern "C" __global__ AICORE void launchTFILLPAD_32(
+    __gm__ uint8_t* out, __gm__ uint8_t* src, int gShape0, int gShape1, int gShape2, int gRows, int gCols,
+    __gm__ uint64_t* gLog)
+{
+    runTFILLPAD<float4_e2m1x2_t, 1, 1, 1, 1, 15, 1, 32, 0, PadValue::Null, PadValue::Zero>(
+        (__gm__ float4_e2m1x2_t*)out, (__gm__ float4_e2m1x2_t*)src, gShape0, gShape1, gShape2, gRows, gCols, gLog);
+}
+extern "C" __global__ AICORE void launchTFILLPAD_33(
+    __gm__ uint8_t* out, __gm__ uint8_t* src, int gShape0, int gShape1, int gShape2, int gRows, int gCols,
+    __gm__ uint64_t* gLog)
+{
+    static_assert(PadValueMap<float4_e2m1x2_t, PadValue::Min>::value == uint8_t(0xFF));
+    runTFILLPAD<float4_e2m1x2_t, 1, 1, 1, 1, 15, 1, 32, 0, PadValue::Null, PadValue::Min>(
+        (__gm__ float4_e2m1x2_t*)out, (__gm__ float4_e2m1x2_t*)src, gShape0, gShape1, gShape2, gRows, gCols, gLog);
+}
+extern "C" __global__ AICORE void launchTFILLPAD_34(
+    __gm__ uint8_t* out, __gm__ uint8_t* src, int gShape0, int gShape1, int gShape2, int gRows, int gCols,
+    __gm__ uint64_t* gLog)
+{
+    static_assert(PadValueMap<float4_e2m1x2_t, PadValue::Max>::value == uint8_t(0x77));
+    runTFILLPAD<float4_e2m1x2_t, 1, 1, 1, 1, 15, 1, 32, 0, PadValue::Null, PadValue::Max>(
+        (__gm__ float4_e2m1x2_t*)out, (__gm__ float4_e2m1x2_t*)src, gShape0, gShape1, gShape2, gRows, gCols, gLog);
+}
+extern "C" __global__ AICORE void launchTFILLPAD_35(
+    __gm__ uint8_t* out, __gm__ uint8_t* src, int gShape0, int gShape1, int gShape2, int gRows, int gCols,
+    __gm__ uint64_t* gLog)
+{
+    runTFILLPAD<float4_e1m2x2_t, 1, 1, 1, 1, 15, 1, 32, 0, PadValue::Null, PadValue::Zero>(
+        (__gm__ float4_e1m2x2_t*)out, (__gm__ float4_e1m2x2_t*)src, gShape0, gShape1, gShape2, gRows, gCols, gLog);
+}
+extern "C" __global__ AICORE void launchTFILLPAD_36(
+    __gm__ uint8_t* out, __gm__ uint8_t* src, int gShape0, int gShape1, int gShape2, int gRows, int gCols,
+    __gm__ uint64_t* gLog)
+{
+    runTFILLPAD<float4_e1m2x2_t, 1, 1, 1, 1, 15, 1, 32, 0, PadValue::Null, PadValue::Min>(
+        (__gm__ float4_e1m2x2_t*)out, (__gm__ float4_e1m2x2_t*)src, gShape0, gShape1, gShape2, gRows, gCols, gLog);
+}
+extern "C" __global__ AICORE void launchTFILLPAD_37(
+    __gm__ uint8_t* out, __gm__ uint8_t* src, int gShape0, int gShape1, int gShape2, int gRows, int gCols,
+    __gm__ uint64_t* gLog)
+{
+    static_assert(PadValueMap<float4_e1m2x2_t, PadValue::Max>::value == uint8_t(0x77));
+    runTFILLPAD<float4_e1m2x2_t, 1, 1, 1, 1, 15, 1, 32, 0, PadValue::Null, PadValue::Max>(
+        (__gm__ float4_e1m2x2_t*)out, (__gm__ float4_e1m2x2_t*)src, gShape0, gShape1, gShape2, gRows, gCols, gLog);
+}
+extern "C" __global__ AICORE void launchTFILLPAD_38(
+    __gm__ uint8_t* out, __gm__ uint8_t* src, int gShape0, int gShape1, int gShape2, int gRows, int gCols,
+    __gm__ uint64_t* gLog)
+{
+    constexpr PadValue kPad = PadValueCustom(uint8_t(0x42));
+    runTFILLPAD<float8_e4m3_t, 1, 1, 1, 1, 15, 1, 32, 0, PadValue::Null, kPad>(
+        (__gm__ float8_e4m3_t*)out, (__gm__ float8_e4m3_t*)src, gShape0, gShape1, gShape2, gRows, gCols, gLog);
+}
+extern "C" __global__ AICORE void launchTFILLPAD_39(
+    __gm__ uint8_t* out, __gm__ uint8_t* src, int gShape0, int gShape1, int gShape2, int gRows, int gCols,
+    __gm__ uint64_t* gLog)
+{
+    constexpr PadValue kPad = PadValueCustom(uint8_t(0x33));
+    runTFILLPAD<float4_e2m1x2_t, 1, 1, 1, 1, 15, 1, 32, 0, PadValue::Null, kPad>(
+        (__gm__ float4_e2m1x2_t*)out, (__gm__ float4_e2m1x2_t*)src, gShape0, gShape1, gShape2, gRows, gCols, gLog);
+}
+#endif // PTO_NPU_ARCH_A5
+
 template <int32_t testKey>
 void launchTFILLPAD(uint8_t* out, uint8_t* src, uint64_t* gLog, void* stream)
 {
@@ -478,6 +613,43 @@ void launchTFILLPAD(uint8_t* out, uint8_t* src, uint64_t* gLog, void* stream)
     } else if constexpr (testKey == 22) {
         launchTFILLPAD_22<<<1, nullptr, stream>>>(out, src, 1, 1, 1, 1, 40, gLog);
     }
+#if defined(PTO_NPU_ARCH_A5)
+    else if constexpr (testKey == 23) {
+        launchTFILLPAD_23<<<1, nullptr, stream>>>(out, src, 1, 1, 1, 1, 15, gLog);
+    } else if constexpr (testKey == 24) {
+        launchTFILLPAD_24<<<1, nullptr, stream>>>(out, src, 1, 1, 1, 1, 15, gLog);
+    } else if constexpr (testKey == 25) {
+        launchTFILLPAD_25<<<1, nullptr, stream>>>(out, src, 1, 1, 1, 1, 15, gLog);
+    } else if constexpr (testKey == 26) {
+        launchTFILLPAD_26<<<1, nullptr, stream>>>(out, src, 1, 1, 1, 1, 15, gLog);
+    } else if constexpr (testKey == 27) {
+        launchTFILLPAD_27<<<1, nullptr, stream>>>(out, src, 1, 1, 1, 1, 15, gLog);
+    } else if constexpr (testKey == 28) {
+        launchTFILLPAD_28<<<1, nullptr, stream>>>(out, src, 1, 1, 1, 1, 15, gLog);
+    } else if constexpr (testKey == 29) {
+        launchTFILLPAD_29<<<1, nullptr, stream>>>(out, src, 1, 1, 1, 1, 15, gLog);
+    } else if constexpr (testKey == 30) {
+        launchTFILLPAD_30<<<1, nullptr, stream>>>(out, src, 1, 1, 1, 1, 15, gLog);
+    } else if constexpr (testKey == 31) {
+        launchTFILLPAD_31<<<1, nullptr, stream>>>(out, src, 1, 1, 1, 1, 15, gLog);
+    } else if constexpr (testKey == 32) {
+        launchTFILLPAD_32<<<1, nullptr, stream>>>(out, src, 1, 1, 1, 1, 15, gLog);
+    } else if constexpr (testKey == 33) {
+        launchTFILLPAD_33<<<1, nullptr, stream>>>(out, src, 1, 1, 1, 1, 15, gLog);
+    } else if constexpr (testKey == 34) {
+        launchTFILLPAD_34<<<1, nullptr, stream>>>(out, src, 1, 1, 1, 1, 15, gLog);
+    } else if constexpr (testKey == 35) {
+        launchTFILLPAD_35<<<1, nullptr, stream>>>(out, src, 1, 1, 1, 1, 15, gLog);
+    } else if constexpr (testKey == 36) {
+        launchTFILLPAD_36<<<1, nullptr, stream>>>(out, src, 1, 1, 1, 1, 15, gLog);
+    } else if constexpr (testKey == 37) {
+        launchTFILLPAD_37<<<1, nullptr, stream>>>(out, src, 1, 1, 1, 1, 15, gLog);
+    } else if constexpr (testKey == 38) {
+        launchTFILLPAD_38<<<1, nullptr, stream>>>(out, src, 1, 1, 1, 1, 15, gLog);
+    } else if constexpr (testKey == 39) {
+        launchTFILLPAD_39<<<1, nullptr, stream>>>(out, src, 1, 1, 1, 1, 15, gLog);
+    }
+#endif // PTO_NPU_ARCH_A5
 }
 
 template <typename T>
@@ -543,6 +715,39 @@ int get_input_golden_case(uint8_t* input, uint8_t* golden)
     return sizeof(gold_arr);
 }
 
+template <
+    typename U, int Shape0, int Shape1, int Shape2, int Shape3, int Shape4, int kTRows_, int kTCols_, uint8_t PadBits>
+int get_input_golden_bits(uint8_t* input, uint8_t* golden)
+{
+    auto arr = getGoldenZero<U>();
+    using T = decltype(arr);
+    int in_capacity = Shape0 * Shape1 * Shape2 * Shape3 * Shape4;
+    int out_capacity = Shape0 * Shape1 * Shape2 * kTRows_ * kTCols_;
+    int in_byteSize = in_capacity * sizeof(T);
+    int out_byteSize = out_capacity * sizeof(T);
+    T t_padVal = static_cast<T>(PadBits);
+    T in_arr[Shape0][Shape1][Shape2][Shape3][Shape4] = {};
+    T gold_arr[Shape0][Shape1][Shape2][kTRows_][kTCols_] = {};
+    for (int x0 = 0; x0 < Shape0; x0++)
+        for (int x1 = 0; x1 < Shape1; x1++)
+            for (int x2 = 0; x2 < Shape2; x2++)
+                for (int i = 0; i < kTRows_; i++) {
+                    for (int j = 0; j < kTCols_; j++) {
+                        if (i < Shape3 && j < Shape4) {
+                            in_arr[x0][x1][x2][i][j] = x0 * Shape1 * Shape2 * Shape3 * Shape4 +
+                                                       x1 * Shape2 * Shape3 * Shape4 + x2 * Shape3 * Shape4 +
+                                                       i * Shape4 + j;
+                            gold_arr[x0][x1][x2][i][j] = in_arr[x0][x1][x2][i][j];
+                        } else {
+                            gold_arr[x0][x1][x2][i][j] = t_padVal;
+                        }
+                    }
+                }
+    std::copy((uint8_t*)in_arr, ((uint8_t*)(in_arr)) + in_byteSize, input);
+    std::copy((uint8_t*)gold_arr, ((uint8_t*)(gold_arr)) + out_byteSize, golden);
+    return sizeof(gold_arr);
+}
+
 template <int32_t testKey>
 int get_input_golden(uint8_t* input, uint8_t* golden)
 {
@@ -587,6 +792,43 @@ int get_input_golden(uint8_t* input, uint8_t* golden)
     } else if constexpr (testKey == 22) {
         return get_input_golden_case<int8_t, 1, 1, 1, 1, 40, 1, 64, PadValue::Max>(input, golden);
     }
+#if defined(PTO_NPU_ARCH_A5)
+    else if constexpr (testKey == 23) {
+        return get_input_golden_bits<uint8_t, 1, 1, 1, 1, 15, 1, 32, 0x00>(input, golden);
+    } else if constexpr (testKey == 24) {
+        return get_input_golden_bits<uint8_t, 1, 1, 1, 1, 15, 1, 32, 0xFE>(input, golden);
+    } else if constexpr (testKey == 25) {
+        return get_input_golden_bits<uint8_t, 1, 1, 1, 1, 15, 1, 32, 0x7E>(input, golden);
+    } else if constexpr (testKey == 26) {
+        return get_input_golden_bits<uint8_t, 1, 1, 1, 1, 15, 1, 32, 0x00>(input, golden);
+    } else if constexpr (testKey == 27) {
+        return get_input_golden_bits<uint8_t, 1, 1, 1, 1, 15, 1, 32, 0xFC>(input, golden);
+    } else if constexpr (testKey == 28) {
+        return get_input_golden_bits<uint8_t, 1, 1, 1, 1, 15, 1, 32, 0x7C>(input, golden);
+    } else if constexpr (testKey == 29) {
+        return get_input_golden_bits<uint8_t, 1, 1, 1, 1, 15, 1, 32, 0x00>(input, golden);
+    } else if constexpr (testKey == 30) {
+        return get_input_golden_bits<uint8_t, 1, 1, 1, 1, 15, 1, 32, 0xEF>(input, golden);
+    } else if constexpr (testKey == 31) {
+        return get_input_golden_bits<uint8_t, 1, 1, 1, 1, 15, 1, 32, 0x6F>(input, golden);
+    } else if constexpr (testKey == 32) {
+        return get_input_golden_bits<uint8_t, 1, 1, 1, 1, 8, 1, 16, 0x00>(input, golden);
+    } else if constexpr (testKey == 33) {
+        return get_input_golden_bits<uint8_t, 1, 1, 1, 1, 8, 1, 16, 0xFF>(input, golden);
+    } else if constexpr (testKey == 34) {
+        return get_input_golden_bits<uint8_t, 1, 1, 1, 1, 8, 1, 16, 0x77>(input, golden);
+    } else if constexpr (testKey == 35) {
+        return get_input_golden_bits<uint8_t, 1, 1, 1, 1, 8, 1, 16, 0x00>(input, golden);
+    } else if constexpr (testKey == 36) {
+        return get_input_golden_bits<uint8_t, 1, 1, 1, 1, 8, 1, 16, 0xFF>(input, golden);
+    } else if constexpr (testKey == 37) {
+        return get_input_golden_bits<uint8_t, 1, 1, 1, 1, 8, 1, 16, 0x77>(input, golden);
+    } else if constexpr (testKey == 38) {
+        return get_input_golden_bits<uint8_t, 1, 1, 1, 1, 15, 1, 32, 0x42>(input, golden);
+    } else if constexpr (testKey == 39) {
+        return get_input_golden_bits<uint8_t, 1, 1, 1, 1, 8, 1, 16, 0x33>(input, golden);
+    }
+#endif // PTO_NPU_ARCH_A5
 
     return 0;
 }
@@ -636,3 +878,41 @@ template int get_input_golden<19>(uint8_t* input, uint8_t* golden);
 template int get_input_golden<20>(uint8_t* input, uint8_t* golden);
 template int get_input_golden<21>(uint8_t* input, uint8_t* golden);
 template int get_input_golden<22>(uint8_t* input, uint8_t* golden);
+
+#if defined(PTO_NPU_ARCH_A5)
+
+template void launchTFILLPAD<23>(uint8_t* out, uint8_t* src, uint64_t* gLog, void* stream);
+template void launchTFILLPAD<24>(uint8_t* out, uint8_t* src, uint64_t* gLog, void* stream);
+template void launchTFILLPAD<25>(uint8_t* out, uint8_t* src, uint64_t* gLog, void* stream);
+template void launchTFILLPAD<26>(uint8_t* out, uint8_t* src, uint64_t* gLog, void* stream);
+template void launchTFILLPAD<27>(uint8_t* out, uint8_t* src, uint64_t* gLog, void* stream);
+template void launchTFILLPAD<28>(uint8_t* out, uint8_t* src, uint64_t* gLog, void* stream);
+template void launchTFILLPAD<29>(uint8_t* out, uint8_t* src, uint64_t* gLog, void* stream);
+template void launchTFILLPAD<30>(uint8_t* out, uint8_t* src, uint64_t* gLog, void* stream);
+template void launchTFILLPAD<31>(uint8_t* out, uint8_t* src, uint64_t* gLog, void* stream);
+template void launchTFILLPAD<32>(uint8_t* out, uint8_t* src, uint64_t* gLog, void* stream);
+template void launchTFILLPAD<33>(uint8_t* out, uint8_t* src, uint64_t* gLog, void* stream);
+template void launchTFILLPAD<34>(uint8_t* out, uint8_t* src, uint64_t* gLog, void* stream);
+template void launchTFILLPAD<35>(uint8_t* out, uint8_t* src, uint64_t* gLog, void* stream);
+template void launchTFILLPAD<36>(uint8_t* out, uint8_t* src, uint64_t* gLog, void* stream);
+template void launchTFILLPAD<37>(uint8_t* out, uint8_t* src, uint64_t* gLog, void* stream);
+template void launchTFILLPAD<38>(uint8_t* out, uint8_t* src, uint64_t* gLog, void* stream);
+template void launchTFILLPAD<39>(uint8_t* out, uint8_t* src, uint64_t* gLog, void* stream);
+template int get_input_golden<23>(uint8_t* input, uint8_t* golden);
+template int get_input_golden<24>(uint8_t* input, uint8_t* golden);
+template int get_input_golden<25>(uint8_t* input, uint8_t* golden);
+template int get_input_golden<26>(uint8_t* input, uint8_t* golden);
+template int get_input_golden<27>(uint8_t* input, uint8_t* golden);
+template int get_input_golden<28>(uint8_t* input, uint8_t* golden);
+template int get_input_golden<29>(uint8_t* input, uint8_t* golden);
+template int get_input_golden<30>(uint8_t* input, uint8_t* golden);
+template int get_input_golden<31>(uint8_t* input, uint8_t* golden);
+template int get_input_golden<32>(uint8_t* input, uint8_t* golden);
+template int get_input_golden<33>(uint8_t* input, uint8_t* golden);
+template int get_input_golden<34>(uint8_t* input, uint8_t* golden);
+template int get_input_golden<35>(uint8_t* input, uint8_t* golden);
+template int get_input_golden<36>(uint8_t* input, uint8_t* golden);
+template int get_input_golden<37>(uint8_t* input, uint8_t* golden);
+template int get_input_golden<38>(uint8_t* input, uint8_t* golden);
+template int get_input_golden<39>(uint8_t* input, uint8_t* golden);
+#endif // PTO_NPU_ARCH_A5
