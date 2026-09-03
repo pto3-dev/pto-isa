@@ -45,7 +45,7 @@ struct TPipe;
 
 - **CPU_SIM限制**：
     - CPU_SIM 当前未实现 `TALLOC(Pipe&, GlobalData&)`。
-    - 主机 FIFO 模型支持 TileData push/pop/free 流程，`TPUSH(Pipe&, TileData&, TConfig)` 也具有 CPU fixpipe 路径。
+    - 主机 FIFO 模型支持 TileData push/pop/free 流程，`TPUSH<Pipe, TileData, TConfig>(pipe, tile)` 也具有 CPU fixpipe 路径。
       GlobalData 槽位视图流程需要使用 NPU 后端。
 - **Atlas A2/A3 训练系列产品/Atlas A2/A3 推理系列产品GlobalData生产者**：
     - `GlobalData` 必须满足 `is_global_data_v<GlobalData>`。
@@ -133,5 +133,3 @@ AICORE void example_v2c_split(__gm__ void *fifoMem)
 ## ASM形式示例
 
 当前公开的汇编参考尚未为 `TALLOC` 定义稳定的PTO-AS写法。手写CV FIFO程序时请使用C++ intrinsic形式。
-
-```text

@@ -71,8 +71,10 @@ correctness testing and does not model a specific on-chip address.
   CPU_SIM saturation mode is `SaturationMode::OFF`; portable kernels must retain any NPU scratch allocation.
 - TileData `TPUSH`/`TPOP`/`TFREE` use a host-side `TPipe` FIFO model. The model waits for free slots and ready data,
   keeps C2V and V2C traffic separate for `Direction::DIR_BOTH`, and coordinates split lanes through the simulated
-  block/subblock context. `TFREE` participates in the CPU FIFO release protocol; it is not the A2A3 TileData no-op.
-  The public GlobalData `TALLOC`/`TPUSH`/`TPOP`/`TFREE` flow is not currently available in CPU_SIM.
+  block/subblock context. TileData payloads stay in host-owned shared slot storage even if generated code supplies a
+  non-null NPU GM workspace; CPU_SIM does not access that workspace for this flow. `TFREE` participates in the CPU
+  FIFO release protocol; it is not the A2A3 TileData no-op. The public GlobalData
+  `TALLOC`/`TPUSH`/`TPOP`/`TFREE` flow is not currently available in CPU_SIM.
 - The Tile-vs-Tile `TCMPS` overload compares `src0[i,j]` with `src1[i,j]` in CPU_SIM. This matches A5 and differs
   from the A2/A3 scalar-broadcast behavior. The scalar overload has the usual scalar comparison semantics.
 - CPU arg-reduce implementations (`TCOLARGMIN`, `TCOLARGMAX`, `TROWARGMIN`, and `TROWARGMAX`) accept integral,

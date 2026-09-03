@@ -4,7 +4,7 @@
 
 将生产者tile推入FIFO中，用于Cube-Vector之间的数据传输和核间同步。
 
-本指令支持多类数据的推送，包括基于 `TileSplitAxis` 的Tile重载、简化版Tile重载（参数顺序相反、无需Split）、GlobalTensor重载以及基于TConfig的重载。
+本指令支持显式指定 `TileSplitAxis`、显式指定subblock ID、参数反转且不指定 `Split` 的TileData重载，以及 `GlobalData` 和 `TConfig` 重载。
 
 ## 操作语义
 
@@ -21,7 +21,7 @@
 3. `TPOP(Pipe&, GlobalData&)` 等待数据就绪，将 `gmTensor` 赋值为当前FIFO槽位地址，并递增消费者tile索引。它不会将数据加载到本地tile，也不会释放槽位。消费者可通过 `TLOAD` 等指令从槽位中读取数据。
 4. `TFREE(Pipe&, GlobalData&)` 释放由 `TPOP(Pipe&, GlobalData&)` 返回的FIFO槽位视图，通知生产者该槽位空间已空闲。
 
-对于 `TConfig` 重载 `TPUSH(Pipe&, TileProd&, TConfig)`，`TConfig` 模板参数用于配置L0C->GM/UB的fixpipe参数。
+对于 `TConfig` 重载 `TPUSH<Pipe, TileProd, TConfig>(pipe, tile)`，`TConfig` 模板参数用于配置fixpipe转换和布局。NPU后端将其应用于L0C->GM/UB路径，CPU_SIM则将转换结果写入主机FIFO槽位。
 
 ## C++ Intrinsic
 
@@ -31,6 +31,13 @@
 template <typename Pipe, typename TileProd, TileSplitAxis Split,
           std::enable_if_t<is_tile_data_v<TileProd>, int> = 0, typename... WaitEvents>
 PTO_INST RecordEvent TPUSH(Pipe &pipe, TileProd &tile, WaitEvents &... events);
+
+template <typename Pipe, typename TileProd, TileSplitAxis Split, typename... WaitEvents>
+PTO_INST RecordEvent TPUSH(Pipe &pipe, TileProd &tile, int32_t subBlockId,
+                           WaitEvents &... events);
+
+template <typename TileData, typename Pipe, typename... WaitEvents>
+PTO_INST RecordEvent TPUSH(TileData &tile, Pipe &pipe, WaitEvents &... events);
 
 template <typename Pipe, typename GlobalData, TileSplitAxis Split,
           std::enable_if_t<is_global_data_v<GlobalData>, int> = 0, typename... WaitEvents>
@@ -64,7 +71,7 @@ struct TPipe;
     - `TileSplitAxis::TILE_LEFT_RIGHT`：向量子块映射到左右两个列半区。
 - **Ascend 950PR/Ascend 950DT切分行为**：
     - `TileSplitAxis::TILE_NO_SPLIT`：不做切分。
-    - `TileSplitAxis::TILE_UP_DOWN`：将数据按照上下切分。当Cube->Vector方向且L0C->UB通路时，该切分模式仅支持数据类型为b32，且srcTile的validRows必须为2的整数倍；当Vector->Cube方向且UB->L1通路时，该切分模式下validRows必须是32字节的整数倍。
+    - `TileSplitAxis::TILE_UP_DOWN`：将数据按照上下切分。当Cube->Vector方向且L0C->UB通路时，该切分模式仅支持数据类型为b32，且srcTile的validRows必须为2的整数倍。当Vector->Cube方向且UB->L1通路时，vector子块会分别插入上、下两个行区域。
     - `TileSplitAxis::TILE_LEFT_RIGHT`：将数据按照左右切分成两个列半区。当Cube->Vector方向且L0C->UB通路时，该切分模式仅支持数据类型为b32，且srcTile的validCols必须为32的整数倍。当Vector->Cube方向且UB->L1通路时，该切分模式下validCols必须是32字节的整数倍。
 - **简化版TileData接口**：
     - `TPUSH(TileData&, Pipe&)` 内部使用 `TileSplitAxis::TILE_NO_SPLIT` 语义。
@@ -81,8 +88,10 @@ struct TPipe;
     - `TPUSH(Pipe&, GlobalData&)` 忽略tensor内容，只将FIFO槽位提交给消费者。
 - **CPU_SIM FIFO模型**：
     - FIFO状态由主机线程共享。`TPUSH` 通过互斥锁和条件变量等待空闲槽位并提交数据。
-    - TileData生产者支持 `DIR_C2V`、`DIR_V2C` 和 `DIR_BOTH`；`DIR_BOTH` 管道的两个方向维护独立的FIFO状态。
+    - TileData 数据使用主机 FIFO 状态拥有的存储；即使构造 `TPipe` 时传入了非空 NPU GM workspace，CPU_SIM TileData 流程也不会访问该 workspace，从而使数据生命周期与槽位状态受同一套同步保护。
+    - TileData生产者支持 `DIR_C2V`、`DIR_V2C` 和 `DIR_BOTH`。`DIR_BOTH` 管道使用共享的环形槽位和共享容量，通过方向标签和独立的消费游标区分C2V与V2C条目。
     - 切分模式根据当前subblock上下文选择lane。`TILE_NO_SPLIT` 使用一个生产者lane。对于启用 `IsNoSplit` 的C2V管道，一个生产者槽位可根据运行时subblock数量协调一个或两个vector消费者subblock。
+    - CPU_SIM 当前未实现显式传入 `int32_t subBlockId` 的重载；应通过模拟subblock执行上下文选择split lane。
     - 简化版接口使用 `TILE_NO_SPLIT`；`TConfig` 接口同样支持CPU fixpipe路径。
     - CPU_SIM 当前不支持 GlobalData 重载。
 - **Tile类型支持**：
@@ -93,7 +102,7 @@ struct TPipe;
 
 ## 定义TConfig
 
-`TPUSH(Pipe&, TileProd&, TConfig)` 重载中的 `TConfig` 模板参数是一个配置结构体，用于控制推送过程中的fixpipe行为。PTO提供了 `FixpipeParams` 结构体来实现此功能。
+`TPUSH<Pipe, TileProd, TConfig>(pipe, tile)` 重载中的 `TConfig` 模板参数是一个配置结构体，用于控制推送过程中的fixpipe行为。PTO提供了 `FixpipeParams` 结构体来实现此功能。
 
 声明于 `include/pto/common/fixpipe.hpp`：
 
@@ -248,5 +257,3 @@ AICORE void example_globaldata(__gm__ void *fifoMem)
 ## ASM形式示例
 
 当前公开的汇编参考尚未为 `TPUSH` 定义稳定的PTO-AS写法。手写CV FIFO程序时请使用C++ intrinsic形式。
-
-```text

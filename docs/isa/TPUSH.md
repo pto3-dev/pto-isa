@@ -4,7 +4,7 @@
 
 Push a producer tile into a `TPipe` FIFO for Cube-Vector communication.
 
-This page describes all `TPUSH` overloads for pushing data into a `TPipe` FIFO: the TileData overload with explicit `TileSplitAxis`, the simplified TileData overload (reversed parameters, no Split), the GlobalTensor overload, and the TConfig-based overload.
+This page describes all `TPUSH` overloads for pushing data into a `TPipe` FIFO: TileData overloads with an explicit `TileSplitAxis`, an explicit subblock ID, or reversed parameters without `Split`, plus the GlobalData and `TConfig` overloads.
 
 ## Operation Semantics
 
@@ -20,7 +20,7 @@ The producer tile index is incremented after the FIFO slot address is computed.
 
 For the `GlobalData` overload, `TPUSH` only records data-ready synchronization for a slot that was already allocated by `TALLOC`. It does not store tile data by itself.
 
-For the `TConfig` overload `TPUSH(Pipe&, TileProd&, TConfig)`, the `TConfig` template parameters is used to configure fixpipe parameters from L0C->GM/UB.
+For the `TConfig` overload `TPUSH<Pipe, TileProd, TConfig>(pipe, tile)`, the `TConfig` template parameter configures fixpipe conversion and layout. NPU backends apply it to their L0C→GM/UB path, while CPU_SIM writes the converted result to the host FIFO slot.
 
 ## C++ Intrinsic
 
@@ -30,6 +30,13 @@ Declared in `include/pto/common/pto_instr.hpp`:
 template <typename Pipe, typename TileProd, TileSplitAxis Split,
           std::enable_if_t<is_tile_data_v<TileProd>, int> = 0, typename... WaitEvents>
 PTO_INST RecordEvent TPUSH(Pipe &pipe, TileProd &tile, WaitEvents &... events);
+
+template <typename Pipe, typename TileProd, TileSplitAxis Split, typename... WaitEvents>
+PTO_INST RecordEvent TPUSH(Pipe &pipe, TileProd &tile, int32_t subBlockId,
+                           WaitEvents &... events);
+
+template <typename TileData, typename Pipe, typename... WaitEvents>
+PTO_INST RecordEvent TPUSH(TileData &tile, Pipe &pipe, WaitEvents &... events);
 
 template <typename Pipe, typename GlobalData, TileSplitAxis Split,
           std::enable_if_t<is_global_data_v<GlobalData>, int> = 0, typename... WaitEvents>
@@ -63,7 +70,7 @@ struct TPipe;
     - `TileSplitAxis::TILE_LEFT_RIGHT`: Vector subblocks map to column halves.
 - **A5 split behavior**:
     - `TileSplitAxis::TILE_NO_SPLIT`: No sub-vector offset is applied.
-    - `TileSplitAxis::TILE_UP_DOWN`: Data is split into row halves. For C2V direction (L0C→UB path), this mode only supports b32 data type, and `validRows` must be even (a multiple of 2); for V2C direction (UB→L1 path), `validCols` must be a multiple of 32 bytes.
+    - `TileSplitAxis::TILE_UP_DOWN`: Data is split into row halves. For C2V direction (L0C→UB path), this mode only supports b32 data type, and `validRows` must be even (a multiple of 2). For V2C direction (UB→L1 path), vector subblocks are inserted into the upper and lower row regions.
     - `TileSplitAxis::TILE_LEFT_RIGHT`: Data is split into two column halves. For C2V direction (L0C→UB path), this mode only supports b32 data type, and `validCols` must be a multiple of 32; for V2C direction (UB→L1 path), `validCols` must be a multiple of 32 bytes.
 - **Simplified TileData overload**:
     - `TPUSH(TileData&, Pipe&)` uses `TileSplitAxis::TILE_NO_SPLIT` semantics internally.
@@ -80,8 +87,10 @@ struct TPipe;
     - `TPUSH(Pipe&, GlobalData&)` ignores the tensor contents and only commits the FIFO slot to the consumer.
 - **CPU_SIM FIFO model**:
     - FIFO state is shared by host threads. `TPUSH` waits for a free slot and commits it with mutex and condition-variable synchronization.
-    - TileData producers support `DIR_C2V`, `DIR_V2C`, and `DIR_BOTH`; the two directions of a `DIR_BOTH` pipe maintain independent FIFO state.
+    - TileData payloads use storage owned by the host FIFO state, including when `TPipe` is constructed with a non-null NPU GM workspace. CPU_SIM does not access that workspace for the TileData flow; this keeps payload lifetime covered by the same synchronization as the slot state.
+    - TileData producers support `DIR_C2V`, `DIR_V2C`, and `DIR_BOTH`. A `DIR_BOTH` pipe uses one shared ring and shared capacity; direction tags and separate consumer cursors distinguish C2V entries from V2C entries.
     - Split modes select the lane from the current subblock context. `TILE_NO_SPLIT` uses one producer lane. For a C2V pipe configured with `IsNoSplit`, one producer slot can be coordinated across one or two vector consumer subblocks according to the runtime subblock count.
+    - The overload with an explicit `int32_t subBlockId` is not currently implemented by CPU_SIM; use the simulated subblock execution context to select a split lane.
     - The simplified overload uses `TILE_NO_SPLIT`. The `TConfig` overload also supports the CPU fixpipe path.
     - The GlobalData overload is not currently available in CPU_SIM.
 - **Tile Type Support**:
@@ -92,7 +101,7 @@ struct TPipe;
 
 ## Defining TConfig
 
-The `TConfig` template parameter for the `TPUSH(Pipe&, TileProd&, TConfig)` overload is a configuration struct that controls fixpipe behavior during push. PTO provides the `FixpipeParams` struct for this purpose.
+The `TConfig` template parameter for the `TPUSH<Pipe, TileProd, TConfig>(pipe, tile)` overload is a configuration struct that controls fixpipe behavior during push. PTO provides the `FixpipeParams` struct for this purpose.
 
 Declared in `include/pto/common/fixpipe.hpp`:
 
@@ -247,4 +256,3 @@ AICORE void example_globaldata(__gm__ void *fifoMem)
 ## ASM Form Examples
 
 The current public assembly reference does not define a stable PTO-AS spelling for `TPUSH`. Use the C++ intrinsic form for manual CV FIFO programming.
-```

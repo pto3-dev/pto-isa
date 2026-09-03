@@ -4,13 +4,13 @@
 
 从 `TPipe` FIFO中弹出消费者tile，用于Cube-Vector通信。
 
-本指令支持两类数据的弹出，分别为Tile类型的数据和GlobalTensor类型的数据。所以分别设计了基于`Tile` 重载和 `GlobalTensor` 重载。
+本指令支持显式指定 `TileSplitAxis`、显式指定subblock ID、参数反转且不指定 `Split` 的TileData重载，以及 `GlobalData` 重载。
 
 ## 操作语义
 
 对于TileData流程：
 
-1. `TPUSH(Pipe&, TileData&)` 将生产者tile存入当前FIFO槽位，并为消费者记录数据就绪同步。（注：Split为模板参数）生产者tile索引在槽位地址计算完成后递增。
+1. `TPUSH(Pipe&, TileData&, Split)` 将生产者tile存入当前FIFO槽位，并为消费者记录数据就绪同步。生产者tile索引在槽位地址计算完成后递增。
 2. `TPOP(Pipe&, TileData&, Split)` 等待生产者的数据就绪同步，将当前FIFO槽位加载到消费者tile中。消费者tile索引在槽位地址计算完成后递增。
 3. `TFREE(Pipe&, Split)` 释放FIFO中的槽位空间。Atlas A2/A3 训练系列产品/Atlas A2/A3 推理系列产品平台上此接口为空操作（`TPOP` 已在内部执行空闲空间通知），Ascend 950PR/Ascend 950DT平台上会释放 `TPOP` 使用的FIFO槽位空间。
 
@@ -29,6 +29,13 @@
 template <typename Pipe, typename TileCons, TileSplitAxis Split,
           std::enable_if_t<is_tile_data_v<TileCons>, int> = 0, typename... WaitEvents>
 PTO_INST RecordEvent TPOP(Pipe &pipe, TileCons &tile, WaitEvents &... events);
+
+template <typename Pipe, typename TileCons, TileSplitAxis Split, typename... WaitEvents>
+PTO_INST RecordEvent TPOP(Pipe &pipe, TileCons &tile, int32_t subBlockId,
+                          WaitEvents &... events);
+
+template <typename TileData, typename Pipe, typename... WaitEvents>
+PTO_INST RecordEvent TPOP(TileData &tile, Pipe &pipe, WaitEvents &... events);
 
 template <typename Pipe, typename GlobalData, TileSplitAxis Split,
           std::enable_if_t<is_global_data_v<GlobalData>, int> = 0, typename... WaitEvents>
@@ -66,8 +73,10 @@ struct TPipe;
     - 从槽位视图完成所有加载后，调用者必须调用 `TFREE(Pipe&, GlobalData&)`。
 - **CPU_SIM FIFO模型**：
     - `TPOP` 使用主机FIFO的互斥锁和条件变量等待生产者提交槽位。
+    - TileData 数据从主机 FIFO 状态拥有的存储加载；即使 `TPipe` 带有非空 NPU GM workspace，CPU_SIM TileData 流程也不会访问该 workspace。
     - 切分模式根据当前subblock上下文选择lane。对于启用 `IsNoSplit` 的C2V管道，`TILE_NO_SPLIT` 会根据运行时subblock数量协调一个或两个vector消费者subblock；在其他no-split vector场景中，非零的未参与lane会按需填零。
-    - `DIR_BOTH` 根据消费者方向选择对应FIFO，并发的pop会预留不同槽位。
+    - CPU_SIM 当前未实现显式传入 `int32_t subBlockId` 的重载；应通过模拟subblock执行上下文选择split lane。
+    - 对于 `DIR_BOTH`，消费者会在共享环形槽位中查找与自身方向匹配的已提交槽位；并发的pop会预留不同槽位。
     - CPU_SIM 当前不支持 GlobalData 重载。
 
 ## 示例

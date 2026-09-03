@@ -4,7 +4,7 @@
 
 Pop a consumer tile from a `TPipe` FIFO for Cube-Vector communication.
 
-This page describes both the TileData overload and the `GlobalData` overload for popping data from a `TPipe` FIFO.
+This page describes the TileData overloads with an explicit `TileSplitAxis`, an explicit subblock ID, or reversed parameters without `Split`, plus the `GlobalData` overload.
 
 ## Operation Semantics
 
@@ -28,6 +28,13 @@ Declared in `include/pto/common/pto_instr.hpp`:
 template <typename Pipe, typename TileCons, TileSplitAxis Split,
           std::enable_if_t<is_tile_data_v<TileCons>, int> = 0, typename... WaitEvents>
 PTO_INST RecordEvent TPOP(Pipe &pipe, TileCons &tile, WaitEvents &... events);
+
+template <typename Pipe, typename TileCons, TileSplitAxis Split, typename... WaitEvents>
+PTO_INST RecordEvent TPOP(Pipe &pipe, TileCons &tile, int32_t subBlockId,
+                          WaitEvents &... events);
+
+template <typename TileData, typename Pipe, typename... WaitEvents>
+PTO_INST RecordEvent TPOP(TileData &tile, Pipe &pipe, WaitEvents &... events);
 
 template <typename Pipe, typename GlobalData, TileSplitAxis Split,
           std::enable_if_t<is_global_data_v<GlobalData>, int> = 0, typename... WaitEvents>
@@ -65,8 +72,10 @@ struct TPipe;
     - The caller must call `TFREE(Pipe&, GlobalData&)` after all loads from the slot view are complete.
 - **CPU_SIM FIFO model**:
     - `TPOP` waits for a committed producer slot using the host FIFO's mutex and condition variable.
+    - TileData payloads are loaded from storage owned by the host FIFO state, even when `TPipe` carries a non-null NPU GM workspace. The workspace is not accessed by the CPU_SIM TileData flow.
     - Split modes select the lane from the current subblock context. For a C2V pipe configured with `IsNoSplit`, `TILE_NO_SPLIT` coordinates one or two vector consumer subblocks according to the runtime subblock count. In other no-split vector cases, a nonzero inactive lane is zero-filled where required.
-    - `DIR_BOTH` selects the FIFO matching the consumer direction, and overlapping pops reserve distinct slots.
+    - The overload with an explicit `int32_t subBlockId` is not currently implemented by CPU_SIM; use the simulated subblock execution context to select a split lane.
+    - For `DIR_BOTH`, the consumer searches the shared ring for a committed slot matching its direction. Overlapping pops reserve distinct slots.
     - The GlobalData overload is not currently available in CPU_SIM.
 
 ## Examples
@@ -156,4 +165,3 @@ AICORE void example_globaldata(__gm__ void *fifoMem)
 ## ASM Form Examples
 
 The current public assembly reference does not define a stable PTO-AS spelling for `TPOP`. Use the C++ intrinsic form for manual CV FIFO programming.
-```

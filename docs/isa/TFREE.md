@@ -32,6 +32,9 @@ Declared in `include/pto/common/pto_instr.hpp`:
 template <typename Pipe, TileSplitAxis Split, typename... WaitEvents>
 PTO_INST RecordEvent TFREE(Pipe &pipe, WaitEvents &... events);
 
+template <typename Pipe, typename... WaitEvents>
+PTO_INST RecordEvent TFREE(Pipe &pipe, WaitEvents &... events);
+
 template <typename Pipe, typename GlobalData, TileSplitAxis Split,
           std::enable_if_t<is_global_data_v<GlobalData>, int> = 0, typename... WaitEvents>
 PTO_INST RecordEvent TFREE(Pipe &pipe, GlobalData &gmTensor, WaitEvents &... events);
@@ -50,8 +53,8 @@ PTO_INTERNAL void TFREE_IMPL(Pipe &pipe)
 ## Constraints
 
 - **TileData flow**:
-    - Do not use `TFREE(Pipe&)` to release a tile popped by `TPOP(Pipe&, TileData&)`; the release is already handled inside TileData `TPOP`.
-    - Calling `TFREE(Pipe&)` after TileData `TPOP` has no effect on A2A3.
+    - Use `TFREE(Pipe&)` when the data in the popped FIFO slot is no longer needed.
+    - Use TPUSH/TPOP/TFREE together for inter-core synchronization and data transfer; the size ratio between the pushed tile shape and the popped tile shape must be 1:1 or 1:2.
 - **GlobalData flow**:
     - Use `TFREE(Pipe&, GlobalData&)` after the data in the popped FIFO slot is no longer needed.
     - `gmTensor` is only used to select the overload; the implementation does not read or write tensor contents.
@@ -116,4 +119,3 @@ AICORE void example_globaldata(__gm__ void *fifoMem)
 ## ASM Form Examples
 
 The current public assembly reference does not define a stable PTO-AS spelling for `TFREE`. Use the C++ intrinsic form for manual CV FIFO programming.
-```

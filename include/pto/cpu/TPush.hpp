@@ -16,9 +16,11 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <mutex>
 #include <new>
 #include <sstream>
+#include <stdexcept>
 #include <thread>
 #include <type_traits>
 #include <unordered_map>
@@ -296,13 +298,57 @@ PTO_INTERNAL void FillTile(TileData& tile, typename TileData::DType value)
     }
 }
 
-template <typename T>
+template <typename T, std::size_t StorageSize>
+PTO_INTERNAL std::size_t GetCheckedByteStorageOffset(
+    const std::array<uint8_t, StorageSize>& storage, std::size_t slotIndex, std::size_t baseByteOffset,
+    std::size_t regionByteEnd, std::size_t elementIndex, const char* operation)
+{
+    (void)storage;
+    static_assert(std::is_trivially_copyable_v<T>, "CPU TPipe byte storage requires a trivially copyable type.");
+    if (baseByteOffset > regionByteEnd || regionByteEnd > StorageSize ||
+        elementIndex >= (regionByteEnd - baseByteOffset) / sizeof(T)) {
+        std::ostringstream message;
+        message << "CPU TPipe " << operation << " exceeds local slot storage: slot=" << slotIndex
+                << ", base_byte_offset=" << baseByteOffset << ", element_index=" << elementIndex
+                << ", element_size=" << sizeof(T) << ", region_byte_end=" << regionByteEnd
+                << ", storage_size=" << StorageSize;
+        throw std::out_of_range(message.str());
+    }
+    return baseByteOffset + elementIndex * sizeof(T);
+}
+
+template <typename T, std::size_t StorageSize>
+PTO_INTERNAL T LoadByteStorageElement(
+    const std::array<uint8_t, StorageSize>& storage, std::size_t slotIndex, std::size_t baseByteOffset,
+    std::size_t regionByteEnd, std::size_t elementIndex, const char* operation)
+{
+    const std::size_t byteOffset =
+        GetCheckedByteStorageOffset<T>(storage, slotIndex, baseByteOffset, regionByteEnd, elementIndex, operation);
+    T value;
+    std::memcpy(&value, storage.data() + byteOffset, sizeof(T));
+    return value;
+}
+
+template <typename T, std::size_t StorageSize>
+PTO_INTERNAL void StoreByteStorageElement(
+    std::array<uint8_t, StorageSize>& storage, std::size_t slotIndex, std::size_t baseByteOffset,
+    std::size_t regionByteEnd, std::size_t elementIndex, T value, const char* operation)
+{
+    const std::size_t byteOffset =
+        GetCheckedByteStorageOffset<T>(storage, slotIndex, baseByteOffset, regionByteEnd, elementIndex, operation);
+    std::memcpy(storage.data() + byteOffset, &value, sizeof(T));
+}
+
+template <typename T, std::size_t StorageSize>
 PTO_INTERNAL void FillLinearRegion(
-    T* dst, uint32_t dstCols, T value, uint32_t rowStart, uint32_t rowCount, uint32_t colStart, uint32_t colCount)
+    std::array<uint8_t, StorageSize>& dst, std::size_t slotIndex, std::size_t baseByteOffset, std::size_t regionByteEnd,
+    uint32_t dstCols, T value, uint32_t rowStart, uint32_t rowCount, uint32_t colStart, uint32_t colCount)
 {
     for (uint32_t r = rowStart; r < rowStart + rowCount; ++r) {
         for (uint32_t c = colStart; c < colStart + colCount; ++c) {
-            dst[r * dstCols + c] = value;
+            StoreByteStorageElement(
+                dst, slotIndex, baseByteOffset, regionByteEnd, static_cast<std::size_t>(r) * dstCols + c, value,
+                "FillLinearRegion");
         }
     }
 }
@@ -329,9 +375,10 @@ PTO_INTERNAL void InsertTileWindow(DstTileData& dst, SrcTileData& src, uint32_t 
     }
 }
 
-template <typename DstT, typename SrcTileData, QuantMode_t quantMode, ReluPreMode reluPreMode>
+template <typename DstT, typename SrcTileData, QuantMode_t quantMode, ReluPreMode reluPreMode, std::size_t StorageSize>
 PTO_INTERNAL void CopyTileWindowToLinear(
-    DstT* dst, uint32_t dstRows, uint32_t dstCols, SrcTileData& src, uint32_t srcRowOffset, uint32_t srcColOffset,
+    std::array<uint8_t, StorageSize>& dst, std::size_t slotIndex, std::size_t baseByteOffset, std::size_t regionByteEnd,
+    uint32_t dstRows, uint32_t dstCols, SrcTileData& src, uint32_t srcRowOffset, uint32_t srcColOffset,
     const std::vector<uint64_t>& scalars = {})
 {
     using SrcT = typename SrcTileData::DType;
@@ -339,29 +386,39 @@ PTO_INTERNAL void CopyTileWindowToLinear(
     for (uint32_t r = 0; r < dstRows; ++r) {
         for (uint32_t c = 0; c < dstCols; ++c) {
             SrcT val = src.data()[GetTileElementOffset<SrcTileData>(r + srcRowOffset, c + srcColOffset)];
-            dst[r * dstCols + c] = ConvertStoreValue<DstT, SrcT, quantMode, use_relu>(val, scalars[c]);
+            StoreByteStorageElement(
+                dst, slotIndex, baseByteOffset, regionByteEnd, static_cast<std::size_t>(r) * dstCols + c,
+                ConvertStoreValue<DstT, SrcT, quantMode, use_relu>(val, scalars[c]), "CopyTileWindowToLinear");
         }
     }
 }
 
-template <typename DstTileData, typename T>
-PTO_INTERNAL void CopyLinearToTile(DstTileData& dst, const T* src, uint32_t srcCols)
+template <typename DstTileData, typename T, std::size_t StorageSize>
+PTO_INTERNAL void CopyLinearToTile(
+    DstTileData& dst, const std::array<uint8_t, StorageSize>& src, std::size_t slotIndex, std::size_t baseByteOffset,
+    std::size_t regionByteEnd, uint32_t srcCols)
 {
     for (int r = 0; r < dst.GetValidRow(); ++r) {
         for (int c = 0; c < dst.GetValidCol(); ++c) {
-            dst.data()[GetTileElementOffset<DstTileData>(r, c)] = src[r * srcCols + c];
+            dst.data()[GetTileElementOffset<DstTileData>(r, c)] = LoadByteStorageElement<T>(
+                src, slotIndex, baseByteOffset, regionByteEnd,
+                static_cast<std::size_t>(r) * srcCols + static_cast<std::size_t>(c), "CopyLinearToTile");
         }
     }
 }
 
-template <typename DstT, typename SrcTileData>
+template <typename DstT, typename SrcTileData, std::size_t StorageSize>
 PTO_INTERNAL void InsertTileWindowToLinear(
-    DstT* dst, uint32_t dstCols, SrcTileData& src, uint32_t dstRowOffset, uint32_t dstColOffset)
+    std::array<uint8_t, StorageSize>& dst, std::size_t slotIndex, std::size_t baseByteOffset, std::size_t regionByteEnd,
+    uint32_t dstCols, SrcTileData& src, uint32_t dstRowOffset, uint32_t dstColOffset)
 {
     for (int r = 0; r < src.GetValidRow(); ++r) {
         for (int c = 0; c < src.GetValidCol(); ++c) {
-            dst[(static_cast<uint32_t>(r) + dstRowOffset) * dstCols + static_cast<uint32_t>(c) + dstColOffset] =
-                static_cast<DstT>(src.data()[GetTileElementOffset<SrcTileData>(r, c)]);
+            const std::size_t elementIndex =
+                (static_cast<uint32_t>(r) + dstRowOffset) * dstCols + static_cast<uint32_t>(c) + dstColOffset;
+            StoreByteStorageElement(
+                dst, slotIndex, baseByteOffset, regionByteEnd, elementIndex,
+                static_cast<DstT>(src.data()[GetTileElementOffset<SrcTileData>(r, c)]), "InsertTileWindowToLinear");
         }
     }
 }
@@ -770,7 +827,8 @@ struct TPipe {
                             tileIndex);
                     }
                 }
-                if (pendingSlotTracked) {
+                const bool wasPendingSlotTracked = pendingSlotTracked;
+                if (wasPendingSlotTracked) {
                     cpu_pipe::PopPendingSlot(shared_state.popped_slots, shared_state.popped_not_freed, tileIndex);
                     pendingSlotTracked = false;
                 }
@@ -789,7 +847,7 @@ struct TPipe {
                     // the C2V cursor here (it is shared with the other direction).
                     bool advanceConsumerCursor = false;
                     if constexpr (TPipe::is_c2v && TPipe::is_v2c) {
-                        advanceConsumerCursor = (Split != TileSplitAxis::TILE_NO_SPLIT) && !pendingSlotTracked;
+                        advanceConsumerCursor = (Split != TileSplitAxis::TILE_NO_SPLIT) && !wasPendingSlotTracked;
                     } else if constexpr (Split != TileSplitAxis::TILE_NO_SPLIT && !(TPipe::is_v2c && !TPipe::is_c2v)) {
                         advanceConsumerCursor = true;
                     }
@@ -812,9 +870,10 @@ struct TPipe {
 
             using T = typename TileCons::DType;
             const auto& slotStorage = TPipe::GetSharedState().local_slot_storage[slotIndex];
-            const auto* slotPtr = reinterpret_cast<const T*>(slotStorage.data() + entryOffset);
             cpu_pipe::EnsureTileStorage(tile);
-            cpu_pipe::CopyLinearToTile(tile, slotPtr, static_cast<uint32_t>(TileCons::Cols));
+            cpu_pipe::CopyLinearToTile<TileCons, T>(
+                tile, slotStorage, slotIndex, static_cast<std::size_t>(entryOffset), RingFiFo::SLOT_SIZE,
+                static_cast<uint32_t>(TileCons::Cols));
         }
 
         template <typename TileCons, TileSplitAxis Split>
@@ -824,10 +883,12 @@ struct TPipe {
             const uint32_t splitIndex = cpu_pipe::GetSplitLaneId<Split>();
             const std::size_t slotIndex = static_cast<std::size_t>(tileIndex % RingFiFo::SLOT_NUM);
             const auto& slotStorage = TPipe::GetSharedState().local_slot_storage[slotIndex];
-            const auto* slotPtr =
-                reinterpret_cast<const T*>(slotStorage.data() + splitIndex * RingFiFo::SLOT_SIZE + entryOffset);
             cpu_pipe::EnsureTileStorage(tile);
-            cpu_pipe::CopyLinearToTile(tile, slotPtr, static_cast<uint32_t>(TileCons::Cols));
+            cpu_pipe::CopyLinearToTile<TileCons, T>(
+                tile, slotStorage, slotIndex,
+                static_cast<std::size_t>(splitIndex) * RingFiFo::SLOT_SIZE + static_cast<std::size_t>(entryOffset),
+                (static_cast<std::size_t>(splitIndex) + 1) * RingFiFo::SLOT_SIZE,
+                static_cast<uint32_t>(TileCons::Cols));
         }
 
         template <typename TileCons, TileSplitAxis Split>
@@ -840,59 +901,33 @@ struct TPipe {
             const std::size_t slotIndex = static_cast<std::size_t>(tileIndex % RingFiFo::SLOT_NUM);
             const std::size_t entryBase = slotIndex * RingFiFo::SLOT_SIZE + static_cast<std::size_t>(entryOffset);
             const auto& slotStorage = TPipe::GetSharedState().local_slot_storage[slotIndex];
-            const auto* slotPtr = reinterpret_cast<const T*>(slotStorage.data() + entryOffset);
 
             SlotTile slotTile;
             TASSIGN_IMPL(slotTile, fifo.V2C_CONSUMER_BUF + entryBase);
-            cpu_pipe::CopyLinearToTile(slotTile, slotPtr, static_cast<uint32_t>(slotTile.GetValidCol()));
+            cpu_pipe::CopyLinearToTile<SlotTile, T>(
+                slotTile, slotStorage, slotIndex, static_cast<std::size_t>(entryOffset), RingFiFo::SLOT_SIZE,
+                static_cast<uint32_t>(slotTile.GetValidCol()));
             cpu_pipe::EnsureTileStorage(tile);
             TMOV_IMPL(tile, slotTile);
         }
 
-        template <typename TileCons, TileSplitAxis Split>
-        PTO_INTERNAL void popTileFromGMFiFo(RingFiFo& fifo, TileCons& tile)
+        template <typename TileCons>
+        PTO_INTERNAL void popTileFromLocalFiFo(TileCons& tile)
         {
             using T = typename TileCons::DType;
             const std::size_t slotIndex = static_cast<std::size_t>(tileIndex % RingFiFo::SLOT_NUM);
-            const std::size_t entryBase = slotIndex * RingFiFo::SLOT_SIZE + static_cast<std::size_t>(entryOffset);
+            const auto& slotStorage = TPipe::GetSharedState().local_slot_storage[slotIndex];
             cpu_pipe::EnsureTileStorage(tile);
-            if constexpr (TPipe::is_c2v && TileCons::Loc == TileType::Vec) {
-                constexpr int splitNum = 2;
-                constexpr int consRows = TileCons::Rows;
-                constexpr int consCols = TileCons::Cols;
-                constexpr int prodCols = (Split == TileSplitAxis::TILE_LEFT_RIGHT) ? consCols * splitNum : consCols;
-                constexpr int gmValidR = consRows;
-                constexpr int gmValidC = consCols;
-                constexpr int gmStrideR = prodCols;
-                std::size_t subOffset = 0;
-                if constexpr (Split == TileSplitAxis::TILE_UP_DOWN) {
-                    subOffset = static_cast<std::size_t>(get_subblockid()) * consRows * prodCols * sizeof(T);
-                } else if constexpr (Split == TileSplitAxis::TILE_LEFT_RIGHT) {
-                    subOffset = static_cast<std::size_t>(get_subblockid()) * consCols * sizeof(T);
-                }
-                using GlobalData = GlobalTensor<T, Shape<1, 1, 1, gmValidR, gmValidC>, Stride<1, 1, 1, gmStrideR, 1>>;
-                auto* addr = reinterpret_cast<__gm__ T*>(
-                    reinterpret_cast<std::uintptr_t>(fifo.GM_SLOT_BUFFER) + entryBase + subOffset);
-                GlobalData globalData(addr);
-                TLOAD_IMPL(tile, globalData);
-                return;
-            }
-
-            constexpr int rows = TileCons::Rows;
-            constexpr int cols = TileCons::Cols;
-            using GlobalData = GlobalTensor<T, Shape<1, 1, 1, rows, cols>, Stride<1, 1, 1, cols, 1>>;
-            auto* addr = reinterpret_cast<__gm__ T*>(reinterpret_cast<std::uintptr_t>(fifo.GM_SLOT_BUFFER) + entryBase);
-            GlobalData globalData(addr);
-            TLOAD_IMPL(tile, globalData);
+            cpu_pipe::CopyLinearToTile<TileCons, T>(
+                tile, slotStorage, slotIndex, static_cast<std::size_t>(entryOffset), RingFiFo::SLOT_SIZE,
+                static_cast<uint32_t>(TileCons::Cols));
         }
 
         template <typename TileCons, TileSplitAxis Split>
         PTO_INTERNAL bool pop(RingFiFo& fifo, TileCons& tile)
         {
-            if (fifo.GM_SLOT_BUFFER != nullptr) {
-                popTileFromGMFiFo<TileCons, Split>(fifo, tile);
-                return true;
-            } else if constexpr (TPipe::is_c2v && cpu_pipe::IsC2VConsumerTile<TileCons>()) {
+            // CPU TileData uses host FIFO storage, not the target-side GM workspace.
+            if constexpr (TPipe::is_c2v && cpu_pipe::IsC2VConsumerTile<TileCons>()) {
                 if constexpr (Split == TileSplitAxis::TILE_NO_SPLIT) {
                     popTileFromVecFiFo<TileCons, Split>(fifo, tile);
                 } else {
@@ -907,6 +942,7 @@ struct TPipe {
                     }
                 }
             }
+            popTileFromLocalFiFo(tile);
             return false;
         }
     };
@@ -957,47 +993,7 @@ void InitializeQuantScalars(std::vector<uint64_t>& scalars)
 }
 
 template <typename Pipe, typename TileProd, typename TConfig, TileSplitAxis Split>
-PTO_INTERNAL void TPush_gm(Pipe& pipe, TileProd& tile, size_t entryBase)
-{
-    using DstT = FixpipeConsType<TileProd, TConfig>;
-    using TileCons = FixpipeVecTile<TileProd, DstT, TConfig::LayoutMode>;
-    constexpr QuantMode_t QuantPre = TConfig::QuantPre;
-    constexpr ReluPreMode ReluMode = TConfig::ReluMode;
-
-    using SrcT = typename TileProd::DType;
-    constexpr int rows = TileProd::Rows;
-    constexpr int cols = TileProd::Cols;
-    constexpr bool isSplitV2CProducer =
-        Pipe::is_v2c && TileProd::Loc == TileType::Vec && Split != TileSplitAxis::TILE_NO_SPLIT;
-    constexpr int gmStrideR = (isSplitV2CProducer && Split == TileSplitAxis::TILE_LEFT_RIGHT) ? cols * 2 : cols;
-    std::size_t subOffset = 0;
-    if constexpr (isSplitV2CProducer && Split == TileSplitAxis::TILE_UP_DOWN) {
-        subOffset = static_cast<std::size_t>(get_subblockid()) * rows * cols * sizeof(DstT);
-    } else if constexpr (isSplitV2CProducer && Split == TileSplitAxis::TILE_LEFT_RIGHT) {
-        subOffset = static_cast<std::size_t>(get_subblockid()) * cols * sizeof(DstT);
-    } else if constexpr (Split != TileSplitAxis::TILE_NO_SPLIT) {
-        subOffset = static_cast<std::size_t>(get_subblockid()) * rows * cols * sizeof(DstT);
-    }
-    using GlobalData = GlobalTensor<DstT, Shape<1, 1, 1, rows, cols>, Stride<1, 1, 1, gmStrideR, 1>>;
-    auto* addr = reinterpret_cast<__gm__ DstT*>(
-        reinterpret_cast<std::uintptr_t>(pipe.fifo.GM_SLOT_BUFFER) + entryBase + subOffset);
-    if constexpr (Split == TileSplitAxis::TILE_NO_SPLIT) {
-        const uint32_t consRows = static_cast<uint32_t>(tile.GetValidRow());
-        const uint32_t consCols = static_cast<uint32_t>(tile.GetValidCol());
-        std::vector<uint64_t> scalars(static_cast<std::size_t>(consCols), 0);
-        if constexpr (QuantPre != QuantMode_t::NoQuant) {
-            InitializeQuantScalars<QuantPre>(scalars);
-        }
-        cpu_pipe::CopyTileWindowToLinear<DstT, TileProd, QuantPre, ReluMode>(
-            addr, consRows, consCols, tile, 0, 0, scalars);
-        return;
-    }
-    GlobalData globalData(addr);
-    TSTORE(globalData, tile);
-}
-
-template <typename Pipe, typename TileProd, typename TConfig, TileSplitAxis Split>
-PTO_INTERNAL void TPush_c2v(Pipe& pipe, TileProd& tile, size_t entryBase, size_t slotIndex)
+PTO_INTERNAL void TPush_c2v(Pipe& pipe, TileProd& tile, size_t slotIndex)
 {
     using DstT = FixpipeConsType<TileProd, TConfig>;
     using TileCons = FixpipeVecTile<TileProd, DstT, TConfig::LayoutMode>;
@@ -1030,17 +1026,19 @@ PTO_INTERNAL void TPush_c2v(Pipe& pipe, TileProd& tile, size_t entryBase, size_t
 
     auto& slotStorage = Pipe::GetSharedState().local_slot_storage[slotIndex];
     for (uint32_t splitIndex = 0; splitIndex < cpu_pipe::GetSplitCount<Split>(); ++splitIndex) {
-        auto* slotPtr = reinterpret_cast<DstT*>(
-            slotStorage.data() + splitIndex * Pipe::RingFiFo::SLOT_SIZE + pipe.prod.entryOffset);
+        const std::size_t baseByteOffset = static_cast<std::size_t>(splitIndex) * Pipe::RingFiFo::SLOT_SIZE +
+                                           static_cast<std::size_t>(pipe.prod.entryOffset);
         const uint32_t rowOffset = (Split == TileSplitAxis::TILE_UP_DOWN) ? splitIndex * consRows : 0;
         const uint32_t colOffset = (Split == TileSplitAxis::TILE_LEFT_RIGHT) ? splitIndex * consCols : 0;
         cpu_pipe::CopyTileWindowToLinear<DstT, TileProd, QuantPre, ReluMode>(
-            slotPtr, consRows, consCols, tile, rowOffset, colOffset, scalars);
+            slotStorage, slotIndex, baseByteOffset,
+            (static_cast<std::size_t>(splitIndex) + 1) * Pipe::RingFiFo::SLOT_SIZE, consRows, consCols, tile, rowOffset,
+            colOffset, scalars);
     }
 }
 
 template <typename Pipe, typename TileProd, typename TConfig, TileSplitAxis Split>
-PTO_INTERNAL void TPush_v2c(Pipe& pipe, TileProd& tile, size_t entryBase, size_t slotIndex)
+PTO_INTERNAL void TPush_v2c(Pipe& pipe, TileProd& tile, size_t slotIndex)
 {
     using DstT = FixpipeConsType<TileProd, TConfig>;
 
@@ -1050,14 +1048,15 @@ PTO_INTERNAL void TPush_v2c(Pipe& pipe, TileProd& tile, size_t entryBase, size_t
         (Split == TileSplitAxis::TILE_LEFT_RIGHT) ? (TileProd::Cols * 2) : static_cast<int>(TileProd::Cols);
     using SlotTile = Tile<TileType::Mat, DstT, consRows, consCols, BLayout::RowMajor, consRows, consCols>;
     auto& slotStorage = Pipe::GetSharedState().local_slot_storage[slotIndex];
-    auto* slotPtr = reinterpret_cast<DstT*>(slotStorage.data() + static_cast<std::size_t>(pipe.prod.entryOffset));
+    const std::size_t baseByteOffset = static_cast<std::size_t>(pipe.prod.entryOffset);
     if constexpr (Split == TileSplitAxis::TILE_NO_SPLIT) {
-        cpu_pipe::FillLinearRegion(slotPtr, consCols, static_cast<DstT>(0), 0, consRows, 0, consCols);
+        cpu_pipe::FillLinearRegion(
+            slotStorage, slotIndex, baseByteOffset, Pipe::RingFiFo::SLOT_SIZE, consCols, static_cast<DstT>(0), 0,
+            consRows, 0, consCols);
     }
-    cpu_pipe::InsertTileWindowToLinear(
-        slotPtr, consCols, tile, cpu_pipe::GetSplitRowOffset<Split, SlotTile>(),
-        cpu_pipe::GetSplitColOffset<Split, SlotTile>());
-    (void)entryBase;
+    cpu_pipe::InsertTileWindowToLinear<DstT>(
+        slotStorage, slotIndex, baseByteOffset, Pipe::RingFiFo::SLOT_SIZE, consCols, tile,
+        cpu_pipe::GetSplitRowOffset<Split, SlotTile>(), cpu_pipe::GetSplitColOffset<Split, SlotTile>());
 }
 
 template <typename Pipe, typename TileProd, typename TConfig, TileSplitAxis Split>
@@ -1070,15 +1069,12 @@ PTO_INTERNAL void TPush_impl(Pipe& pipe, TileProd& tile)
         pipe.prod.template allocate<TileProd, Split>();
     }
     const std::size_t slotIndex = static_cast<std::size_t>(pipe.prod.getTileId() % Pipe::RingFiFo::SLOT_NUM);
-    const std::size_t entryBase =
-        slotIndex * Pipe::RingFiFo::SLOT_SIZE + static_cast<std::size_t>(pipe.prod.entryOffset);
 
-    if (pipe.fifo.GM_SLOT_BUFFER != nullptr) {
-        TPush_gm<Pipe, TileProd, TConfig, Split>(pipe, tile, entryBase);
-    } else if constexpr (Pipe::is_v2c && TileProd::Loc == TileType::Vec) {
-        TPush_v2c<Pipe, TileProd, TConfig, Split>(pipe, tile, entryBase, slotIndex);
-    } else if constexpr (Pipe::is_c2v && TileProd::Loc != TileType::Vec) {
-        TPush_c2v<Pipe, TileProd, TConfig, Split>(pipe, tile, entryBase, slotIndex);
+    // Keep CPU TileData payloads in host FIFO storage, not the NPU GM workspace.
+    if constexpr (Pipe::is_v2c && TileProd::Loc == TileType::Vec) {
+        TPush_v2c<Pipe, TileProd, TConfig, Split>(pipe, tile, slotIndex);
+    } else if constexpr (Pipe::is_c2v) {
+        TPush_c2v<Pipe, TileProd, TConfig, Split>(pipe, tile, slotIndex);
     }
     if (pipe.prod.getRecordStatus()) {
         pipe.prod.template record<TileProd, Split>();
