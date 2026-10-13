@@ -61,6 +61,20 @@ PTO_INTERNAL void CheckA1VectorTransfer()
         "A1 vector DMA requires static non-overlapping 32-byte-aligned tensor rows.");
 }
 
+template <Op Operation, typename Element>
+PTO_INTERNAL void A1BinaryVectorRepeat(
+    __ubuf__ Element* dst, __ubuf__ Element* src0, __ubuf__ Element* src1, uint8_t repeats)
+{
+    if constexpr (Operation == Op::TADD) {
+        vadd(dst, src0, src1, repeats, 1, 1, 1, 8, 8, 8);
+    } else if constexpr (Operation == Op::TSUB) {
+        vsub(dst, src0, src1, repeats, 1, 1, 1, 8, 8, 8);
+    } else {
+        static_assert(Operation == Op::TMUL);
+        vmul(dst, src0, src1, repeats, 1, 1, 1, 8, 8, 8);
+    }
+}
+
 } // namespace detail
 
 template <typename TileData, typename GlobalData>
@@ -135,27 +149,31 @@ PTO_INTERNAL void A1BinaryVector(DstTile& dst, Src0Tile& src0, Src1Tile& src1)
          std::is_same<typename DstTile::DType, typename Src1Tile::DType>::value),
         "A1 binary vector operations require matching data types.");
     constexpr unsigned elementsPerRepeat = 256 / sizeof(typename DstTile::DType);
-    PTO_STATIC_ASSERT(
-        DstTile::Numel % elementsPerRepeat == 0,
-        "A1 binary vector operations require complete 256-byte vector repeats.");
+    constexpr unsigned fullElements = DstTile::Numel / elementsPerRepeat * elementsPerRepeat;
+    constexpr unsigned tailElements = DstTile::Numel % elementsPerRepeat;
     set_mask_norm();
     if constexpr (elementsPerRepeat == 128)
         set_vector_mask(UINT64_MAX, UINT64_MAX);
     else
         set_vector_mask(0, UINT64_MAX);
-    // The instruction repeat field has eight bits. Every chunk covers full
-    // 256-byte repeats, including tiles with more than 255 repeats.
-    for (unsigned offset = 0; offset < DstTile::Numel; offset += 255 * elementsPerRepeat) {
-        const unsigned remaining = (DstTile::Numel - offset) / elementsPerRepeat;
+    for (unsigned offset = 0; offset < fullElements; offset += 255 * elementsPerRepeat) {
+        const unsigned remaining = (fullElements - offset) / elementsPerRepeat;
         const uint8_t repeats = remaining > 255 ? 255 : remaining;
-        if constexpr (Operation == Op::TADD) {
-            vadd(dst.data() + offset, src0.data() + offset, src1.data() + offset, repeats, 1, 1, 1, 8, 8, 8);
-        } else if constexpr (Operation == Op::TSUB) {
-            vsub(dst.data() + offset, src0.data() + offset, src1.data() + offset, repeats, 1, 1, 1, 8, 8, 8);
-        } else {
-            static_assert(Operation == Op::TMUL);
-            vmul(dst.data() + offset, src0.data() + offset, src1.data() + offset, repeats, 1, 1, 1, 8, 8, 8);
-        }
+        detail::A1BinaryVectorRepeat<Operation>(
+            dst.data() + offset, src0.data() + offset, src1.data() + offset, repeats);
+    }
+    if constexpr (tailElements != 0) {
+        constexpr uint64_t lowMask = tailElements >= 64 ? UINT64_MAX : (UINT64_C(1) << (tailElements % 64)) - 1;
+        constexpr uint64_t highMask =
+            tailElements <= 64 ? 0 : (UINT64_C(1) << (tailElements > 64 ? tailElements - 64 : 0)) - 1;
+        // The inactive lanes may belong to an adjacent tile or alias source.
+        set_vector_mask(highMask, lowMask);
+        detail::A1BinaryVectorRepeat<Operation>(
+            dst.data() + fullElements, src0.data() + fullElements, src1.data() + fullElements, 1);
+        if constexpr (elementsPerRepeat == 128)
+            set_vector_mask(UINT64_MAX, UINT64_MAX);
+        else
+            set_vector_mask(0, UINT64_MAX);
     }
 }
 

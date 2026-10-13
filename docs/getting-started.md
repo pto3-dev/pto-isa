@@ -497,13 +497,13 @@ correctness; instruction execution remains a separate acceptance step.
 On A1, `pto/pto-inst.hpp` exposes `TASSIGN`, local `TSYNC`/`Event`, `TLOAD`,
 `TADD` and `TSTORE`. The vector instructions require FP16 or FP32, contiguous row-major
 Vec tiles with static full valid shapes, 32-byte-aligned rows and matching
-static ND tensors. GM pointers must be 32-byte aligned. Binary vector arithmetic requires complete
-256-byte repeats (128 FP16 elements or 64 FP32 elements) and splits repeats
+static ND tensors. GM pointers must be 32-byte aligned. Binary vector arithmetic uses 256-byte repeats (128 FP16 elements or
+64 FP32 elements), masks a final partial repeat and splits complete repeats
 above 255 into multiple instructions.
 The shared address-assignment helper has no A2/A3 device instructions.
 
 Automatic allocation/synchronization, other element types, dynamic or partial
-valid shapes, strided DMA, atomics, unit flags, accumulator stores and other
+valid shapes, unaligned DMA, atomics, unit flags, accumulator stores and other
 instructions are unavailable. Use `TASSIGN<Addr>(tile)` for static allocation
 checks; callers own tile lifetimes. Tile buffers must be disjoint or exactly
 alias; partial overlap is unsupported. This ISA subset requires matching compiler/runtime features for PyPTO
@@ -564,8 +564,8 @@ Tensor and tile dtypes must match. FP16 sets both 64-bit vector mask halves;
 FP32 clears the upper half. Each call sets its mask explicitly, including when
 FP16 and FP32 kernels run successively. The launcher keeps FP16 as its default.
 
-FP32-specific negative modes `PTO_A1_TEST_MIXED_ADD` and
-`PTO_A1_TEST_PARTIAL_REPEAT` check equal operand dtypes and complete repeats.
+The FP32 negative mode `PTO_A1_TEST_MIXED_ADD` checks equal operand dtypes.
+`PTO_A1_TEST_PARTIAL_REPEAT` is a positive one-row FP32 tail probe.
 
 The same static FP16/FP32 profile also exposes `TSUB` and `TMUL`. Use
 `tests/compile/a1_tsub_vector.cpp` or `tests/compile/a1_tmul_vector.cpp` in the
@@ -574,3 +574,5 @@ The launcher checks signed zero for multiplication. Shape, dtype, mask, event
 and repeat limits match `TADD`; unvalidated operations remain unavailable.
 
 A1 FP16/FP32 ND loads and stores support static row strides greater than the tile width when every row is 32-byte aligned. Multi-burst transfers split above 4095 rows; GM gaps above 65535 blocks use individual row copies. Stores preserve columns outside the tile.
+
+A1 `TADD`, `TSUB` and `TMUL` support a final masked vector repeat for static full tiles. DMA rows still require 32-byte alignment. The tail mask excludes adjacent tiles and is restored to the complete repeat mask after the instruction.
