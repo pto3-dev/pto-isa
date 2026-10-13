@@ -441,8 +441,8 @@ BF16, FP8/FP4, cross-core SyncAll/communication, quantization, histogram and MX
 layout capabilities remain disabled. Existing architecture enum values are preserved.
 
 This change supplies target identification and capability checks only. A1
-instruction implementations, compiler lowering and runtime launch are separate
-bring-up features; this does not enable an A2/A3 instruction fallback.
+compiler lowering and runtime integration are separate bring-up features.
+The supported FP16 vector subset is described below; A1 does not use an A2/A3 instruction fallback.
 
 Validate the profile on the host without executing an NPU kernel:
 
@@ -491,3 +491,59 @@ with CCEC. Its host test wraps the event counter 100 times and checks that ID 7
 is never returned. `PTO_A1_TEST_RESERVED_ID` and `PTO_A1_TEST_CROSS_CORE` select
 negative compilation tests. These checks do not prove NPU synchronization
 correctness; instruction execution remains a separate acceptance step.
+
+### A1 manual FP16 vector instructions
+
+On A1, `pto/pto-inst.hpp` exposes `TASSIGN`, local `TSYNC`/`Event`, `TLOAD`,
+`TADD` and `TSTORE`. The vector instructions require FP16, contiguous row-major
+Vec tiles with static full valid shapes, 32-byte-aligned rows and matching
+static ND tensors. GM pointers must be 32-byte aligned. `TADD` requires complete
+128-element repeats and splits repeats above 255 into multiple instructions.
+The shared address-assignment helper has no A2/A3 device instructions.
+
+Automatic allocation/synchronization, other element types, dynamic or partial
+valid shapes, strided DMA, atomics, unit flags, accumulator stores and other
+instructions are unavailable. Use `TASSIGN<Addr>(tile)` for static allocation
+checks; callers own tile lifetimes. Tile buffers must be disjoint or exactly
+alias; partial overlap is unsupported. This subset does not enable
+PyPTO compilation or a persistent runtime.
+
+The smoke kernel loads two tensors, adds them with local event dependencies,
+and stores the result. CPU reference execution uses the synchronous CPU API:
+
+```bash
+clang++ -std=c++20 -D__CPU_SIM -D__NPU_ARCH__=2002 -I include \
+  tests/compile/a1_fp16_vector.cpp -o /tmp/pto-a1-vector-cpu
+/tmp/pto-a1-vector-cpu
+```
+
+Build one kernel entry and a standalone host launcher with the installed CANN
+headers/libraries (activate the toolkit environment first):
+
+```bash
+ccec -c -std=c++17 -O2 -x cce --cce-aicore-only --cce-aicore-arch=dav-m200 \
+  -I include tests/compile/a1_fp16_vector.cpp -o /tmp/pto-a1-vector.o
+CANN_ARCH_DIR="$ASCEND_HOME_PATH/aarch64-linux"
+g++ -std=c++17 -O2 -I "$CANN_ARCH_DIR/include" -I "$CANN_ARCH_DIR/pkg_inc" \
+  -I "$CANN_ARCH_DIR/pkg_inc/runtime" tests/compile/a1_single_launch.cpp \
+  -L "$CANN_ARCH_DIR/lib64" -lascendcl -lruntime -o /tmp/pto-a1-launch
+```
+
+Reserve an available physical device. Set `ASCEND_RT_VISIBLE_DEVICES` for that
+process and pass the resulting logical device number. Use the host's device
+queue if available. For example, with physical device 4 reserved:
+
+```bash
+ASCEND_RT_VISIBLE_DEVICES=4 /tmp/pto-a1-launch /tmp/pto-a1-vector.o 0
+```
+
+The default case checks 2048 FP16 results against exact small integer sums.
+Compile the kernel with `-DPTO_A1_TEST_LARGE` and launch with an additional
+`32768` argument to check 256 repeats, including the 255-repeat boundary and
+in-place UB addition. The two 64 KiB UB inputs fit the conservative 128 KiB
+budget. Build/run the CPU case with the same define first. The launcher owns
+its context and stream and does not reset the device.
+
+`PTO_A1_TEST_NON_FP16`, `PTO_A1_TEST_DYNAMIC_VALID`, `PTO_A1_TEST_STRIDED_DMA`,
+`PTO_A1_TEST_ATOMIC_STORE`, and `__PTO_AUTO__` select negative CCEC checks.
+Each must fail with the corresponding A1 constraint diagnostic.
