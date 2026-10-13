@@ -497,7 +497,7 @@ correctness; instruction execution remains a separate acceptance step.
 On A1, `pto/pto-inst.hpp` exposes `TASSIGN`, local `TSYNC`/`Event`, `TLOAD`,
 `TADD` and `TSTORE`. The vector instructions require FP16 or FP32, contiguous row-major
 Vec tiles with static full valid shapes, 32-byte-aligned rows and matching
-static ND tensors. GM pointers must be 32-byte aligned. `TADD` requires complete
+static ND tensors. GM pointers must be 32-byte aligned. Binary vector arithmetic requires complete
 256-byte repeats (128 FP16 elements or 64 FP32 elements) and splits repeats
 above 255 into multiple instructions.
 The shared address-assignment helper has no A2/A3 device instructions.
@@ -566,3 +566,9 @@ FP16 and FP32 kernels run successively. The launcher keeps FP16 as its default.
 
 FP32-specific negative modes `PTO_A1_TEST_MIXED_ADD` and
 `PTO_A1_TEST_PARTIAL_REPEAT` check equal operand dtypes and complete repeats.
+
+The same static FP16/FP32 profile also exposes `TSUB` and `TMUL`. Use
+`tests/compile/a1_tsub_vector.cpp` or `tests/compile/a1_tmul_vector.cpp` in the
+CCEC command and pass `2048 fp32 sub` or `2048 fp32 mul` to the reference launcher.
+The launcher checks signed zero for multiplication. Shape, dtype, mask, event
+and repeat limits match `TADD`; unvalidated operations remain unavailable.
