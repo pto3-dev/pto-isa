@@ -438,8 +438,8 @@ CCEC `--cce-aicore-arch=dav-m200` 定义 `__NPU_ARCH__=2002`。公共头文件�
 A1 提供 FP32 和 INT32 累加器；BF16、FP8/FP4、跨核 SyncAll/通信、量化、直方图和 MX 布局能力仍禁用。
 现有架构的枚举值保持不变。
 
-此变更仅提供目标识别和能力检查。A1 指令实现、编译器降低及运行时启动分别属于后续适配特性，
-不会启用 A2/A3 指令回退。
+目标识别和能力检查独立于指令覆盖率。下文描述已实现的 FP16 向量子集，
+编译器降低与运行时集成仍须分别适配；不会启用 A2/A3 指令回退。
 
 无需执行 NPU 内核即可在主机验证该配置：
 
@@ -480,3 +480,48 @@ Vec-to-Mat 对应 MTE3。不支持的直接累加器 store 保留未知 pipe 标
 主机测试让编号循环 100 次，确认不会返回 ID 7。`PTO_A1_TEST_RESERVED_ID` 和
 `PTO_A1_TEST_CROSS_CORE` 选择负向编译测试。上述检查不代表 NPU 同步正确性已验证；
 实际指令执行仍须单独验收。
+
+### A1 手动 FP16 向量指令
+
+A1 的 `pto/pto-inst.hpp` 提供 `TASSIGN`、本地 `TSYNC`/`Event`、`TLOAD`、`TADD` 和 `TSTORE`。
+向量指令要求 FP16、连续 row-major Vec tile、静态完整 valid shape、32 字节对齐的行和匹配的静态 ND tensor。
+GM 指针必须按 32 字节对齐。`TADD` 要求完整的 128 元素 repeat，超过 255 个 repeat 时拆分为多条指令。
+复用的地址赋值 helper 不包含 A2/A3 设备指令。
+
+暂不提供自动分配/同步、其他数据类型、动态或部分 valid shape、带行间距的 DMA、atomic、unit flag、
+累加器 store 及其他指令。使用 `TASSIGN<Addr>(tile)` 检查静态分配边界；调用者负责 tile 生命周期。缓冲须互不重叠或完全别名，不支持部分地址重叠。
+此子集尚不启用 PyPTO 编译或 persistent runtime。
+
+烟测内核加载两个 tensor，通过本地事件依赖执行加法并存储结果；CPU reference 使用同步 CPU API：
+
+```bash
+clang++ -std=c++20 -D__CPU_SIM -D__NPU_ARCH__=2002 -I include \
+  tests/compile/a1_fp16_vector.cpp -o /tmp/pto-a1-vector-cpu
+/tmp/pto-a1-vector-cpu
+```
+
+激活 CANN 环境后，使用已安装的头文件/库构建单入口设备内核与独立 host launcher：
+
+```bash
+ccec -c -std=c++17 -O2 -x cce --cce-aicore-only --cce-aicore-arch=dav-m200 \
+  -I include tests/compile/a1_fp16_vector.cpp -o /tmp/pto-a1-vector.o
+CANN_ARCH_DIR="$ASCEND_HOME_PATH/aarch64-linux"
+g++ -std=c++17 -O2 -I "$CANN_ARCH_DIR/include" -I "$CANN_ARCH_DIR/pkg_inc" \
+  -I "$CANN_ARCH_DIR/pkg_inc/runtime" tests/compile/a1_single_launch.cpp \
+  -L "$CANN_ARCH_DIR/lib64" -lascendcl -lruntime -o /tmp/pto-a1-launch
+```
+
+先预约空闲物理设备；本次进程设置 `ASCEND_RT_VISIBLE_DEVICES` 后传入映射得到的逻辑编号。
+主机有设备队列时应使用队列。例如物理设备 4 已预约：
+
+```bash
+ASCEND_RT_VISIBLE_DEVICES=4 /tmp/pto-a1-launch /tmp/pto-a1-vector.o 0
+```
+
+默认用例将 2048 个 FP16 结果与可精确表示的小整数加法结果比较。
+增加 `-DPTO_A1_TEST_LARGE` 编译内核，并在启动时增加 `32768` 参数，可验证 256 个 repeat、
+255-repeat 分段边界及 UB 就地加法。两个 64 KiB 输入缓冲恰好落在保守的 128 KiB UB 预算内。
+先用同一宏编译并运行 CPU reference。launcher 仅管理自己创建的 context 和 stream，不 reset 设备。
+
+`PTO_A1_TEST_NON_FP16`、`PTO_A1_TEST_DYNAMIC_VALID`、`PTO_A1_TEST_STRIDED_DMA`、
+`PTO_A1_TEST_ATOMIC_STORE` 和 `__PTO_AUTO__` 选择 CCEC 负向检查，须以对应的 A1 约束诊断拒绝编译。
