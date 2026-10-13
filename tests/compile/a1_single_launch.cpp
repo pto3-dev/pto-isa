@@ -11,6 +11,7 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #include <acl/acl.h>
 #include <runtime/rt.h>
 #include <cstdint>
+#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -82,12 +83,24 @@ uint16_t HalfInteger(int value)
     return (value < 0 ? 0x8000 : 0) | ((15 + exponent) << 10) | ((magnitude << (10 - exponent)) & 0x3ff);
 }
 
-int main(int argc, char** argv)
+template <typename Word>
+Word IntegerBits(int value)
 {
-    if (argc != 3 && argc != 4) {
-        std::cerr << "usage: a1_single_launch KERNEL.o LOGICAL_DEVICE [ELEMENTS]\n";
-        return 2;
+    if constexpr (std::is_same_v<Word, uint16_t>) {
+        return HalfInteger(value);
+    } else {
+        static_assert(std::is_same_v<Word, uint32_t>);
+        float scalar = static_cast<float>(value);
+        Word bits;
+        static_assert(sizeof(bits) == sizeof(scalar));
+        std::memcpy(&bits, &scalar, sizeof(bits));
+        return bits;
     }
+}
+
+template <typename Word>
+int RunVector(int argc, char** argv, const char* dtype)
+{
     try {
         std::ifstream input(argv[1], std::ios::binary);
         if (!input)
@@ -101,17 +114,18 @@ int main(int argc, char** argv)
         const int device = std::stoi(argv[2]);
         Check(aclrtCreateContext(&session.context, device), "aclrtCreateContext");
         Check(aclrtCreateStream(&session.stream), "aclrtCreateStream");
-        const size_t count = argc == 4 ? std::stoul(argv[3]) : 16 * 128;
+        const size_t count = argc >= 4 ? std::stoul(argv[3]) : 16 * 128;
         if (count == 0 || count > 65536)
             throw std::runtime_error("element count must be in 1..65536");
-        const size_t bytes = count * sizeof(uint16_t);
-        std::vector<uint16_t> lhs(count), rhs(count), result(count, 0x7e00), expected(count);
+        const size_t bytes = count * sizeof(Word);
+        constexpr Word poison = sizeof(Word) == 2 ? 0x7e00 : 0x7fc00000;
+        std::vector<Word> lhs(count), rhs(count), result(count, poison), expected(count);
         for (size_t i = 0; i < count; ++i) {
             int a = static_cast<int>(i % 17) - 8;
             int b = static_cast<int>((i * 3) % 17) - 8;
-            lhs[i] = HalfInteger(a);
-            rhs[i] = HalfInteger(b);
-            expected[i] = HalfInteger(a + b);
+            lhs[i] = IntegerBits<Word>(a);
+            rhs[i] = IntegerBits<Word>(b);
+            expected[i] = IntegerBits<Word>(a + b);
         }
         DeviceBuffer a(bytes), b(bytes), c(bytes);
         Check(aclrtMemcpy(a.address, bytes, lhs.data(), bytes, ACL_MEMCPY_HOST_TO_DEVICE), "copy lhs");
@@ -148,11 +162,26 @@ int main(int argc, char** argv)
                 ++mismatches;
             }
         }
-        std::cout << "device=" << device << " elements=" << count << " dtype=fp16 mismatches=" << mismatches << '/'
-                  << count << '\n';
+        std::cout << "device=" << device << " elements=" << count << " dtype=" << dtype << " mismatches=" << mismatches
+                  << '/' << count << '\n';
         return mismatches ? 1 : 0;
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;
     }
+}
+
+int main(int argc, char** argv)
+{
+    if (argc < 3 || argc > 5) {
+        std::cerr << "usage: a1_single_launch KERNEL.o LOGICAL_DEVICE [ELEMENTS [fp16|fp32]]\n";
+        return 2;
+    }
+    const std::string dtype = argc == 5 ? argv[4] : "fp16";
+    if (dtype == "fp16")
+        return RunVector<uint16_t>(argc, argv, "fp16");
+    if (dtype == "fp32")
+        return RunVector<uint32_t>(argc, argv, "fp32");
+    std::cerr << "dtype must be fp16 or fp32\n";
+    return 2;
 }
