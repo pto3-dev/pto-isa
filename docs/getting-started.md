@@ -442,7 +442,7 @@ layout capabilities remain disabled. Existing architecture enum values are prese
 
 This change supplies target identification and capability checks only. A1
 compiler lowering and runtime integration are separate bring-up features.
-The supported FP16 vector subset is described below; A1 does not use an A2/A3 instruction fallback.
+The supported FP16/FP32 vector subset is described below; A1 does not use an A2/A3 instruction fallback.
 
 Validate the profile on the host without executing an NPU kernel:
 
@@ -492,21 +492,22 @@ is never returned. `PTO_A1_TEST_RESERVED_ID` and `PTO_A1_TEST_CROSS_CORE` select
 negative compilation tests. These checks do not prove NPU synchronization
 correctness; instruction execution remains a separate acceptance step.
 
-### A1 manual FP16 vector instructions
+### A1 manual FP16/FP32 vector instructions
 
 On A1, `pto/pto-inst.hpp` exposes `TASSIGN`, local `TSYNC`/`Event`, `TLOAD`,
-`TADD` and `TSTORE`. The vector instructions require FP16, contiguous row-major
+`TADD` and `TSTORE`. The vector instructions require FP16 or FP32, contiguous row-major
 Vec tiles with static full valid shapes, 32-byte-aligned rows and matching
 static ND tensors. GM pointers must be 32-byte aligned. `TADD` requires complete
-128-element repeats and splits repeats above 255 into multiple instructions.
+256-byte repeats (128 FP16 elements or 64 FP32 elements) and splits repeats
+above 255 into multiple instructions.
 The shared address-assignment helper has no A2/A3 device instructions.
 
 Automatic allocation/synchronization, other element types, dynamic or partial
 valid shapes, strided DMA, atomics, unit flags, accumulator stores and other
 instructions are unavailable. Use `TASSIGN<Addr>(tile)` for static allocation
 checks; callers own tile lifetimes. Tile buffers must be disjoint or exactly
-alias; partial overlap is unsupported. This subset does not enable
-PyPTO compilation or a persistent runtime.
+alias; partial overlap is unsupported. This ISA subset requires matching compiler/runtime features for PyPTO
+execution; it does not provide a persistent runtime.
 
 The smoke kernel loads two tensors, adds them with local event dependencies,
 and stores the result. CPU reference execution uses the synchronous CPU API:
@@ -544,6 +545,24 @@ in-place UB addition. The two 64 KiB UB inputs fit the conservative 128 KiB
 budget. Build/run the CPU case with the same define first. The launcher owns
 its context and stream and does not reset the device.
 
-`PTO_A1_TEST_NON_FP16`, `PTO_A1_TEST_DYNAMIC_VALID`, `PTO_A1_TEST_STRIDED_DMA`,
+`PTO_A1_TEST_NON_FLOAT`, `PTO_A1_TEST_DYNAMIC_VALID`, `PTO_A1_TEST_STRIDED_DMA`,
 `PTO_A1_TEST_ATOMIC_STORE`, and `__PTO_AUTO__` select negative CCEC checks.
 Each must fail with the corresponding A1 constraint diagnostic.
+
+For FP32, use `tests/compile/a1_fp32_vector.cpp` in the same CPU/CCEC commands.
+The default case has 2048 elements; the large case has 16384 elements (256
+repeats and two 64 KiB input buffers). Pass the matching element count and
+`fp32` to the launcher:
+
+```bash
+ccec -c -std=c++17 -O2 -x cce --cce-aicore-only --cce-aicore-arch=dav-m200 \
+  -I include tests/compile/a1_fp32_vector.cpp -o /tmp/pto-a1-fp32-vector.o
+ASCEND_RT_VISIBLE_DEVICES=4 /tmp/pto-a1-launch /tmp/pto-a1-fp32-vector.o 0 2048 fp32
+```
+
+Tensor and tile dtypes must match. FP16 sets both 64-bit vector mask halves;
+FP32 clears the upper half. Each call sets its mask explicitly, including when
+FP16 and FP32 kernels run successively. The launcher keeps FP16 as its default.
+
+FP32-specific negative modes `PTO_A1_TEST_MIXED_ADD` and
+`PTO_A1_TEST_PARTIAL_REPEAT` check equal operand dtypes and complete repeats.
