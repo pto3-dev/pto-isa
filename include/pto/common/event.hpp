@@ -229,15 +229,25 @@ PTO_DEFINE_OP_PIPE(Op::TMAXS, PIPE_V);
 PTO_DEFINE_OP_PIPE(Op::TLRELU, PIPE_V);
 PTO_DEFINE_OP_PIPE(Op::TPRELU, PIPE_V);
 PTO_DEFINE_OP_PIPE(Op::TMOV_V2V, PIPE_V);
+#if defined(PTO_NPU_ARCH_A1)
+PTO_DEFINE_OP_PIPE(Op::TMOV_V2M, PIPE_MTE3);
+PTO_DEFINE_OP_PIPE(Op::TEXTRACT_V2M, PIPE_MTE3);
+#else
 PTO_DEFINE_OP_PIPE(Op::TMOV_V2M, PIPE_FIX);
 PTO_DEFINE_OP_PIPE(Op::TEXTRACT_V2M, PIPE_FIX);
+#endif
 PTO_DEFINE_OP_PIPE(Op::TMOV_M2B, PIPE_MTE1);
 PTO_DEFINE_OP_PIPE(Op::TMOV_M2L, PIPE_MTE1);
 PTO_DEFINE_OP_PIPE(Op::TMOV_M2R, PIPE_MTE1);
+#if defined(PTO_NPU_ARCH_A1)
+// Accumulator writeback is a local vector operation on coupled A1 cores.
+PTO_DEFINE_OP_PIPE(Op::TMOV_A2V, PIPE_V);
+#else
 PTO_DEFINE_OP_PIPE(Op::TMOV_M2S, PIPE_FIX);
 PTO_DEFINE_OP_PIPE(Op::TMOV_A2V, PIPE_FIX);
 PTO_DEFINE_OP_PIPE(Op::TMOV_A2M, PIPE_FIX);
 PTO_DEFINE_OP_PIPE(Op::TSTORE_ACC, PIPE_FIX);
+#endif
 PTO_DEFINE_OP_PIPE(Op::TSTORE_MAT, PIPE_MTE3);
 PTO_DEFINE_OP_PIPE(Op::TMATMUL, PIPE_M);
 PTO_DEFINE_OP_PIPE(Op::TGEMV, PIPE_M);
@@ -248,8 +258,10 @@ PTO_DEFINE_OP_PIPE(Op::TSHLS, PIPE_V);
 PTO_DEFINE_OP_PIPE(Op::TSHRS, PIPE_V);
 PTO_DEFINE_OP_PIPE(Op::TXOR, PIPE_V);
 PTO_DEFINE_OP_PIPE(Op::TXORS, PIPE_V);
+#if !defined(PTO_NPU_ARCH_A1)
 PTO_DEFINE_OP_PIPE(Op::TEXTRACT_A2M, PIPE_FIX);
 PTO_DEFINE_OP_PIPE(Op::TINSERT_A2M, PIPE_FIX);
+#endif
 PTO_DEFINE_OP_PIPE(Op::TIMG2COL, PIPE_MTE1);
 PTO_DEFINE_OP_PIPE(Op::SETFMATRIX, PIPE_S);
 PTO_DEFINE_OP_PIPE(Op::SET_IMG2COL_RPT, PIPE_S);
@@ -319,7 +331,14 @@ public:
             !(OccupiedMask() & (1u << static_cast<uint8_t>(id))), "Event ID still occupied - likely missing Wait()");
         OccupiedMask() |= (1u << static_cast<uint8_t>(id));
 #endif
-        NextId() = (event_t)(((uint8_t)NextId() + 1) % EVENT_ID_MAX);
+        // A1 ISA helpers reserve ID 7 for internal synchronization. Caller
+        // events must never acquire it, even when wrapping their counter.
+#if defined(PTO_NPU_ARCH_A1)
+        constexpr uint8_t eventCount = 7;
+#else
+        constexpr uint8_t eventCount = EVENT_ID_MAX;
+#endif
+        NextId() = (event_t)(((uint8_t)NextId() + 1) % eventCount);
         return id;
     }
     PTO_INTERNAL static void Reset()

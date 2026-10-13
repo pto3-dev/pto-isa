@@ -477,3 +477,17 @@ limits only; it does not launch an instruction or perform a numerical test.
 The device compiler also checks the actual TASSIGN boundary: a 4 KiB tile at
 124 KiB fits the budget. Compiling this test with `-DPTO_A1_TEST_OVERFLOW`
 moves the allocation forward by 32 bytes and must fail with `SA-0353`.
+
+### A1 local events
+
+A1 synchronization stays within a coupled core. Load/add/store use MTE2/V/MTE3;
+Acc-to-Vec uses V, and Vec-to-Mat uses MTE3. Unsupported direct accumulator
+stores retain the unknown-pipe marker instead of claiming a FIX pipe path.
+Automatic event counters use IDs 0 through 6; ID 7 is reserved for ISA helpers.
+Manual ID 7 and cross-core IDs/FFTS addresses are rejected at compilation.
+
+`tests/compile/a1_local_events.cpp` compiles the local set/wait/barrier sequence
+with CCEC. Its host test wraps the event counter 100 times and checks that ID 7
+is never returned. `PTO_A1_TEST_RESERVED_ID` and `PTO_A1_TEST_CROSS_CORE` select
+negative compilation tests. These checks do not prove NPU synchronization
+correctness; instruction execution remains a separate acceptance step.
