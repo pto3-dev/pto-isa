@@ -438,7 +438,7 @@ CCEC `--cce-aicore-arch=dav-m200` 定义 `__NPU_ARCH__=2002`。公共头文件�
 A1 提供 FP32 和 INT32 累加器；BF16、FP8/FP4、跨核 SyncAll/通信、量化、直方图和 MX 布局能力仍禁用。
 现有架构的枚举值保持不变。
 
-目标识别和能力检查独立于指令覆盖率。下文描述已实现的 FP16 向量子集，
+目标识别和能力检查独立于指令覆盖率。下文描述已实现的 FP16/FP32 向量子集，
 编译器降低与运行时集成仍须分别适配；不会启用 A2/A3 指令回退。
 
 无需执行 NPU 内核即可在主机验证该配置：
@@ -481,16 +481,16 @@ Vec-to-Mat 对应 MTE3。不支持的直接累加器 store 保留未知 pipe 标
 `PTO_A1_TEST_CROSS_CORE` 选择负向编译测试。上述检查不代表 NPU 同步正确性已验证；
 实际指令执行仍须单独验收。
 
-### A1 手动 FP16 向量指令
+### A1 手动 FP16/FP32 向量指令
 
 A1 的 `pto/pto-inst.hpp` 提供 `TASSIGN`、本地 `TSYNC`/`Event`、`TLOAD`、`TADD` 和 `TSTORE`。
-向量指令要求 FP16、连续 row-major Vec tile、静态完整 valid shape、32 字节对齐的行和匹配的静态 ND tensor。
-GM 指针必须按 32 字节对齐。`TADD` 要求完整的 128 元素 repeat，超过 255 个 repeat 时拆分为多条指令。
+向量指令要求 FP16 或 FP32、连续 row-major Vec tile、静态完整 valid shape、32 字节对齐的行和匹配的静态 ND tensor。
+GM 指针必须按 32 字节对齐。`TADD` 要求完整的 256 字节 repeat（128 个 FP16 或 64 个 FP32 元素），超过 255 个 repeat 时拆分为多条指令。
 复用的地址赋值 helper 不包含 A2/A3 设备指令。
 
 暂不提供自动分配/同步、其他数据类型、动态或部分 valid shape、带行间距的 DMA、atomic、unit flag、
 累加器 store 及其他指令。使用 `TASSIGN<Addr>(tile)` 检查静态分配边界；调用者负责 tile 生命周期。缓冲须互不重叠或完全别名，不支持部分地址重叠。
-此子集尚不启用 PyPTO 编译或 persistent runtime。
+PyPTO 执行需要配套的编译器与运行时特性；此 ISA 子集不提供 persistent runtime。
 
 烟测内核加载两个 tensor，通过本地事件依赖执行加法并存储结果；CPU reference 使用同步 CPU API：
 
@@ -523,5 +523,21 @@ ASCEND_RT_VISIBLE_DEVICES=4 /tmp/pto-a1-launch /tmp/pto-a1-vector.o 0
 255-repeat 分段边界及 UB 就地加法。两个 64 KiB 输入缓冲恰好落在保守的 128 KiB UB 预算内。
 先用同一宏编译并运行 CPU reference。launcher 仅管理自己创建的 context 和 stream，不 reset 设备。
 
-`PTO_A1_TEST_NON_FP16`、`PTO_A1_TEST_DYNAMIC_VALID`、`PTO_A1_TEST_STRIDED_DMA`、
+`PTO_A1_TEST_NON_FLOAT`、`PTO_A1_TEST_DYNAMIC_VALID`、`PTO_A1_TEST_STRIDED_DMA`、
 `PTO_A1_TEST_ATOMIC_STORE` 和 `__PTO_AUTO__` 选择 CCEC 负向检查，须以对应的 A1 约束诊断拒绝编译。
+
+FP32 用例使用 `tests/compile/a1_fp32_vector.cpp`，CPU/CCEC 编译命令同上。
+默认形状包含 2048 个元素，大形状包含 16384 个元素（256 个 repeat、两个 64 KiB 输入缓冲）。
+启动时传入对应元素数量和 `fp32`：
+
+```bash
+ccec -c -std=c++17 -O2 -x cce --cce-aicore-only --cce-aicore-arch=dav-m200 \
+  -I include tests/compile/a1_fp32_vector.cpp -o /tmp/pto-a1-fp32-vector.o
+ASCEND_RT_VISIBLE_DEVICES=4 /tmp/pto-a1-launch /tmp/pto-a1-fp32-vector.o 0 2048 fp32
+```
+
+Tensor 与 tile 的数据类型必须一致。FP16 设置两段 64-bit 向量 mask，FP32 清空高位 mask。
+每次调用都会显式设置 mask，包括连续执行 FP16 与 FP32 内核的情况。launcher 默认仍使用 FP16。
+
+FP32 的负向模式 `PTO_A1_TEST_MIXED_ADD` 和 `PTO_A1_TEST_PARTIAL_REPEAT`
+分别校验操作数数据类型一致及完整 repeat 的要求。
