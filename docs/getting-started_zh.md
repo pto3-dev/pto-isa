@@ -546,3 +546,5 @@ FP32 的负向模式 `PTO_A1_TEST_MIXED_ADD` 和 `PTO_A1_TEST_PARTIAL_REPEAT`
 `tests/compile/a1_tsub_vector.cpp` 或 `tests/compile/a1_tmul_vector.cpp`；参考
 启动器分别传入 `2048 fp32 sub` 或 `2048 fp32 mul`。乘法检查保留零的符号位。
 形状、数据类型、掩码、事件和重复次数限制与 `TADD` 相同；未验证的操作仍不开放。
+
+A1 FP16/FP32 ND 访存支持大于 tile 宽度的静态行步长，每行须按 32 字节对齐。超过 4095 行的多 burst 传输分段执行，GM 间距超过 65535 个块时逐行拷贝。写回保留 tile 外的列。
