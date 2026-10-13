@@ -56,8 +56,9 @@ PTO_INTERNAL void CheckA1VectorTransfer()
             GlobalData::staticShape[3] == TileData::Rows && GlobalData::staticShape[4] == TileData::Cols,
         "A1 vector DMA requires matching static two-dimensional tensor and tile shapes.");
     PTO_STATIC_ASSERT(
-        GlobalData::staticStride[3] == TileData::Cols && GlobalData::staticStride[4] == 1,
-        "A1 vector DMA requires contiguous tensor rows.");
+        GlobalData::staticStride[3] >= TileData::Cols && GlobalData::staticStride[4] == 1 &&
+            GlobalData::staticStride[3] % (32 / sizeof(typename TileData::DType)) == 0,
+        "A1 vector DMA requires static non-overlapping 32-byte-aligned tensor rows.");
 }
 
 } // namespace detail
@@ -66,7 +67,26 @@ template <typename TileData, typename GlobalData>
 PTO_INTERNAL void TLOAD_IMPL(TileData& dst, GlobalData& src)
 {
     detail::CheckA1VectorTransfer<TileData, GlobalData>();
-    copy_gm_to_ubuf(dst.data(), src.data(), 0, 1, TileData::Numel * sizeof(typename TileData::DType) / 32, 0, 0);
+    constexpr unsigned rowBlocks = TileData::Cols * sizeof(typename TileData::DType) / 32;
+    constexpr uint64_t globalGap =
+        (GlobalData::staticStride[3] - TileData::Cols) / (32 / sizeof(typename TileData::DType));
+    if constexpr (globalGap == 0) {
+        copy_gm_to_ubuf(dst.data(), src.data(), 0, 1, TileData::Rows * rowBlocks, 0, 0);
+    } else if constexpr (globalGap <= UINT16_MAX) {
+        // Multi-burst DMA has a 12-bit burst count and a 16-bit GM gap.
+        for (unsigned row = 0; row < TileData::Rows; row += 4095) {
+            const unsigned remaining = TileData::Rows - row;
+            const unsigned bursts = remaining > 4095 ? 4095 : remaining;
+            copy_gm_to_ubuf(
+                dst.data() + row * TileData::Cols, src.data() + row * GlobalData::staticStride[3], 0, bursts, rowBlocks,
+                globalGap, 0);
+        }
+    } else {
+        for (unsigned row = 0; row < TileData::Rows; ++row)
+            copy_gm_to_ubuf(
+                dst.data() + row * TileData::Cols, src.data() + row * GlobalData::staticStride[3], 0, 1, rowBlocks, 0,
+                0);
+    }
 }
 
 template <
@@ -79,7 +99,25 @@ PTO_INTERNAL void TSTORE_IMPL(GlobalData& dst, TileData& src)
         Atomic == AtomicType::AtomicNone && Phase == STPhase::Unspecified,
         "A1 vector stores do not support atomic or unit-flag modes.");
     set_atomic_none();
-    copy_ubuf_to_gm(dst.data(), src.data(), 0, 1, TileData::Numel * sizeof(typename TileData::DType) / 32, 0, 0);
+    constexpr unsigned rowBlocks = TileData::Cols * sizeof(typename TileData::DType) / 32;
+    constexpr uint64_t globalGap =
+        (GlobalData::staticStride[3] - TileData::Cols) / (32 / sizeof(typename TileData::DType));
+    if constexpr (globalGap == 0) {
+        copy_ubuf_to_gm(dst.data(), src.data(), 0, 1, TileData::Rows * rowBlocks, 0, 0);
+    } else if constexpr (globalGap <= UINT16_MAX) {
+        for (unsigned row = 0; row < TileData::Rows; row += 4095) {
+            const unsigned remaining = TileData::Rows - row;
+            const unsigned bursts = remaining > 4095 ? 4095 : remaining;
+            copy_ubuf_to_gm(
+                dst.data() + row * GlobalData::staticStride[3], src.data() + row * TileData::Cols, 0, bursts, rowBlocks,
+                0, globalGap);
+        }
+    } else {
+        for (unsigned row = 0; row < TileData::Rows; ++row)
+            copy_ubuf_to_gm(
+                dst.data() + row * GlobalData::staticStride[3], src.data() + row * TileData::Cols, 0, 1, rowBlocks, 0,
+                0);
+    }
 }
 
 template <Op Operation, typename DstTile, typename Src0Tile, typename Src1Tile>

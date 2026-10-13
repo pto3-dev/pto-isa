@@ -572,3 +572,5 @@ The same static FP16/FP32 profile also exposes `TSUB` and `TMUL`. Use
 CCEC command and pass `2048 fp32 sub` or `2048 fp32 mul` to the reference launcher.
 The launcher checks signed zero for multiplication. Shape, dtype, mask, event
 and repeat limits match `TADD`; unvalidated operations remain unavailable.
+
+A1 FP16/FP32 ND loads and stores support static row strides greater than the tile width when every row is 32-byte aligned. Multi-burst transfers split above 4095 rows; GM gaps above 65535 blocks use individual row copies. Stores preserve columns outside the tile.
