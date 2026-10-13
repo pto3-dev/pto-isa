@@ -13,6 +13,7 @@ See LICENSE in the root of the software repository for the full text of the Lice
 
 #include <pto/common/arch_cce_intrinsic.hpp>
 #include <pto/common/tassign_check.hpp>
+#include <pto/npu/a1/TMatrix.hpp>
 #include <pto/npu/a1/TSync.hpp>
 #include <pto/npu/a1/TVector.hpp>
 // This assignment helper only assigns typed addresses and has no A2/A3 instructions.
@@ -50,6 +51,35 @@ PTO_INST RecordEvent TLOAD(TileData& dst, GlobalData& src, WaitEvents&... events
 {
     TSYNC(events...);
     TLOAD_IMPL(dst, src);
+    return {};
+}
+
+template <typename DstTile, typename SrcTile, typename... WaitEvents>
+PTO_INST RecordEvent TMOV(DstTile& dst, SrcTile& src, WaitEvents&... events)
+{
+    TSYNC(events...);
+    TMOV_IMPL(dst, src);
+    return {};
+}
+
+template <
+    typename DstTile, typename SrcTile, AccToVecMode Mode, ReluPreMode Relu = ReluPreMode::NoRelu,
+    typename... WaitEvents>
+PTO_INST RecordEvent TMOV(DstTile& dst, SrcTile& src, WaitEvents&... events)
+{
+    PTO_STATIC_ASSERT(
+        Mode == AccToVecMode::SingleModeVec0 && Relu == ReluPreMode::NoRelu,
+        "A1 accumulator moves require single coupled-worker mode without fused relu.");
+    TSYNC(events...);
+    A1AccumulatorToVector(dst, src);
+    return {};
+}
+
+template <typename AccTile, typename LeftTile, typename RightTile, typename... WaitEvents>
+PTO_INST RecordEvent TMATMUL(AccTile& dst, LeftTile& lhs, RightTile& rhs, WaitEvents&... events)
+{
+    TSYNC(events...);
+    TMATMUL_IMPL(dst, lhs, rhs);
     return {};
 }
 
