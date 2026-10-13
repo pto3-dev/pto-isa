@@ -455,3 +455,17 @@ clang++ -std=c++20 -D__CPU_SIM -D__NPU_ARCH__=2002 -I include \
 ccec -c -std=c++17 -x cce --cce-aicore-only --cce-aicore-arch=dav-m200 \
   -I include tests/compile/a1_architecture.cpp -o /tmp/pto-a1-architecture.o
 ```
+
+### A1 tile 分配预算
+
+A1 适配初期限制 UB 分配预算为 128 KiB、L1 分配预算为 512 KiB。这是保守预算，
+不是物理容量声明：CANN 的 310P3 平台配置报告 UB 为 256 KiB、L1 为 1 MiB。
+L0A/L0B 各为 64 KiB，L0C 为 256 KiB。Bias、缩放缓冲及 scale tile 的分配预算保持为零，
+直到相应路径验证完成。使用旧 184 KiB UB scratch 偏移的 A1 helper 仍未启用，即使用户分配范围低于该区域。
+
+`tests/compile/a1_tile_buffers.cpp` 检查这些默认值并构造 16 x 128 的 FP16 向量 tile。
+使用上面的主机/CCEC 命令，替换源文件名即可验证。此测试仅检查 tile 元数据和分配限制，
+不启动指令，也不进行数值测试。
+
+设备编译器还检查实际 TASSIGN 分配边界：4 KiB tile 放在 124 KiB 偏移处应成功。
+增加 `-DPTO_A1_TEST_OVERFLOW` 会将分配再偏移 32 字节，编译必须以 `SA-0353` 拒绝。
