@@ -430,3 +430,28 @@ ulimit -n 65536
 - NPU 开发：查看 `tests/npu/` 下的测试用例
 - 查看 API 文档了解详细的指令使用方法
 - 加入社区获取支持和讨论
+
+## 实验性 A1 架构识别
+
+CCEC `--cce-aicore-arch=dav-m200` 定义 `__NPU_ARCH__=2002`。公共头文件现在将其识别为
+`ChipArch::A1` / `PTO_NPU_ARCH_A1`，不再使用能力全部开放的 `UNKNOWN` 配置。
+A1 提供 FP32 和 INT32 累加器；BF16、FP8/FP4、跨核 SyncAll/通信、量化、直方图和 MX 布局能力仍禁用。
+现有架构的枚举值保持不变。
+
+此变更仅提供目标识别和能力检查。A1 指令实现、编译器降低及运行时启动分别属于后续适配特性，
+不会启用 A2/A3 指令回退。
+
+无需执行 NPU 内核即可在主机验证该配置：
+
+```bash
+clang++ -std=c++20 -D__CPU_SIM -D__NPU_ARCH__=2002 -I include \
+  tests/compile/a1_architecture.cpp -o /tmp/pto-a1-architecture
+/tmp/pto-a1-architecture
+```
+
+使用已安装的 CANN 工具链验证编译器实际目标宏：
+
+```bash
+ccec -c -std=c++17 -x cce --cce-aicore-only --cce-aicore-arch=dav-m200 \
+  -I include tests/compile/a1_architecture.cpp -o /tmp/pto-a1-architecture.o
+```
