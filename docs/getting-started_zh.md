@@ -541,3 +541,8 @@ Tensor 与 tile 的数据类型必须一致。FP16 设置两段 64-bit 向量 ma
 
 FP32 的负向模式 `PTO_A1_TEST_MIXED_ADD` 和 `PTO_A1_TEST_PARTIAL_REPEAT`
 分别校验操作数数据类型一致及完整 repeat 的要求。
+
+同一静态 FP16/FP32 配置也支持 `TSUB` 和 `TMUL`。CCEC 编译时可使用
+`tests/compile/a1_tsub_vector.cpp` 或 `tests/compile/a1_tmul_vector.cpp`；参考
+启动器分别传入 `2048 fp32 sub` 或 `2048 fp32 mul`。乘法检查保留零的符号位。
+形状、数据类型、掩码、事件和重复次数限制与 `TADD` 相同；未验证的操作仍不开放。

@@ -60,6 +60,20 @@ PTO_INST RecordEvent TADD(DstTile& dst, Src0Tile& src0, Src1Tile& src1, WaitEven
     TADD_IMPL(dst, src0, src1);
     return {};
 }
+template <typename DstTile, typename Src0Tile, typename Src1Tile, typename... WaitEvents>
+PTO_INST RecordEvent TSUB(DstTile& dst, Src0Tile& src0, Src1Tile& src1, WaitEvents&... events)
+{
+    TSYNC(events...);
+    TSUB_IMPL(dst, src0, src1);
+    return {};
+}
+template <typename DstTile, typename Src0Tile, typename Src1Tile, typename... WaitEvents>
+PTO_INST RecordEvent TMUL(DstTile& dst, Src0Tile& src0, Src1Tile& src1, WaitEvents&... events)
+{
+    TSYNC(events...);
+    TMUL_IMPL(dst, src0, src1);
+    return {};
+}
 
 template <typename TileData, typename GlobalData, AtomicType Atomic = AtomicType::AtomicNone, typename... WaitEvents>
 PTO_INST RecordEvent TSTORE(GlobalData& dst, TileData& src, WaitEvents&... events)

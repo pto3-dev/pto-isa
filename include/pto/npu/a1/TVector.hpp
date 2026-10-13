@@ -12,6 +12,7 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #define PTO_NPU_A1_TVECTOR_HPP
 
 #include <pto/common/buffer_limits.hpp>
+#include <pto/common/event.hpp>
 #include <pto/common/pto_tile.hpp>
 
 #ifdef __PTO_AUTO__
@@ -81,8 +82,8 @@ PTO_INTERNAL void TSTORE_IMPL(GlobalData& dst, TileData& src)
     copy_ubuf_to_gm(dst.data(), src.data(), 0, 1, TileData::Numel * sizeof(typename TileData::DType) / 32, 0, 0);
 }
 
-template <typename DstTile, typename Src0Tile, typename Src1Tile>
-PTO_INTERNAL void TADD_IMPL(DstTile& dst, Src0Tile& src0, Src1Tile& src1)
+template <Op Operation, typename DstTile, typename Src0Tile, typename Src1Tile>
+PTO_INTERNAL void A1BinaryVector(DstTile& dst, Src0Tile& src0, Src1Tile& src1)
 {
     detail::CheckA1VectorTile<DstTile>();
     detail::CheckA1VectorTile<Src0Tile>();
@@ -90,13 +91,15 @@ PTO_INTERNAL void TADD_IMPL(DstTile& dst, Src0Tile& src0, Src1Tile& src1)
     PTO_STATIC_ASSERT(
         DstTile::Rows == Src0Tile::Rows && DstTile::Rows == Src1Tile::Rows && DstTile::Cols == Src0Tile::Cols &&
             DstTile::Cols == Src1Tile::Cols,
-        "A1 TADD requires matching tile shapes.");
+        "A1 binary vector operations require matching tile shapes.");
     PTO_STATIC_ASSERT(
         (std::is_same<typename DstTile::DType, typename Src0Tile::DType>::value &&
          std::is_same<typename DstTile::DType, typename Src1Tile::DType>::value),
-        "A1 TADD requires matching data types.");
+        "A1 binary vector operations require matching data types.");
     constexpr unsigned elementsPerRepeat = 256 / sizeof(typename DstTile::DType);
-    PTO_STATIC_ASSERT(DstTile::Numel % elementsPerRepeat == 0, "A1 TADD requires complete 256-byte vector repeats.");
+    PTO_STATIC_ASSERT(
+        DstTile::Numel % elementsPerRepeat == 0,
+        "A1 binary vector operations require complete 256-byte vector repeats.");
     set_mask_norm();
     if constexpr (elementsPerRepeat == 128)
         set_vector_mask(UINT64_MAX, UINT64_MAX);
@@ -107,8 +110,33 @@ PTO_INTERNAL void TADD_IMPL(DstTile& dst, Src0Tile& src0, Src1Tile& src1)
     for (unsigned offset = 0; offset < DstTile::Numel; offset += 255 * elementsPerRepeat) {
         const unsigned remaining = (DstTile::Numel - offset) / elementsPerRepeat;
         const uint8_t repeats = remaining > 255 ? 255 : remaining;
-        vadd(dst.data() + offset, src0.data() + offset, src1.data() + offset, repeats, 1, 1, 1, 8, 8, 8);
+        if constexpr (Operation == Op::TADD) {
+            vadd(dst.data() + offset, src0.data() + offset, src1.data() + offset, repeats, 1, 1, 1, 8, 8, 8);
+        } else if constexpr (Operation == Op::TSUB) {
+            vsub(dst.data() + offset, src0.data() + offset, src1.data() + offset, repeats, 1, 1, 1, 8, 8, 8);
+        } else {
+            static_assert(Operation == Op::TMUL);
+            vmul(dst.data() + offset, src0.data() + offset, src1.data() + offset, repeats, 1, 1, 1, 8, 8, 8);
+        }
     }
+}
+
+template <typename DstTile, typename Src0Tile, typename Src1Tile>
+PTO_INTERNAL void TADD_IMPL(DstTile& dst, Src0Tile& src0, Src1Tile& src1)
+{
+    A1BinaryVector<Op::TADD>(dst, src0, src1);
+}
+
+template <typename DstTile, typename Src0Tile, typename Src1Tile>
+PTO_INTERNAL void TSUB_IMPL(DstTile& dst, Src0Tile& src0, Src1Tile& src1)
+{
+    A1BinaryVector<Op::TSUB>(dst, src0, src1);
+}
+
+template <typename DstTile, typename Src0Tile, typename Src1Tile>
+PTO_INTERNAL void TMUL_IMPL(DstTile& dst, Src0Tile& src0, Src1Tile& src1)
+{
+    A1BinaryVector<Op::TMUL>(dst, src0, src1);
 }
 
 } // namespace pto

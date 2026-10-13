@@ -99,7 +99,7 @@ Word IntegerBits(int value)
 }
 
 template <typename Word>
-int RunVector(int argc, char** argv, const char* dtype)
+int RunVector(int argc, char** argv, const char* dtype, const std::string& operation)
 {
     try {
         std::ifstream input(argv[1], std::ios::binary);
@@ -125,7 +125,10 @@ int RunVector(int argc, char** argv, const char* dtype)
             int b = static_cast<int>((i * 3) % 17) - 8;
             lhs[i] = IntegerBits<Word>(a);
             rhs[i] = IntegerBits<Word>(b);
-            expected[i] = IntegerBits<Word>(a + b);
+            const int value = operation == "sub" ? a - b : (operation == "mul" ? a * b : a + b);
+            expected[i] = IntegerBits<Word>(value);
+            if (operation == "mul" && value == 0 && ((a < 0) != (b < 0)))
+                expected[i] |= Word(1) << (sizeof(Word) * 8 - 1);
         }
         DeviceBuffer a(bytes), b(bytes), c(bytes);
         Check(aclrtMemcpy(a.address, bytes, lhs.data(), bytes, ACL_MEMCPY_HOST_TO_DEVICE), "copy lhs");
@@ -163,7 +166,7 @@ int RunVector(int argc, char** argv, const char* dtype)
             }
         }
         std::cout << "device=" << device << " elements=" << count << " dtype=" << dtype << " mismatches=" << mismatches
-                  << '/' << count << '\n';
+                  << '/' << count << " operation=" << operation << '\n';
         return mismatches ? 1 : 0;
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
@@ -173,15 +176,20 @@ int RunVector(int argc, char** argv, const char* dtype)
 
 int main(int argc, char** argv)
 {
-    if (argc < 3 || argc > 5) {
-        std::cerr << "usage: a1_single_launch KERNEL.o LOGICAL_DEVICE [ELEMENTS [fp16|fp32]]\n";
+    if (argc < 3 || argc > 6) {
+        std::cerr << "usage: a1_single_launch KERNEL.o LOGICAL_DEVICE [ELEMENTS [fp16|fp32 [add|sub|mul]]]\n";
         return 2;
     }
-    const std::string dtype = argc == 5 ? argv[4] : "fp16";
+    const std::string dtype = argc >= 5 ? argv[4] : "fp16";
+    const std::string operation = argc == 6 ? argv[5] : "add";
+    if (operation != "add" && operation != "sub" && operation != "mul") {
+        std::cerr << "operation must be add, sub or mul\n";
+        return 2;
+    }
     if (dtype == "fp16")
-        return RunVector<uint16_t>(argc, argv, "fp16");
+        return RunVector<uint16_t>(argc, argv, "fp16", operation);
     if (dtype == "fp32")
-        return RunVector<uint32_t>(argc, argv, "fp32");
+        return RunVector<uint32_t>(argc, argv, "fp32", operation);
     std::cerr << "dtype must be fp16 or fp32\n";
     return 2;
 }
