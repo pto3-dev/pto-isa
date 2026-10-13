@@ -78,7 +78,7 @@ PTO_INTERNAL void A1BinaryVectorRepeat(
 } // namespace detail
 
 template <typename TileData, typename GlobalData>
-PTO_INTERNAL void TLOAD_IMPL(TileData& dst, GlobalData& src)
+PTO_INTERNAL void TLOAD_VEC_IMPL(TileData& dst, GlobalData& src)
 {
     detail::CheckA1VectorTransfer<TileData, GlobalData>();
     constexpr unsigned rowBlocks = TileData::Cols * sizeof(typename TileData::DType) / 32;
