@@ -485,10 +485,10 @@ Vec-to-Mat 对应 MTE3。不支持的直接累加器 store 保留未知 pipe 标
 
 A1 的 `pto/pto-inst.hpp` 提供 `TASSIGN`、本地 `TSYNC`/`Event`、`TLOAD`、`TADD` 和 `TSTORE`。
 向量指令要求 FP16 或 FP32、连续 row-major Vec tile、静态完整 valid shape、32 字节对齐的行和匹配的静态 ND tensor。
-GM 指针必须按 32 字节对齐。`TADD` 要求完整的 256 字节 repeat（128 个 FP16 或 64 个 FP32 元素），超过 255 个 repeat 时拆分为多条指令。
+GM 指针必须按 32 字节对齐。`TADD` 使用 256 字节 repeat（128 个 FP16 或 64 个 FP32 元素），最后一个不足完整重复的部分使用掩码，超过 255 个 repeat 时拆分为多条指令。
 复用的地址赋值 helper 不包含 A2/A3 设备指令。
 
-暂不提供自动分配/同步、其他数据类型、动态或部分 valid shape、带行间距的 DMA、atomic、unit flag、
+暂不提供自动分配/同步、其他数据类型、动态或部分 valid shape、非对齐 DMA、atomic、unit flag、
 累加器 store 及其他指令。使用 `TASSIGN<Addr>(tile)` 检查静态分配边界；调用者负责 tile 生命周期。缓冲须互不重叠或完全别名，不支持部分地址重叠。
 PyPTO 执行需要配套的编译器与运行时特性；此 ISA 子集不提供 persistent runtime。
 
@@ -539,8 +539,8 @@ ASCEND_RT_VISIBLE_DEVICES=4 /tmp/pto-a1-launch /tmp/pto-a1-fp32-vector.o 0 2048 
 Tensor 与 tile 的数据类型必须一致。FP16 设置两段 64-bit 向量 mask，FP32 清空高位 mask。
 每次调用都会显式设置 mask，包括连续执行 FP16 与 FP32 内核的情况。launcher 默认仍使用 FP16。
 
-FP32 的负向模式 `PTO_A1_TEST_MIXED_ADD` 和 `PTO_A1_TEST_PARTIAL_REPEAT`
-分别校验操作数数据类型一致及完整 repeat 的要求。
+FP32 的负向模式 `PTO_A1_TEST_MIXED_ADD` 校验操作数数据类型一致；
+`PTO_A1_TEST_PARTIAL_REPEAT` 是单行 FP32 尾部的正向测试。
 
 同一静态 FP16/FP32 配置也支持 `TSUB` 和 `TMUL`。CCEC 编译时可使用
 `tests/compile/a1_tsub_vector.cpp` 或 `tests/compile/a1_tmul_vector.cpp`；参考
@@ -548,3 +548,5 @@ FP32 的负向模式 `PTO_A1_TEST_MIXED_ADD` 和 `PTO_A1_TEST_PARTIAL_REPEAT`
 形状、数据类型、掩码、事件和重复次数限制与 `TADD` 相同；未验证的操作仍不开放。
 
 A1 FP16/FP32 ND 访存支持大于 tile 宽度的静态行步长，每行须按 32 字节对齐。超过 4095 行的多 burst 传输分段执行，GM 间距超过 65535 个块时逐行拷贝。写回保留 tile 外的列。
+
+A1 `TADD`、`TSUB`、`TMUL` 支持静态完整 tile 的最后一次向量重复使用掩码；DMA 行仍须按 32 字节对齐。尾部掩码排除相邻 tile，指令执行后恢复完整重复的掩码。
