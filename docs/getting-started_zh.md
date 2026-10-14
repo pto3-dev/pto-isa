@@ -551,8 +551,10 @@ A1 FP16/FP32 ND 访存支持大于 tile 宽度的静态行步长，每行须按 
 
 A1 `TADD`、`TSUB`、`TMUL` 支持静态完整 tile 的最后一次向量重复使用掩码；DMA 行仍须按 32 字节对齐。尾部掩码排除相邻 tile，指令执行后恢复完整重复的掩码。
 
-A1 提供限定窄矩阵配置：K=N=16，M 为 16 至 2048 之间按 16 对齐的静态完整行。连续 ND FP16 输入加载至 ZZ 或 NZ Mat，`TMOV` 准备 NZ Left 与 ZN Right，`TMATMUL` 初始化 FP32 NZ 累加器。显式 `TMOV<Vec, Acc, AccToVecMode::SingleModeVec0>` 将结果写至匹配的 FP32 ND Vec，再经 `TSTORE` 写回。ZZ/NZ Mat 和 NZ Acc 在仅有一个外层列时，其多行分形与 ND 保持同样元素顺序；该等价关系不适用于更大 K/N。累加、部分有效行、融合 relu、双 worker 模式及 Acc 直接写回仍不支持。
+A1 提供限定窄矩阵配置：K=N=16，M 为 16 至 2048 之间按 16 对齐的静态完整行。连续 ND FP16 输入加载至 ZZ 或 NZ Mat，`TMOV` 准备 NZ Left 与 ZN Right，`TMATMUL` 初始化 FP32 NZ 累加器。显式 `TMOV<Vec, Acc, AccToVecMode::SingleModeVec0>` 将结果写至匹配的 FP32 ND Vec，再经 `TSTORE` 写回。ZZ/NZ Mat 和 NZ Acc 在仅有一个外层列时，其多行分形与 ND 保持同样元素顺序；该等价关系不适用于更大 K/N。部分有效行、融合 relu、双 worker 模式及 Acc 直接写回仍不支持。
 
 `tests/compile/a1_single_fractal_gemm.cpp` 保留最初 16x16 参考及无效类型、布局、模式变体；`PTO_A1_TEST_MATRIX_NZ_INPUT` 选择标准 NZ Mat。`tests/compile/a1_narrow_gemm_rows.cpp` 以 `PTO_A1_TEST_ROWS` 选择 16、32、128、1024、2048 行 CPU/设备参考。上述源码配置须配合相应的前端和运行时版本，且完整行 tile 受各层存储预算约束。
 
 A1 `TCVT` 支持静态完整行主序 ND Vec tile 的 FP16 与 FP32 互转，限定 `RoundMode::CAST_NONE` 及 `SaturationMode::OFF`。两种类型的行均须按 32 字节对齐。硬件 FP32 到 FP16 转换按最近偶数舍入，并保留有符号零、次正规数及无穷值；保留 NaN 位置但不保证其 payload。超过 255 次重复会拆分，最后不足一次重复的元素使用掩码。缓冲区须互不重叠，唯独允许 FP32 到 FP16 缩窄时起始地址完全相同。不支持的运行时模式或重叠即使未启用调试断言也会 trap。同类型转换、scratch 参数及其他类型互转仍未开放。`tests/compile/a1_floating_conversion.cpp` 覆盖 CPU/设备参考及扩宽、重复边界、尾部和缩窄复用变体。
+
+`TMATMUL_ACC(dst, acc, lhs, rhs)` 支持上述窄矩阵配置的原位累加。先用 `TMATMUL` 初始化；`dst` 与 `acc` 必须为同类型且指向同一 L0C 存储，否则 release 构建也会 trap。每次累加 MAD 前执行 PIPE_M barrier，保证 L0C 写后读依赖。暂不支持 AccPhase 参数。`tests/compile/a1_narrow_gemm_accumulation.cpp` 验证连续三次 MAD 累加。
