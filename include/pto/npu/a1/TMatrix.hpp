@@ -29,8 +29,8 @@ PTO_INTERNAL void CheckA1MatrixInput()
     CheckA1SingleFractal<TileData>();
     PTO_STATIC_ASSERT(
         (TileData::Loc == TileType::Mat && std::is_same<typename TileData::DType, half>::value &&
-         TileData::isRowMajor && TileData::SFractal == SLayout::RowMajor && TileData::SFractalSize == 512),
-        "A1 matrix input requires an FP16 ZZ Mat tile.");
+         TileData::SFractal == SLayout::RowMajor && TileData::SFractalSize == 512),
+        "A1 matrix input requires an FP16 ZZ or NZ Mat tile.");
 }
 } // namespace detail
 
@@ -47,7 +47,7 @@ PTO_INTERNAL void TLOAD_IMPL(TileData& dst, GlobalData& src)
               GlobalData::staticShape[3] == 16 && GlobalData::staticShape[4] == 16 &&
               GlobalData::staticStride[3] == 16 && GlobalData::staticStride[4] == 1)),
             "A1 matrix load requires a contiguous static FP16 16x16 ND tensor.");
-        // A single 16x16 ZZ fractal has the same element order as ND.
+        // A single 16x16 ZZ or NZ fractal has the same element order as ND.
         copy_gm_to_cbuf(dst.data(), src.data(), 0, 1, 16, 0, 0, (pad_t)0);
     }
 }
