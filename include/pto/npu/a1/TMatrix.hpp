@@ -76,8 +76,8 @@ PTO_INTERNAL void TMOV_IMPL(DstTile& dst, SrcTile& src)
     }
 }
 
-template <typename AccTile, typename LeftTile, typename RightTile>
-PTO_INTERNAL void TMATMUL_IMPL(AccTile& dst, LeftTile& lhs, RightTile& rhs)
+template <bool Initialize, typename AccTile, typename LeftTile, typename RightTile>
+PTO_INTERNAL void A1MatrixMultiply(AccTile& dst, LeftTile& lhs, RightTile& rhs)
 {
     detail::CheckA1NarrowMatrixTile<AccTile>();
     detail::CheckA1NarrowMatrixTile<LeftTile>();
@@ -95,7 +95,27 @@ PTO_INTERNAL void TMATMUL_IMPL(AccTile& dst, LeftTile& lhs, RightTile& rhs)
          !LeftTile::isRowMajor && LeftTile::SFractal == SLayout::RowMajor && LeftTile::SFractalSize == 512 &&
          RightTile::isRowMajor && RightTile::SFractal == SLayout::ColMajor && RightTile::SFractalSize == 512),
         "A1 matrix multiplication requires FP16 NZ Left and ZN Right operands.");
-    mad(dst.data(), lhs.data(), rhs.data(), AccTile::Rows, 16, 16, true);
+    mad(dst.data(), lhs.data(), rhs.data(), AccTile::Rows, 16, 16, Initialize);
+}
+
+template <typename AccTile, typename LeftTile, typename RightTile>
+PTO_INTERNAL void TMATMUL_IMPL(AccTile& dst, LeftTile& lhs, RightTile& rhs)
+{
+    A1MatrixMultiply<true>(dst, lhs, rhs);
+}
+
+template <typename AccTile, typename LeftTile, typename RightTile>
+PTO_INTERNAL void TMATMUL_ACC_IMPL(AccTile& dst, AccTile& acc, LeftTile& lhs, RightTile& rhs)
+{
+    // DAV-M200 MAD accumulates in its destination; it cannot read a separate L0C buffer.
+    // Keep this contract active in release builds, where PTO_ASSERT is disabled.
+    if (dst.data() != acc.data()) {
+        trap();
+        return;
+    }
+    // Consecutive MADs need the previous L0C write to complete before reading it.
+    pipe_barrier(PIPE_M);
+    A1MatrixMultiply<false>(dst, lhs, rhs);
 }
 
 template <typename DstTile, typename SrcTile>

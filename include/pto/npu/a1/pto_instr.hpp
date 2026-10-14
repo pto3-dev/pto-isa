@@ -83,6 +83,14 @@ PTO_INST RecordEvent TMATMUL(AccTile& dst, LeftTile& lhs, RightTile& rhs, WaitEv
     return {};
 }
 
+template <typename AccTile, typename LeftTile, typename RightTile, typename... WaitEvents>
+PTO_INST RecordEvent TMATMUL_ACC(AccTile& dst, AccTile& acc, LeftTile& lhs, RightTile& rhs, WaitEvents&... events)
+{
+    TSYNC(events...);
+    TMATMUL_ACC_IMPL(dst, acc, lhs, rhs);
+    return {};
+}
+
 template <typename DstTile, typename Src0Tile, typename Src1Tile, typename... WaitEvents>
 PTO_INST RecordEvent TADD(DstTile& dst, Src0Tile& src0, Src1Tile& src1, WaitEvents&... events)
 {
