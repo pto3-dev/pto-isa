@@ -554,3 +554,5 @@ A1 `TADD`、`TSUB`、`TMUL` 支持静态完整 tile 的最后一次向量重复�
 A1 另提供限定为单个分形的矩阵配置：连续 ND FP16 16x16 输入加载至 ZZ Mat，`TMOV` 准备 NZ Left 与 ZN Right，`TMATMUL` 初始化 FP32 NZ 累加器。显式 `TMOV<Vec, Acc, AccToVecMode::SingleModeVec0>` 将单个分形写至 FP32 ND Vec，再通过 `TSTORE` 写回。更大形状、累加、融合 relu、双 worker 模式及直接累加器写回仍不支持。该 ISA 特性须另行适配前端并更新运行时锁定版本。`tests/compile/a1_single_fractal_gemm.cpp` 提供 CPU/原生探测，其中 `PTO_A1_TEST_MATRIX_TYPE`、`PTO_A1_TEST_MATRIX_SHAPE`、`PTO_A1_TEST_MATRIX_LAYOUT`、`PTO_A1_TEST_DUAL_MODE` 和 `PTO_A1_TEST_DIRECT_ACC_STORE` 五种变体须在原生编译时拒绝。
 
 限定的 16x16 矩阵配置中，Mat 输入可使用 ZZ 或标准 NZ 块布局。两者仅含一个外层块，均与 ND 元素顺序一致。`PTO_A1_TEST_MATRIX_NZ_INPUT` 选择 NZ 的 CPU/原生探测；该等价关系不适用于更大矩阵。
+
+A1 `TCVT` 支持静态完整行主序 ND Vec tile 的 FP16 与 FP32 互转，限定 `RoundMode::CAST_NONE` 及 `SaturationMode::OFF`。两种类型的行均须按 32 字节对齐。硬件 FP32 到 FP16 转换按最近偶数舍入，并保留有符号零、次正规数及无穷值；保留 NaN 位置但不保证其 payload。超过 255 次重复会拆分，最后不足一次重复的元素使用掩码。缓冲区须互不重叠，唯独允许 FP32 到 FP16 缩窄时起始地址完全相同。不支持的运行时模式或重叠即使未启用调试断言也会 trap。同类型转换、scratch 参数及其他类型互转仍未开放。`tests/compile/a1_floating_conversion.cpp` 覆盖 CPU/设备参考及扩宽、重复边界、尾部和缩窄复用变体。

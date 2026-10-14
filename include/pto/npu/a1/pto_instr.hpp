@@ -113,5 +113,19 @@ PTO_INST RecordEvent TSTORE(GlobalData& dst, TileData& src, WaitEvents&... event
     return {};
 }
 
+template <bool NeedSetCtrl = true, typename DstTile, typename SrcTile, typename... WaitEvents>
+PTO_INST RecordEvent TCVT(DstTile& dst, SrcTile& src, RoundMode mode, SaturationMode saturation, WaitEvents&... events)
+{
+    TSYNC(events...);
+    A1ConvertVector(dst, src, mode, saturation);
+    return {};
+}
+
+template <bool NeedSetCtrl = true, typename DstTile, typename SrcTile, typename... WaitEvents>
+PTO_INST RecordEvent TCVT(DstTile& dst, SrcTile& src, RoundMode mode, WaitEvents&... events)
+{
+    return TCVT<NeedSetCtrl>(dst, src, mode, SaturationMode::OFF, events...);
+}
+
 } // namespace pto
 #endif // PTO_NPU_A1_PTO_INSTR_HPP

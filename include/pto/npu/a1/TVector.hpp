@@ -75,6 +75,15 @@ PTO_INTERNAL void A1BinaryVectorRepeat(
     }
 }
 
+template <typename DstElement, typename SrcElement>
+PTO_INTERNAL void A1FloatingConvertRepeat(__ubuf__ DstElement* dst, __ubuf__ SrcElement* src, uint8_t repeats)
+{
+    if constexpr (sizeof(DstElement) == 2)
+        vconv_f322f16(dst, src, repeats, 1, 1, 4, 8);
+    else
+        vconv_f162f32(dst, src, repeats, 1, 1, 8, 4);
+}
+
 } // namespace detail
 
 template <typename TileData, typename GlobalData>
@@ -193,6 +202,48 @@ template <typename DstTile, typename Src0Tile, typename Src1Tile>
 PTO_INTERNAL void TMUL_IMPL(DstTile& dst, Src0Tile& src0, Src1Tile& src1)
 {
     A1BinaryVector<Op::TMUL>(dst, src0, src1);
+}
+
+template <typename DstTile, typename SrcTile>
+PTO_INTERNAL void A1ConvertVector(DstTile& dst, SrcTile& src, RoundMode mode, SaturationMode saturation)
+{
+    detail::CheckA1VectorTile<DstTile>();
+    detail::CheckA1VectorTile<SrcTile>();
+    PTO_STATIC_ASSERT(
+        DstTile::Rows == SrcTile::Rows && DstTile::Cols == SrcTile::Cols,
+        "A1 floating conversion requires matching tile shapes.");
+    PTO_STATIC_ASSERT(
+        (!std::is_same<typename DstTile::DType, typename SrcTile::DType>::value),
+        "A1 floating conversion requires an FP16/FP32 dtype pair.");
+    // Always enforce unsupported dynamic options; assertions cannot disappear
+    // in release builds and silently select another rounding operation.
+    if (mode != RoundMode::CAST_NONE || saturation != SaturationMode::OFF) {
+        trap();
+        return;
+    }
+    const uintptr_t dstBegin = reinterpret_cast<uintptr_t>(dst.data());
+    const uintptr_t srcBegin = reinterpret_cast<uintptr_t>(src.data());
+    constexpr unsigned dstBytes = DstTile::Numel * sizeof(typename DstTile::DType);
+    constexpr unsigned srcBytes = SrcTile::Numel * sizeof(typename SrcTile::DType);
+    if (!(dstBegin + dstBytes <= srcBegin || srcBegin + srcBytes <= dstBegin ||
+          (sizeof(typename DstTile::DType) == 2 && dstBegin == srcBegin))) {
+        trap();
+        return;
+    }
+    constexpr unsigned elementsPerRepeat = 64;
+    constexpr unsigned fullElements = DstTile::Numel / elementsPerRepeat * elementsPerRepeat;
+    constexpr unsigned tailElements = DstTile::Numel % elementsPerRepeat;
+    set_mask_norm();
+    set_vector_mask(0, UINT64_MAX);
+    for (unsigned offset = 0; offset < fullElements; offset += 255 * elementsPerRepeat) {
+        const unsigned remaining = (fullElements - offset) / elementsPerRepeat;
+        detail::A1FloatingConvertRepeat(dst.data() + offset, src.data() + offset, remaining > 255 ? 255 : remaining);
+    }
+    if constexpr (tailElements != 0) {
+        set_vector_mask(0, (uint64_t{1} << tailElements) - 1);
+        detail::A1FloatingConvertRepeat(dst.data() + fullElements, src.data() + fullElements, 1);
+    }
+    set_vector_mask(UINT64_MAX, UINT64_MAX);
 }
 
 } // namespace pto
