@@ -46,10 +46,22 @@ PTO_INTERNAL void TLOAD_IMPL(TileData& dst, GlobalData& src)
             ((std::is_same<typename GlobalData::RawDType, half>::value && GlobalData::layout == Layout::ND &&
               GlobalData::staticShape[0] == 1 && GlobalData::staticShape[1] == 1 && GlobalData::staticShape[2] == 1 &&
               GlobalData::staticShape[3] == TileData::Rows && GlobalData::staticShape[4] == 16 &&
-              GlobalData::staticStride[3] == 16 && GlobalData::staticStride[4] == 1)),
-            "A1 matrix load requires a matching contiguous static FP16 Nx16 ND tensor.");
+              GlobalData::staticStride[3] >= 16 && GlobalData::staticStride[3] % 16 == 0 &&
+              GlobalData::staticStride[4] == 1)),
+            "A1 matrix load requires a matching static FP16 Nx16 ND tensor with aligned rows.");
         // One outer column of ZZ/NZ fractals has the same element order as ND.
-        copy_gm_to_cbuf(dst.data(), src.data(), 0, 1, TileData::Rows, 0, 0, (pad_t)0);
+        constexpr uint64_t globalGap = (GlobalData::staticStride[3] - 16) / 16;
+        if constexpr (globalGap == 0) {
+            copy_gm_to_cbuf(dst.data(), src.data(), 0, 1, TileData::Rows, 0, 0, (pad_t)0);
+        } else if constexpr (globalGap <= UINT16_MAX) {
+            // At most 2048 rows fit the 12-bit burst count; each row is one 32-byte block.
+            copy_gm_to_cbuf(dst.data(), src.data(), 0, TileData::Rows, 1, globalGap, 0, (pad_t)0);
+        } else {
+            // Do not truncate wide GM gaps to the DMA instruction's 16-bit stride.
+            for (unsigned row = 0; row < TileData::Rows; ++row)
+                copy_gm_to_cbuf(
+                    dst.data() + row * 16, src.data() + row * GlobalData::staticStride[3], 0, 1, 1, 0, 0, (pad_t)0);
+        }
     }
 }
 
