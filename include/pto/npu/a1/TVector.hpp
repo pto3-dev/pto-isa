@@ -62,13 +62,16 @@ PTO_INTERNAL void CheckA1VectorTransfer()
 }
 
 template <Op Operation, typename Element>
-PTO_INTERNAL void A1BinaryVectorRepeat(
-    __ubuf__ Element* dst, __ubuf__ Element* src0, __ubuf__ Element* src1, uint8_t repeats)
+PTO_INTERNAL void A1VectorRepeat(__ubuf__ Element* dst, __ubuf__ Element* src0, __ubuf__ Element* src1, uint8_t repeats)
 {
     if constexpr (Operation == Op::TADD) {
         vadd(dst, src0, src1, repeats, 1, 1, 1, 8, 8, 8);
     } else if constexpr (Operation == Op::TSUB) {
         vsub(dst, src0, src1, repeats, 1, 1, 1, 8, 8, 8);
+    } else if constexpr (Operation == Op::TDIV) {
+        vdiv(dst, src0, src1, repeats, 1, 1, 1, 8, 8, 8);
+    } else if constexpr (Operation == Op::TEXP) {
+        vexp(dst, src0, repeats, 1, 1, 8, 8);
     } else {
         static_assert(Operation == Op::TMUL);
         vmul(dst, src0, src1, repeats, 1, 1, 1, 8, 8, 8);
@@ -144,7 +147,7 @@ PTO_INTERNAL void TSTORE_IMPL(GlobalData& dst, TileData& src)
 }
 
 template <Op Operation, typename DstTile, typename Src0Tile, typename Src1Tile>
-PTO_INTERNAL void A1BinaryVector(DstTile& dst, Src0Tile& src0, Src1Tile& src1)
+PTO_INTERNAL void A1ElementwiseVector(DstTile& dst, Src0Tile& src0, Src1Tile& src1)
 {
     detail::CheckA1VectorTile<DstTile>();
     detail::CheckA1VectorTile<Src0Tile>();
@@ -168,8 +171,7 @@ PTO_INTERNAL void A1BinaryVector(DstTile& dst, Src0Tile& src0, Src1Tile& src1)
     for (unsigned offset = 0; offset < fullElements; offset += 255 * elementsPerRepeat) {
         const unsigned remaining = (fullElements - offset) / elementsPerRepeat;
         const uint8_t repeats = remaining > 255 ? 255 : remaining;
-        detail::A1BinaryVectorRepeat<Operation>(
-            dst.data() + offset, src0.data() + offset, src1.data() + offset, repeats);
+        detail::A1VectorRepeat<Operation>(dst.data() + offset, src0.data() + offset, src1.data() + offset, repeats);
     }
     if constexpr (tailElements != 0) {
         constexpr uint64_t lowMask = tailElements >= 64 ? UINT64_MAX : (UINT64_C(1) << (tailElements % 64)) - 1;
@@ -177,7 +179,7 @@ PTO_INTERNAL void A1BinaryVector(DstTile& dst, Src0Tile& src0, Src1Tile& src1)
             tailElements <= 64 ? 0 : (UINT64_C(1) << (tailElements > 64 ? tailElements - 64 : 0)) - 1;
         // The inactive lanes may belong to an adjacent tile or alias source.
         set_vector_mask(highMask, lowMask);
-        detail::A1BinaryVectorRepeat<Operation>(
+        detail::A1VectorRepeat<Operation>(
             dst.data() + fullElements, src0.data() + fullElements, src1.data() + fullElements, 1);
         if constexpr (elementsPerRepeat == 128)
             set_vector_mask(UINT64_MAX, UINT64_MAX);
@@ -189,19 +191,33 @@ PTO_INTERNAL void A1BinaryVector(DstTile& dst, Src0Tile& src0, Src1Tile& src1)
 template <typename DstTile, typename Src0Tile, typename Src1Tile>
 PTO_INTERNAL void TADD_IMPL(DstTile& dst, Src0Tile& src0, Src1Tile& src1)
 {
-    A1BinaryVector<Op::TADD>(dst, src0, src1);
+    A1ElementwiseVector<Op::TADD>(dst, src0, src1);
 }
 
 template <typename DstTile, typename Src0Tile, typename Src1Tile>
 PTO_INTERNAL void TSUB_IMPL(DstTile& dst, Src0Tile& src0, Src1Tile& src1)
 {
-    A1BinaryVector<Op::TSUB>(dst, src0, src1);
+    A1ElementwiseVector<Op::TSUB>(dst, src0, src1);
 }
 
 template <typename DstTile, typename Src0Tile, typename Src1Tile>
 PTO_INTERNAL void TMUL_IMPL(DstTile& dst, Src0Tile& src0, Src1Tile& src1)
 {
-    A1BinaryVector<Op::TMUL>(dst, src0, src1);
+    A1ElementwiseVector<Op::TMUL>(dst, src0, src1);
+}
+
+template <auto PrecisionType = DivAlgorithm::DEFAULT, typename DstTile, typename Src0Tile, typename Src1Tile>
+PTO_INTERNAL void TDIV_IMPL(DstTile& dst, Src0Tile& src0, Src1Tile& src1)
+{
+    PTO_STATIC_ASSERT(PrecisionType == DivAlgorithm::DEFAULT, "A1 division supports default precision only.");
+    A1ElementwiseVector<Op::TDIV>(dst, src0, src1);
+}
+
+template <auto PrecisionType = ExpAlgorithm::DEFAULT, typename DstTile, typename SrcTile>
+PTO_INTERNAL void TEXP_IMPL(DstTile& dst, SrcTile& src)
+{
+    PTO_STATIC_ASSERT(PrecisionType == ExpAlgorithm::DEFAULT, "A1 exponential supports default precision only.");
+    A1ElementwiseVector<Op::TEXP>(dst, src, src);
 }
 
 template <typename DstTile, typename SrcTile>

@@ -560,3 +560,5 @@ A1 `TCVT` 支持静态完整行主序 ND Vec tile 的 FP16 与 FP32 互转，限
 `TMATMUL_ACC(dst, acc, lhs, rhs)` 支持上述窄矩阵配置的原位累加。先用 `TMATMUL` 初始化；`dst` 与 `acc` 必须为同类型且指向同一 L0C 存储，否则 release 构建也会 trap。每次累加 MAD 前执行 PIPE_M barrier，保证 L0C 写后读依赖。暂不支持 AccPhase 参数。`tests/compile/a1_narrow_gemm_accumulation.cpp` 验证连续三次 MAD 累加。
 
 A1 Mat `TLOAD` 支持静态 Nx16 FP16 面板的跨步 ND 行，行跨度至少 16 且按 16 元素对齐。32 字节块间隔不超过 65535 时使用逐行 burst，否则分行拷贝以避免截断。目标仍是连续 ZZ/NZ 面板；测试包含非零对齐列偏移和大间隔。此路径可从更宽的输入矩阵中加载 K/N 面板，MAD 本身仍限定 K=N=16。
+
+A1 `TEXP` 和 `TDIV` 支持完整静态 ND FP16/FP32 Vec tile，使用默认精度（default precision）。两者共用算术掩码和 255 次重复分批路径，支持输入输出地址完全相同的原位执行，不支持部分重叠。高精度变体会被拒绝。`tests/compile/a1_exp_div_vector.cpp` 覆盖两种指令和原位变体。指数和除法使用硬件近似运算；除零及极端数值遵循目标行为，不承诺跨平台 IEEE 语义。
