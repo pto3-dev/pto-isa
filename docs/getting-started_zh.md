@@ -564,3 +564,5 @@ A1 Mat `TLOAD` 支持静态 Nx16 FP16 面板的跨步 ND 行，行跨度至少 1
 A1 `TEXP` 和 `TDIV` 支持完整静态 ND FP16/FP32 Vec tile，使用默认精度（default precision）。两者共用算术掩码和 255 次重复分批路径，支持输入输出地址完全相同的原位执行，不支持部分重叠。高精度变体会被拒绝。`tests/compile/a1_exp_div_vector.cpp` 覆盖两种指令和原位变体。指数和除法使用硬件近似运算；除零及极端数值遵循目标行为，不承诺跨平台 IEEE 语义。
 
 A1 `TEXPANDS` 将 FP16/FP32 标量广播（scalar broadcast）到静态完整 ND Vec tile。它与逐元素运算共用尾部掩码及 255 次重复分批。`tests/compile/a1_scalar_broadcast.cpp` 和配套原生 pytest 覆盖标量逐位结果、带符号零和相邻缓冲区哨兵。
+
+A1 `TROWSUM`/`TROWMAX` 将完整静态行主序 FP16/FP32 输入归约为紧凑列主序（packed column-major）Mx1 Vec 结果，需要不重叠的同类型完整大小行主序临时缓冲区。M 须使紧凑结果满足 32 字节对齐，普通输入行仍须对齐。连续 Mx1 的 ND/DN 传输物理等价，支持对齐的分区偏移。m200 行最大值的数值/索引对经显式向量/标量同步后打包为数值。`TCOLSUM`/`TCOLMAX` 沿行维归约为同列宽的 1xN 行主序结果；列求和目前仅支持无临时缓冲区的顺序形式。输入、输出和临时缓冲区不得重叠。求和保持 tile 数据类型，需要 FP32 累加时应使用 FP32 输入。原生回归使用有限数值，NaN 和带符号零的并列值行为取决于目标硬件。动态形状、未对齐尾部及归约结果的行列广播仍需独立支持。
