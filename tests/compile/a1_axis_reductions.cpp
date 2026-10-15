@@ -47,7 +47,14 @@ extern "C" __global__ AICORE void A1AxisReduce(__gm__ Element* out, __gm__ Eleme
     Src src;
     Dst dst;
     pto::TASSIGN<0>(src);
+#if defined(PTO_A1_TEST_COLUMN_ALIAS)
+    static_assert(!RowReduction, "Column alias testing requires a column reduction.");
+    constexpr unsigned outputAddress = 0;
+    constexpr unsigned guardAddress = SourceBytes;
+#else
     constexpr unsigned outputAddress = RowReduction ? 2 * SourceBytes : SourceBytes;
+    constexpr unsigned guardAddress = outputAddress + OutCount * sizeof(Element);
+#endif
     pto::TASSIGN<outputAddress>(dst);
     SrcGlobal gs(input);
     DstGlobal gd(out);
@@ -55,7 +62,7 @@ extern "C" __global__ AICORE void A1AxisReduce(__gm__ Element* out, __gm__ Eleme
     using GuardGlobal = pto::GlobalTensor<Element, pto::Shape<1, 1, 1, 1, 16>, pto::Stride<1, 1, 1, 16, 1>>;
     Guard guard;
     GuardGlobal gg(out + OutCount);
-    pto::TASSIGN<outputAddress + OutCount * sizeof(Element)>(guard);
+    pto::TASSIGN<guardAddress>(guard);
     pto::TLOAD(src, gs);
     pto::TLOAD(guard, gg);
 #if !defined(__CPU_SIM)

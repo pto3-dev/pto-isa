@@ -33,7 +33,9 @@ PTO_INTERNAL void A1ColumnReduction(DstTile& dst, SrcTile& src)
         DstTile::Rows == 1 && DstTile::Cols == SrcTile::Cols &&
             (std::is_same<typename DstTile::DType, typename SrcTile::DType>::value),
         "A1 column reductions require matching FP16/FP32 1xN row results.");
-    if (A1BuffersOverlap(dst, src)) {
+    // Sequential reduction may reuse the first source row: it is consumed
+    // before later rows, and the result never overwrites those later rows.
+    if (A1BuffersOverlap(dst, src) && dst.data() != src.data()) {
         trap();
         return;
     }

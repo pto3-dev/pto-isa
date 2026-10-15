@@ -44,7 +44,7 @@ def test_a1_column_reduction_limits(tmp_path, fp16, kind, wide):
     _check_reduction(tmp_path, fp16, kind, rows, cols)
 
 
-def _check_reduction(tmp_path, fp16, kind, rows, cols):
+def _check_reduction(tmp_path, fp16, kind, rows, cols, inplace=False):
     root = Path(__file__).resolve().parents[2]
     source = (root / "tests/compile/a1_axis_reductions.cpp").read_text()
     source = source.replace('extern "C" __global__ AICORE void A1AxisReduce', "AICORE void A1AxisReduce")
@@ -53,6 +53,8 @@ def _check_reduction(tmp_path, fp16, kind, rows, cols):
     )
     if fp16:
         definitions += "#define PTO_A1_TEST_FP16\n"
+    if inplace:
+        definitions += "#define PTO_A1_TEST_COLUMN_ALIAS\n"
     wrapper = r"""
 #include "tensor.h"
 extern "C" __global__ AICORE void NativeAxisReduce(__gm__ int64_t* args) {
@@ -116,6 +118,13 @@ extern "C" __global__ AICORE void NativePackedColumnDMA(__gm__ int64_t* args) {
     assert torch.equal(out[16 : rows + 16], src)
     assert torch.equal(out[:16], torch.full((16, 1), 7.0, dtype=dtype))
     assert torch.equal(out[rows + 16 :], torch.full((16, 1), 7.0, dtype=dtype))
+
+
+@pytest.mark.parametrize("fp16", [False, True])
+@pytest.mark.parametrize("kind", [2, 3])
+@pytest.mark.parametrize("cols", [16, 80])
+def test_a1_column_reduction_first_row_alias(tmp_path, fp16, kind, cols):
+    _check_reduction(tmp_path, fp16, kind, 16, cols, inplace=True)
 
 
 if __name__ == "__main__":
