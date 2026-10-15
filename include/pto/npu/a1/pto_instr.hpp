@@ -13,6 +13,7 @@ See LICENSE in the root of the software repository for the full text of the Lice
 
 #include <pto/common/arch_cce_intrinsic.hpp>
 #include <pto/common/tassign_check.hpp>
+#include <pto/npu/a1/TExpand.hpp>
 #include <pto/npu/a1/TMatrix.hpp>
 #include <pto/npu/a1/TReduce.hpp>
 #include <pto/npu/a1/TSync.hpp>
@@ -161,6 +162,22 @@ PTO_INST RecordEvent TROWMAX(DstTile& dst, SrcTile& src, TmpTile& tmp, WaitEvent
 {
     TSYNC(events...);
     TROWMAX_IMPL(dst, src, tmp);
+    return {};
+}
+
+template <typename DstTile, typename SrcTile, typename... WaitEvents>
+PTO_INST RecordEvent TROWEXPAND(DstTile& dst, SrcTile& src, WaitEvents&... events)
+{
+    TSYNC(events...);
+    TROWEXPAND_IMPL(dst, src);
+    return {};
+}
+
+template <typename DstTile, typename SrcTile, typename... WaitEvents>
+PTO_INST RecordEvent TCOLEXPAND(DstTile& dst, SrcTile& src, WaitEvents&... events)
+{
+    TSYNC(events...);
+    TCOLEXPAND_IMPL(dst, src);
     return {};
 }
 
