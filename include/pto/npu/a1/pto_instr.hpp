@@ -113,6 +113,24 @@ PTO_INST RecordEvent TMUL(DstTile& dst, Src0Tile& src0, Src1Tile& src1, WaitEven
     return {};
 }
 
+template <
+    auto PrecisionType = DivAlgorithm::DEFAULT, typename DstTile, typename Src0Tile, typename Src1Tile,
+    typename... WaitEvents>
+PTO_INST RecordEvent TDIV(DstTile& dst, Src0Tile& src0, Src1Tile& src1, WaitEvents&... events)
+{
+    TSYNC(events...);
+    TDIV_IMPL<PrecisionType>(dst, src0, src1);
+    return {};
+}
+
+template <auto PrecisionType = ExpAlgorithm::DEFAULT, typename DstTile, typename SrcTile, typename... WaitEvents>
+PTO_INST RecordEvent TEXP(DstTile& dst, SrcTile& src, WaitEvents&... events)
+{
+    TSYNC(events...);
+    TEXP_IMPL<PrecisionType>(dst, src);
+    return {};
+}
+
 template <typename TileData, typename GlobalData, AtomicType Atomic = AtomicType::AtomicNone, typename... WaitEvents>
 PTO_INST RecordEvent TSTORE(GlobalData& dst, TileData& src, WaitEvents&... events)
 {
