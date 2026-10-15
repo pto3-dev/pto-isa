@@ -131,6 +131,14 @@ PTO_INST RecordEvent TEXP(DstTile& dst, SrcTile& src, WaitEvents&... events)
     return {};
 }
 
+template <typename TileData, typename... WaitEvents>
+PTO_INST RecordEvent TEXPANDS(TileData& dst, typename TileData::DType scalar, WaitEvents&... events)
+{
+    TSYNC(events...);
+    TEXPANDS_IMPL(dst, scalar);
+    return {};
+}
+
 template <typename TileData, typename GlobalData, AtomicType Atomic = AtomicType::AtomicNone, typename... WaitEvents>
 PTO_INST RecordEvent TSTORE(GlobalData& dst, TileData& src, WaitEvents&... events)
 {
