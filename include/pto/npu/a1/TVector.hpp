@@ -62,7 +62,8 @@ PTO_INTERNAL void CheckA1VectorTransfer()
 }
 
 template <Op Operation, typename Element>
-PTO_INTERNAL void A1VectorRepeat(__ubuf__ Element* dst, __ubuf__ Element* src0, __ubuf__ Element* src1, uint8_t repeats)
+PTO_INTERNAL void A1VectorRepeat(
+    __ubuf__ Element* dst, __ubuf__ Element* src0, __ubuf__ Element* src1, uint8_t repeats, Element scalar = 0)
 {
     if constexpr (Operation == Op::TADD) {
         vadd(dst, src0, src1, repeats, 1, 1, 1, 8, 8, 8);
@@ -70,6 +71,8 @@ PTO_INTERNAL void A1VectorRepeat(__ubuf__ Element* dst, __ubuf__ Element* src0, 
         vsub(dst, src0, src1, repeats, 1, 1, 1, 8, 8, 8);
     } else if constexpr (Operation == Op::TDIV) {
         vdiv(dst, src0, src1, repeats, 1, 1, 1, 8, 8, 8);
+    } else if constexpr (Operation == Op::TEXPANDS) {
+        vector_dup(dst, scalar, repeats, 1, 1, 8, 8);
     } else if constexpr (Operation == Op::TEXP) {
         vexp(dst, src0, repeats, 1, 1, 8, 8);
     } else {
@@ -147,7 +150,7 @@ PTO_INTERNAL void TSTORE_IMPL(GlobalData& dst, TileData& src)
 }
 
 template <Op Operation, typename DstTile, typename Src0Tile, typename Src1Tile>
-PTO_INTERNAL void A1ElementwiseVector(DstTile& dst, Src0Tile& src0, Src1Tile& src1)
+PTO_INTERNAL void A1ElementwiseVector(DstTile& dst, Src0Tile& src0, Src1Tile& src1, typename DstTile::DType scalar = 0)
 {
     detail::CheckA1VectorTile<DstTile>();
     detail::CheckA1VectorTile<Src0Tile>();
@@ -171,7 +174,8 @@ PTO_INTERNAL void A1ElementwiseVector(DstTile& dst, Src0Tile& src0, Src1Tile& sr
     for (unsigned offset = 0; offset < fullElements; offset += 255 * elementsPerRepeat) {
         const unsigned remaining = (fullElements - offset) / elementsPerRepeat;
         const uint8_t repeats = remaining > 255 ? 255 : remaining;
-        detail::A1VectorRepeat<Operation>(dst.data() + offset, src0.data() + offset, src1.data() + offset, repeats);
+        detail::A1VectorRepeat<Operation>(
+            dst.data() + offset, src0.data() + offset, src1.data() + offset, repeats, scalar);
     }
     if constexpr (tailElements != 0) {
         constexpr uint64_t lowMask = tailElements >= 64 ? UINT64_MAX : (UINT64_C(1) << (tailElements % 64)) - 1;
@@ -180,7 +184,7 @@ PTO_INTERNAL void A1ElementwiseVector(DstTile& dst, Src0Tile& src0, Src1Tile& sr
         // The inactive lanes may belong to an adjacent tile or alias source.
         set_vector_mask(highMask, lowMask);
         detail::A1VectorRepeat<Operation>(
-            dst.data() + fullElements, src0.data() + fullElements, src1.data() + fullElements, 1);
+            dst.data() + fullElements, src0.data() + fullElements, src1.data() + fullElements, 1, scalar);
         if constexpr (elementsPerRepeat == 128)
             set_vector_mask(UINT64_MAX, UINT64_MAX);
         else
@@ -204,6 +208,13 @@ template <typename DstTile, typename Src0Tile, typename Src1Tile>
 PTO_INTERNAL void TMUL_IMPL(DstTile& dst, Src0Tile& src0, Src1Tile& src1)
 {
     A1ElementwiseVector<Op::TMUL>(dst, src0, src1);
+}
+
+template <typename TileData>
+PTO_INTERNAL void TEXPANDS_IMPL(TileData& dst, typename TileData::DType scalar)
+{
+    // The scalar specialization does not read either source pointer.
+    A1ElementwiseVector<Op::TEXPANDS>(dst, dst, dst, scalar);
 }
 
 template <auto PrecisionType = DivAlgorithm::DEFAULT, typename DstTile, typename Src0Tile, typename Src1Tile>

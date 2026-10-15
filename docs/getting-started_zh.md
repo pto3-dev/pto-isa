@@ -562,3 +562,5 @@ A1 `TCVT` 支持静态完整行主序 ND Vec tile 的 FP16 与 FP32 互转，限
 A1 Mat `TLOAD` 支持静态 Nx16 FP16 面板的跨步 ND 行，行跨度至少 16 且按 16 元素对齐。32 字节块间隔不超过 65535 时使用逐行 burst，否则分行拷贝以避免截断。目标仍是连续 ZZ/NZ 面板；测试包含非零对齐列偏移和大间隔。此路径可从更宽的输入矩阵中加载 K/N 面板，MAD 本身仍限定 K=N=16。
 
 A1 `TEXP` 和 `TDIV` 支持完整静态 ND FP16/FP32 Vec tile，使用默认精度（default precision）。两者共用算术掩码和 255 次重复分批路径，支持输入输出地址完全相同的原位执行，不支持部分重叠。高精度变体会被拒绝。`tests/compile/a1_exp_div_vector.cpp` 覆盖两种指令和原位变体。指数和除法使用硬件近似运算；除零及极端数值遵循目标行为，不承诺跨平台 IEEE 语义。
+
+A1 `TEXPANDS` 将 FP16/FP32 标量广播（scalar broadcast）到静态完整 ND Vec tile。它与逐元素运算共用尾部掩码及 255 次重复分批。`tests/compile/a1_scalar_broadcast.cpp` 和配套原生 pytest 覆盖标量逐位结果、带符号零和相邻缓冲区哨兵。
