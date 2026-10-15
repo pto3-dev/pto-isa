@@ -27,7 +27,7 @@ using Shape = pto::Shape<1, 1, 1, Rows, 1>;
 using Stride = pto::Stride<1, 1, 1, 1, 1>;
 using Input = pto::GlobalTensor<Element, Shape, Stride>;
 #if defined(PTO_A1_TEST_DN)
-using Output = pto::GlobalTensor<Element, Shape, Stride, pto::Layout::DN>;
+using Output = pto::GlobalTensor<Element, Shape, pto::Stride<1, 1, 1, 1, Rows + 32>, pto::Layout::DN>;
 #else
 using Output = pto::GlobalTensor<Element, Shape, Stride>;
 #endif

@@ -71,7 +71,7 @@ PTO_INTERNAL void CheckA1PackedColumnTransfer()
         (GlobalData::layout == Layout::ND || GlobalData::layout == Layout::DN) && GlobalData::staticShape[0] == 1 &&
             GlobalData::staticShape[1] == 1 && GlobalData::staticShape[2] == 1 &&
             GlobalData::staticShape[3] == TileData::Rows && GlobalData::staticShape[4] == 1 &&
-            GlobalData::staticStride[3] == 1 && GlobalData::staticStride[4] == 1,
+            GlobalData::staticStride[3] == 1 && GlobalData::staticStride[4] > 0,
         "A1 packed DMA requires a matching contiguous ND Mx1 tensor.");
 }
 
