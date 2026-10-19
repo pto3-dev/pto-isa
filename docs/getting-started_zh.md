@@ -499,3 +499,14 @@ L0A/L0B 各为 64 KiB，L0C 为 256 KiB。Bias、缩放缓冲及 scale tile 的�
 
 设备编译器还检查实际 TASSIGN 分配边界：4 KiB tile 放在 124 KiB 偏移处应成功。
 增加 `-DPTO_A1_TEST_OVERFLOW` 会将分配再偏移 32 字节，编译必须以 `SA-0353` 拒绝。
+
+### A1 核内事件
+
+A1 同步限定在耦合核心内部。load/add/store 对应 MTE2/V/MTE3；Acc-to-Vec 对应 V，
+Vec-to-Mat 对应 MTE3。不支持的直接累加器 store 保留未知 pipe 标记，不声明 FIX pipe 路径。
+自动事件编号使用 0 到 6，ID 7 留给 ISA helper。显式 ID 7、跨核 ID 和 FFTS 地址在编译时拒绝。
+
+`tests/compile/a1_local_events.cpp` 使用 CCEC 编译本地 set/wait/barrier 序列。
+主机测试让编号循环 100 次，确认不会返回 ID 7。`PTO_A1_TEST_RESERVED_ID` 和
+`PTO_A1_TEST_CROSS_CORE` 选择负向编译测试。上述检查不代表 NPU 同步正确性已验证；
+实际指令执行仍须单独验收。
