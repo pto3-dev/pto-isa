@@ -22,6 +22,15 @@ See LICENSE in the root of the software repository for the full text of the Lice
 namespace pto {
 namespace detail {
 
+template <typename First, typename Second>
+PTO_INTERNAL bool A1BuffersOverlap(First& first, Second& second)
+{
+    const uintptr_t a = reinterpret_cast<uintptr_t>(first.data());
+    const uintptr_t b = reinterpret_cast<uintptr_t>(second.data());
+    return a < b + Second::Numel * sizeof(typename Second::DType) &&
+           b < a + First::Numel * sizeof(typename First::DType);
+}
+
 template <typename TileData>
 PTO_INTERNAL void CheckA1VectorTile()
 {
