@@ -13,7 +13,9 @@ See LICENSE in the root of the software repository for the full text of the Lice
 
 #include <pto/common/arch_cce_intrinsic.hpp>
 #include <pto/common/tassign_check.hpp>
+#include <pto/npu/a1/TExpand.hpp>
 #include <pto/npu/a1/TMatrix.hpp>
+#include <pto/npu/a1/TReduce.hpp>
 #include <pto/npu/a1/TSync.hpp>
 #include <pto/npu/a1/TVector.hpp>
 // This assignment helper only assigns typed addresses and has no A2/A3 instructions.
@@ -110,6 +112,80 @@ PTO_INST RecordEvent TMUL(DstTile& dst, Src0Tile& src0, Src1Tile& src1, WaitEven
 {
     TSYNC(events...);
     TMUL_IMPL(dst, src0, src1);
+    return {};
+}
+
+template <
+    auto PrecisionType = DivAlgorithm::DEFAULT, typename DstTile, typename Src0Tile, typename Src1Tile,
+    typename... WaitEvents>
+PTO_INST RecordEvent TDIV(DstTile& dst, Src0Tile& src0, Src1Tile& src1, WaitEvents&... events)
+{
+    TSYNC(events...);
+    TDIV_IMPL<PrecisionType>(dst, src0, src1);
+    return {};
+}
+
+template <auto PrecisionType = ExpAlgorithm::DEFAULT, typename DstTile, typename SrcTile, typename... WaitEvents>
+PTO_INST RecordEvent TEXP(DstTile& dst, SrcTile& src, WaitEvents&... events)
+{
+    TSYNC(events...);
+    TEXP_IMPL<PrecisionType>(dst, src);
+    return {};
+}
+
+template <typename DstTile, typename SrcTile, typename... WaitEvents>
+PTO_INST RecordEvent TCOLSUM(DstTile& dst, SrcTile& src, WaitEvents&... events)
+{
+    TSYNC(events...);
+    TCOLSUM_IMPL(dst, src);
+    return {};
+}
+
+template <typename DstTile, typename SrcTile, typename... WaitEvents>
+PTO_INST RecordEvent TCOLMAX(DstTile& dst, SrcTile& src, WaitEvents&... events)
+{
+    TSYNC(events...);
+    TCOLMAX_IMPL(dst, src);
+    return {};
+}
+
+template <typename DstTile, typename SrcTile, typename TmpTile, typename... WaitEvents>
+PTO_INST RecordEvent TROWSUM(DstTile& dst, SrcTile& src, TmpTile& tmp, WaitEvents&... events)
+{
+    TSYNC(events...);
+    TROWSUM_IMPL(dst, src, tmp);
+    return {};
+}
+
+template <typename DstTile, typename SrcTile, typename TmpTile, typename... WaitEvents>
+PTO_INST RecordEvent TROWMAX(DstTile& dst, SrcTile& src, TmpTile& tmp, WaitEvents&... events)
+{
+    TSYNC(events...);
+    TROWMAX_IMPL(dst, src, tmp);
+    return {};
+}
+
+template <typename DstTile, typename SrcTile, typename... WaitEvents>
+PTO_INST RecordEvent TROWEXPAND(DstTile& dst, SrcTile& src, WaitEvents&... events)
+{
+    TSYNC(events...);
+    TROWEXPAND_IMPL(dst, src);
+    return {};
+}
+
+template <typename DstTile, typename SrcTile, typename... WaitEvents>
+PTO_INST RecordEvent TCOLEXPAND(DstTile& dst, SrcTile& src, WaitEvents&... events)
+{
+    TSYNC(events...);
+    TCOLEXPAND_IMPL(dst, src);
+    return {};
+}
+
+template <typename TileData, typename... WaitEvents>
+PTO_INST RecordEvent TEXPANDS(TileData& dst, typename TileData::DType scalar, WaitEvents&... events)
+{
+    TSYNC(events...);
+    TEXPANDS_IMPL(dst, scalar);
     return {};
 }
 
