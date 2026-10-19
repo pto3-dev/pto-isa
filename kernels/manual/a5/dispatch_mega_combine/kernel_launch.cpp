@@ -26,9 +26,9 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #include "kernel_launch.hpp"
 #include "op_kernel/utils/hccl_window.hpp"
 
-AICORE inline void RunMegaMoe(GM_ADDR x, GM_ADDR w1, GM_ADDR w2, GM_ADDR expertId, GM_ADDR weightScale1,
-                              GM_ADDR weightScale2, GM_ADDR probs, GM_ADDR c, GM_ADDR expertTokenNums,
-                              GM_ADDR workspaceGM, const __gm__ MegaMoeTilingData *tilingData)
+AICORE inline void RunMegaMoe(
+    GM_ADDR x, GM_ADDR w1, GM_ADDR w2, GM_ADDR expertId, GM_ADDR weightScale1, GM_ADDR weightScale2, GM_ADDR probs,
+    GM_ADDR c, GM_ADDR expertTokenNums, GM_ADDR workspaceGM, const __gm__ MegaMoeTilingData* tilingData)
 {
     MegaMoe<bfloat16_t> op;
     op.Init(x, w1, w2, expertId, weightScale1, weightScale2, probs, c, expertTokenNums, workspaceGM, tilingData);
@@ -36,70 +36,55 @@ AICORE inline void RunMegaMoe(GM_ADDR x, GM_ADDR w1, GM_ADDR w2, GM_ADDR expertI
 }
 
 extern "C" __global__ __aicore__ void dispatch_mega_combine_kernel(
-    GM_ADDR fftsAddr, GM_ADDR x, GM_ADDR w1, GM_ADDR w2, GM_ADDR expertId, GM_ADDR weightScale1,
-    GM_ADDR weightScale2, GM_ADDR probs, GM_ADDR c, GM_ADDR expertTokenNums, GM_ADDR workspaceGM, GM_ADDR tilingGM,
-    GM_ADDR kernelTimingGM, uint32_t startSync)
+    GM_ADDR fftsAddr, GM_ADDR x, GM_ADDR w1, GM_ADDR w2, GM_ADDR expertId, GM_ADDR weightScale1, GM_ADDR weightScale2,
+    GM_ADDR probs, GM_ADDR c, GM_ADDR expertTokenNums, GM_ADDR workspaceGM, GM_ADDR tilingGM, GM_ADDR kernelTimingGM,
+    uint32_t startSync)
 {
     size_t timingEntryIndex = static_cast<size_t>(get_block_idx()) * kMegaMoeKernelTimingEntriesPerBlock;
 #if defined(__DAV_VEC__)
     timingEntryIndex += static_cast<size_t>(get_subblockid()) + 1U;
 #endif
-    volatile __gm__ MegaMoeKernelTimingEntry *timingEntry = nullptr;
-    if (kernelTimingGM != nullptr) {
-        timingEntry = reinterpret_cast<volatile __gm__ MegaMoeKernelTimingEntry *>(
-            kernelTimingGM + timingEntryIndex * kMegaMoeKernelTimingEntryBytes);
-    }
+    volatile __gm__ MegaMoeKernelTimingEntry* timingEntry = reinterpret_cast<volatile __gm__ MegaMoeKernelTimingEntry*>(
+        kernelTimingGM + timingEntryIndex * kMegaMoeKernelTimingEntryBytes);
 
     if (fftsAddr != nullptr) {
         set_ffts_base_addr(reinterpret_cast<uint64_t>(fftsAddr));
     }
-    if (workspaceGM != nullptr && tilingGM != nullptr) {
-        const __gm__ MegaMoeTilingData *tilingData = reinterpret_cast<__gm__ MegaMoeTilingData *>(tilingGM);
+    const __gm__ MegaMoeTilingData* tilingData = reinterpret_cast<__gm__ MegaMoeTilingData*>(tilingGM);
 #if defined(__DAV_VEC__)
-        if (get_block_idx() == 0U && get_subblockid() == 0U) {
-            ResetFixedSyncWorkspace(workspaceGM, tilingData);
-            PtoRemoteWindow remoteWindow;
-            remoteWindow.Init(reinterpret_cast<GM_ADDR>(tilingData->runtimeInfo.remoteWindowContext));
-            remoteWindow.PrepareDataReadyEpoch();
-        }
+    if (get_block_idx() == 0U && get_subblockid() == 0U) {
+        ResetFixedSyncWorkspace(workspaceGM, tilingData);
+        PtoRemoteWindow remoteWindow;
+        remoteWindow.Init(reinterpret_cast<GM_ADDR>(tilingData->runtimeInfo.remoteWindowContext));
+        remoteWindow.PrepareDataReadyEpoch();
+    }
+#endif
+    pto::SYNCALL<pto::SyncCoreType::Mix>();
+    if (startSync != 0U) {
+        PtoRemoteWindow remoteWindow;
+        remoteWindow.Init(reinterpret_cast<GM_ADDR>(tilingData->runtimeInfo.remoteWindowContext));
+#if defined(__DAV_VEC__)
+        remoteWindow.CrossRankStartSyncAiv();
+#elif defined(__DAV_CUBE__)
+        remoteWindow.CrossRankStartSyncAic();
 #endif
         pto::SYNCALL<pto::SyncCoreType::Mix>();
-        if (startSync != 0U) {
-            PtoRemoteWindow remoteWindow;
-            remoteWindow.Init(reinterpret_cast<GM_ADDR>(tilingData->runtimeInfo.remoteWindowContext));
-#if defined(__DAV_VEC__)
-            remoteWindow.CrossRankStartSyncAiv();
-#elif defined(__DAV_CUBE__)
-            remoteWindow.CrossRankStartSyncAic();
-#endif
-            pto::SYNCALL<pto::SyncCoreType::Mix>();
-        }
-
-        const uint64_t startTick = get_sys_cnt();
-        if (timingEntry != nullptr) {
-            timingEntry->start = startTick;
-        }
-        RunMegaMoe(x, w1, w2, expertId, weightScale1, weightScale2, probs, c, expertTokenNums, workspaceGM,
-                   tilingData);
     }
+
+    timingEntry->start = get_sys_cnt();
+    RunMegaMoe(x, w1, w2, expertId, weightScale1, weightScale2, probs, c, expertTokenNums, workspaceGM, tilingData);
 
     pipe_barrier(PIPE_ALL);
-    const uint64_t endTick = get_sys_cnt();
-    if (timingEntry != nullptr) {
-        timingEntry->end = endTick;
-    }
+    timingEntry->end = get_sys_cnt();
     // Retire one scalar GM completion transaction after all mixed-core work.
     // This is an ordering primitive for A5 stream completion, not profiling state.
-    if (workspaceGM != nullptr && tilingGM != nullptr) {
-        const __gm__ MegaMoeTilingData *completionTiling = reinterpret_cast<const __gm__ MegaMoeTilingData *>(tilingGM);
-        volatile __gm__ uint32_t *completionEntry = reinterpret_cast<volatile __gm__ uint32_t *>(
-            workspaceGM + completionTiling->fixedGroupTiling.completionOffset +
-            static_cast<uint64_t>(get_block_idx()) * kMegaMoeFixedCompletionSlotBytes);
-        *completionEntry = kMegaMoeFixedCompletionMarker;
-    }
+    volatile __gm__ uint32_t* completionEntry = reinterpret_cast<volatile __gm__ uint32_t*>(
+        workspaceGM + tilingData->fixedGroupTiling.completionOffset +
+        static_cast<uint64_t>(get_block_idx()) * kMegaMoeFixedCompletionSlotBytes);
+    *completionEntry = kMegaMoeFixedCompletionMarker;
 }
 
-void launchMegaMoe(const MegaMoeLaunchArgs &args, void *stream)
+void launchMegaMoe(const MegaMoeLaunchArgs& args, void* stream)
 {
     dispatch_mega_combine_kernel<<<args.block_dim, nullptr, stream>>>(
         (GM_ADDR)args.ffts, (GM_ADDR)args.x, (GM_ADDR)args.weight1, (GM_ADDR)args.weight2, (GM_ADDR)args.expert_idx,

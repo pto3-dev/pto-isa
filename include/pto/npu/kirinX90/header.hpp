@@ -22,7 +22,6 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #include "pto/npu/kirinX90/common.hpp"
 #include "pto/npu/kirin9030/utils.hpp"
 #include "pto/npu/kirinX90/datatype.hpp"
-#include "pto/npu/a2a3/TSubView.hpp"
 #include "pto/npu/kirinX90/TLoad.hpp"
 #include "pto/npu/kirinX90/TStore.hpp"
 #include "pto/npu/kirinX90/TExtract.hpp"

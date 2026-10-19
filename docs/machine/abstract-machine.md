@@ -17,7 +17,7 @@ PTO supports two complementary usage styles:
   - The compiler schedules operations (and applies fusions such as VF fusion when available).
 - **PTO-Manual**: prioritize control and peak performance.
   - The programmer controls memory placement and binding (e.g., `TASSIGN`).
-  - The programmer is responsible for expressing ordering/synchronization (e.g., events, `TSYNC`).
+  - The programmer is responsible for expressing ordering/synchronization (e.g., events, event synchronization).
   - The programmer controls the operation schedule; the compiler focuses on local transformations and fusions.
 
 In practice, many applications mix both: start in PTO-Auto, then manually optimize the critical kernels.
@@ -94,7 +94,7 @@ The abstract rules are:
 - **Within a tile block on one core**, program order is preserved for operations that have explicit data or event dependencies.
 - **Across tile blocks and cores**, ordering is only guaranteed when expressed via:
   - Global-memory dependence (e.g., a `TSTORE` producing data later consumed by a `TLOAD`), as defined by the runtime/driver contract; and/or
-  - Explicit events/synchronization, as defined in `docs/coding/Event.md` and `docs/isa/TSYNC.md`.
+  - Explicit events/synchronization, as defined in `docs/coding/Event.md` and `docs/coding/Event.md`.
 
 Device implementations may execute independent tile blocks out of order and in parallel.
 

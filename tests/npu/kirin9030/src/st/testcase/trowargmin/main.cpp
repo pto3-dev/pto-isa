@@ -99,10 +99,10 @@ protected:
     inline bool AfterLaunch()
     {
         aclrtSynchronizeStream(this->stream);
-        std::vector<TIdx> golden(this->dstFileSize);
-        std::vector<TIdx> devFinal(this->dstFileSize);
-        std::vector<TVal> goldenVal(this->dstValFileSize);
-        std::vector<TVal> devValFinal(this->dstValFileSize);
+        std::vector<TIdx> golden(this->dstFileSize / sizeof(TIdx));
+        std::vector<TIdx> devFinal(this->dstFileSize / sizeof(TIdx));
+        std::vector<TVal> goldenVal(this->dstValFileSize / sizeof(TVal));
+        std::vector<TVal> devValFinal(this->dstValFileSize / sizeof(TVal));
         aclrtMemcpy(devFinal.data(), this->dstFileSize, this->dstDevice, this->dstFileSize, ACL_MEMCPY_DEVICE_TO_HOST);
         if (this->dstValFileSize) {
             aclrtMemcpy(

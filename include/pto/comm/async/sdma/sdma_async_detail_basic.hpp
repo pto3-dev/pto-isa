@@ -26,17 +26,12 @@ namespace detail {
 static_assert(kSdmaEventSlotCount > 0, "SDMA_EVENT_SLOT_COUNT must be >= 1");
 
 using UbTmpBuf = TmpBuffer;
-constexpr uint32_t kPostIdFlagBytes = sizeof(uint64_t);
 constexpr uint32_t kPostDoneStrideBytes = 64U;
-constexpr uint32_t kFlagPayloadSlotBytes = kPostIdFlagBytes;
-constexpr uint32_t kPostMaxQueues = kPostStateMaxQueues;
-constexpr uint32_t kFlagPayloadBytes = kFlagPayloadDepth * kFlagPayloadSlotBytes;
+constexpr uint64_t kSdmaInt32AtomicAddOpcode = 0x21U;
 constexpr uint32_t kPostPollLimit = 100000U;
 constexpr uint32_t kSdmaHandleQueueBits = 6U;
 constexpr uint32_t kSdmaHandlePostIdBits = 64U - kSdmaHandleQueueBits;
 constexpr uint64_t kSdmaHandlePostIdMask = (1ULL << kSdmaHandlePostIdBits) - 1ULL;
-static_assert(kFlagPayloadBytes == kSdmaFlagPayloadBytesPerGroup);
-static_assert(kPostMaxQueues == kSdmaMaxChannelGroups);
 
 PTO_INTERNAL uint64_t QueueCountToMask(uint32_t queueCount)
 {
@@ -45,7 +40,7 @@ PTO_INTERNAL uint64_t QueueCountToMask(uint32_t queueCount)
 
 PTO_INTERNAL bool EncodeSdmaEventHandle(uint64_t postId, uint32_t queueCount, uint64_t& handle)
 {
-    if (postId == 0ULL || postId > kSdmaHandlePostIdMask || queueCount == 0U || queueCount > kPostMaxQueues) {
+    if (postId == 0ULL || postId > kSdmaHandlePostIdMask || queueCount == 0U || queueCount > kSdmaMaxChannelGroups) {
         handle = 0ULL;
         return false;
     }
@@ -57,7 +52,7 @@ PTO_INTERNAL bool DecodeSdmaEventHandle(uint64_t handle, uint64_t& postId, uint3
 {
     postId = handle & kSdmaHandlePostIdMask;
     queueCount = static_cast<uint32_t>(handle >> kSdmaHandlePostIdBits);
-    if (postId == 0ULL || queueCount == 0U || queueCount > kPostMaxQueues) {
+    if (postId == 0ULL || queueCount == 0U || queueCount > kSdmaMaxChannelGroups) {
         postId = 0ULL;
         queueCount = 0U;
         return false;
@@ -220,13 +215,25 @@ PTO_INTERNAL __gm__ uint8_t* GetPostDoneRecordAddr(__gm__ uint8_t* postDoneBase,
 
 PTO_INTERNAL __gm__ uint8_t* GetFlagPayloadAddr(__gm__ uint8_t* flagPayloadBase, uint64_t postId)
 {
-    return flagPayloadBase + (postId % kFlagPayloadDepth) * kFlagPayloadSlotBytes;
+    return flagPayloadBase + (postId % kSdmaFlagPayloadDepth) * kSdmaPostIdFlagBytes;
+}
+
+PTO_INTERNAL __gm__ uint8_t* GetSignalValueSlotAddr(__gm__ uint8_t* signalValueSlotsBase, uint64_t postId)
+{
+    return signalValueSlotsBase + (postId % kSdmaFlagPayloadDepth) * kSdmaSignalValueBytes;
 }
 
 PTO_INTERNAL __gm__ uint8_t* ResolveFlagPayloadBase(const SdmaExecContext& execCtx)
 {
     return execCtx.contextGm + kSdmaContextWorkspaceBytes +
            static_cast<uint64_t>(execCtx.channelGroupIdx) * kSdmaFlagPayloadBytesPerGroup;
+}
+
+PTO_INTERNAL __gm__ uint8_t* ResolveSignalValueSlotsBase(const SdmaExecContext& execCtx)
+{
+    return execCtx.contextGm + kSdmaContextWorkspaceBytes +
+           static_cast<uint64_t>(kSdmaMaxChannelGroups) * kSdmaFlagPayloadBytesPerGroup +
+           static_cast<uint64_t>(execCtx.channelGroupIdx) * kSdmaSignalValueSlotsBytesPerGroup;
 }
 
 PTO_INTERNAL __gm__ uint8_t* ResolvePostDoneBase(const SdmaExecContext& execCtx)

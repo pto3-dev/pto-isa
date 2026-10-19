@@ -30,7 +30,7 @@ template <
 void runTMatmul()
 {
     constexpr int blockAlign = (sizeof(AType) == 1) ? 32 : 16;
-    constexpr int M = CeilAlign<int>(validM, blockAlign);
+    constexpr int M = CeilAlign<int>(validM, 16); // L0C row fractal is 16 regardless of dtype
     constexpr int N = CeilAlign<int>(validN, blockAlign);
     constexpr int K = CeilAlign<int>(validK, blockAlign);
 

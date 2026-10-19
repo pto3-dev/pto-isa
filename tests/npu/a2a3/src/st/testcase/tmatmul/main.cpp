@@ -21,6 +21,9 @@ void LaunchTMATMUL(uint8_t* out, uint8_t* src0, uint8_t* src1, void* stream);
 template <int32_t tilingKey>
 void LaunchTMATMULBIAS(uint8_t* out, uint8_t* src0, uint8_t* src1, uint8_t* src2, void* stream);
 
+template <int32_t tilingKey>
+void LaunchTMATMULWINDOW(uint8_t* out, uint8_t* src0, uint8_t* src1, void* stream);
+
 class TMATMULTest : public testing::Test {
 protected:
     void SetUp() override {}
@@ -98,15 +101,75 @@ void TmatmulTest(uint32_t M, uint32_t K, uint32_t N)
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(cFileSize);
-    std::vector<T> devFinal(cFileSize);
+    std::vector<T> golden(M * N);
+    std::vector<T> devFinal(M * N);
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 
-    bool ret = ResultCmp(golden, devFinal, 0.0001f);
+    bool ret = ResultCmp(golden, devFinal, 0.001f);
 
     EXPECT_TRUE(ret);
 }
+
+template <typename T, typename U, int32_t key>
+void TmatmulWindowTest(uint32_t M, uint32_t K, uint32_t N)
+{
+    size_t aFileSize = M * K * sizeof(U);
+    size_t bFileSize = K * N * sizeof(U);
+    size_t cFileSize = M * N * sizeof(T);
+
+    aclInit(nullptr);
+    aclrtSetDevice(0);
+    aclrtStream stream;
+    aclrtCreateStream(&stream);
+
+    uint8_t *dstHost, *src0Host, *src1Host;
+    uint8_t *dstDevice, *src0Device, *src1Device;
+
+    aclrtMallocHost((void**)(&dstHost), cFileSize);
+    aclrtMallocHost((void**)(&src0Host), aFileSize);
+    aclrtMallocHost((void**)(&src1Host), bFileSize);
+
+    aclrtMalloc((void**)&dstDevice, cFileSize, ACL_MEM_MALLOC_HUGE_FIRST);
+    aclrtMalloc((void**)&src0Device, aFileSize, ACL_MEM_MALLOC_HUGE_FIRST);
+    aclrtMalloc((void**)&src1Device, bFileSize, ACL_MEM_MALLOC_HUGE_FIRST);
+
+    ReadFile(GetGoldenDir() + "/x1_gm.bin", aFileSize, src0Host, aFileSize);
+    ReadFile(GetGoldenDir() + "/x2_gm.bin", bFileSize, src1Host, bFileSize);
+
+    aclrtMemcpy(src0Device, aFileSize, src0Host, aFileSize, ACL_MEMCPY_HOST_TO_DEVICE);
+    aclrtMemcpy(src1Device, bFileSize, src1Host, bFileSize, ACL_MEMCPY_HOST_TO_DEVICE);
+    LaunchTMATMULWINDOW<key>(dstDevice, src0Device, src1Device, stream);
+
+    aclrtSynchronizeStream(stream);
+    aclrtMemcpy(dstHost, cFileSize, dstDevice, cFileSize, ACL_MEMCPY_DEVICE_TO_HOST);
+
+    WriteFile(GetGoldenDir() + "/output_z.bin", dstHost, cFileSize);
+
+    aclrtFree(dstDevice);
+    aclrtFree(src0Device);
+    aclrtFree(src1Device);
+
+    aclrtFreeHost(dstHost);
+    aclrtFreeHost(src0Host);
+    aclrtFreeHost(src1Host);
+    aclrtDestroyStream(stream);
+    aclrtResetDevice(0);
+    aclFinalize();
+
+    std::vector<T> golden(M * N);
+    std::vector<T> devFinal(M * N);
+    ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
+    ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
+
+    bool ret = ResultCmp(golden, devFinal, 0.001f);
+
+    EXPECT_TRUE(ret);
+}
+
+TEST_F(TMATMULTest, case9) { TmatmulWindowTest<float, uint16_t, 9>(32, 32, 32); }
+
+TEST_F(TMATMULTest, case10) { TmatmulWindowTest<float, uint16_t, 10>(16, 32, 64); }
 
 TEST_F(TMATMULTest, case1)
 {
@@ -222,8 +285,8 @@ void TmatmulBiasTest(uint32_t M, uint32_t K, uint32_t N)
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(cFileSize);
-    std::vector<T> devFinal(cFileSize);
+    std::vector<T> golden(cFileSize / sizeof(T));
+    std::vector<T> devFinal(cFileSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 

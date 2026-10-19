@@ -8,7 +8,7 @@
 
 阅读完本文后，你应当能够：
 
-1. 识别 PTO 代码中的关键概念：`GlobalTensor`、`Tile`、`TileType::Vec`、events 与 `TSYNC`。
+1. 识别 PTO 代码中的关键概念：`GlobalTensor`、`Tile`、`TileType::Vec` 与 events。
 2. 编写一个简单的 **PTO-Auto** 风格 kernel：`TLOAD → compute → TSTORE`。
 3. 编写一个 **PTO-Manual** 风格 kernel：显式 Tile 缓冲绑定（`TASSIGN`）与显式顺序（events/flags）。
 4. 在高层理解更“大”的 kernel 结构，例如 row-softmax 与 GEMM。

@@ -94,4 +94,4 @@ TEST_F(TStoreConvTest, NDC1HWC0_1) { test_tstore<float, 2, 1, 1, 1, 2, 8, 1, 1, 
 
 TEST_F(TStoreConvTest, NDC1HWC0_2) { test_tstore<float, 2, 3, 4, 1, 7, 8, 3, 4, 1, 7, 8, 2>(); }
 
-TEST_F(TStoreConvTest, NDC1HWC0_3) { test_tstore<int32_t, 2, 2, 4, 16, 8, 16, 2, 4, 16, 8, 16, 1>(); }
+TEST_F(TStoreConvTest, NDC1HWC0_3) { test_tstore<int32_t, 2, 2, 4, 16, 8, 8, 2, 4, 16, 8, 8, 1>(); }

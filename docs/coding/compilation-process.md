@@ -6,7 +6,7 @@ It focuses on the developer-visible workflow and does not expand undocumented in
 
 ## 1. Overview
 
-PTO kernels are written in C++ using PTO intrinsics such as `TLOAD`, `TADD`, `TMATMUL`, `TSYNC`, and `TSTORE`.
+PTO kernels are written in C++ using PTO intrinsics such as `TLOAD`, `TADD`, `TMATMUL`, and `TSTORE`, with ordering expressed through events where needed.
 
 The common public entry is:
 
@@ -50,7 +50,6 @@ The public intrinsic entry point is `../../include/pto/common/pto_instr.hpp`.
 That header exposes APIs such as:
 
 - `TASSIGN`
-- `TSYNC`
 - `TLOAD`
 - `TSTORE`
 - vector instructions such as `TADD`, `TMUL`, `TEXP`

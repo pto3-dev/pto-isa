@@ -36,11 +36,40 @@ AICORE void runTCI(__gm__ int32_t __out__* out, int32_t start)
 }
 
 template <int descending, int kCols>
+AICORE void runTCIWithTmp(__gm__ int32_t __out__* out, int32_t start)
+{
+    using DynShapeDim5 = Shape<1, 1, 1, 1, kCols>;
+    using DynStridDim5 = Stride<1, 1, 1, kCols, 1>;
+    using GlobalData = GlobalTensor<int32_t, DynShapeDim5, DynStridDim5>;
+
+    using TileT = Tile<TileType::Vec, int32_t, 1, kCols, BLayout::RowMajor, 1, kCols>;
+    using TmpTileT = Tile<TileType::Vec, float, 1, kCols * 3, BLayout::RowMajor, 1, kCols * 3>;
+    TileT dstTile;
+    TmpTileT tmpTile;
+    GlobalData dstGlobal(out);
+    TASSIGN(dstTile, 0);
+    TASSIGN(tmpTile, 0x4000);
+
+    TCI<TileT, TmpTileT, int32_t, descending>(dstTile, start, tmpTile);
+    TSTORE(dstGlobal, dstTile);
+    out = dstGlobal.data();
+}
+
+template <int descending, int kCols>
 void LaunchTCI(int32_t* out, int32_t start, void* stream)
 {
     (void)stream;
     runTCI<descending, kCols>(out, start);
 }
 
+template <int descending, int kCols>
+void LaunchTCIWithTmp(int32_t* out, int32_t start, void* stream)
+{
+    (void)stream;
+    runTCIWithTmp<descending, kCols>(out, start);
+}
+
 template void LaunchTCI<0, kTileCols>(int32_t* out, int32_t start, void* stream);
 template void LaunchTCI<1, kTileCols>(int32_t* out, int32_t start, void* stream);
+template void LaunchTCIWithTmp<0, kTileCols>(int32_t* out, int32_t start, void* stream);
+template void LaunchTCIWithTmp<1, kTileCols>(int32_t* out, int32_t start, void* stream);

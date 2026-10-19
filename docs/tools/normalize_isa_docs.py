@@ -38,8 +38,15 @@ _LEVEL_ALIAS = {
 
 _EXPLICIT_FALLBACK_FORMS: Dict[str, Dict[str, str]] = {
     "TEXTRACT_FP": {
-        "level1": "%dst = pto.textract_fp %src, %idxrow, %idxcol : (!pto.tile<...>, dtype, dtype) -> !pto.tile<...>",
-        "level2": "pto.textract_fp ins(%src, %idxrow, %idxcol : !pto.tile_buf<...>, dtype, dtype) outs(%dst : !pto.tile_buf<...>)",
+        "level1": (
+            "%dst = pto.textract_fp %src, %fp, %idxrow, %idxcol : "
+            "(!pto.tile<...>, !pto.tile<...>, dtype, dtype) -> !pto.tile<...>"
+        ),
+        "level2": (
+            "pto.textract_fp ins(%src, %fp, %idxrow, %idxcol : "
+            "!pto.tile_buf<...>, !pto.tile_buf<...>, dtype, dtype) "
+            "outs(%dst : !pto.tile_buf<...>)"
+        ),
     },
     "TFILLPAD_EXPAND": {
         "level1": "%dst = pto.tfillpad_expand %src : !pto.tile<...> -> !pto.tile<...>",
@@ -54,8 +61,15 @@ _EXPLICIT_FALLBACK_FORMS: Dict[str, Dict[str, str]] = {
         "level2": "pto.timg2col ins(%src : !pto.tile_buf<...>) outs(%dst : !pto.tile_buf<...>)",
     },
     "TINSERT_FP": {
-        "level1": "%dst = pto.tinsert_fp %src, %fp, %idxrow, %idxcol : (!pto.tile<...>, !pto.tile<...>, dtype, dtype) -> !pto.tile<...>",
-        "level2": "pto.tinsert_fp ins(%src, %fp, %idxrow, %idxcol : !pto.tile_buf<...>, !pto.tile_buf<...>, dtype, dtype) outs(%dst : !pto.tile_buf<...>)",
+        "level1": (
+            "%dst = pto.tinsert_fp %src, %fp, %idxrow, %idxcol : "
+            "(!pto.tile<...>, !pto.tile<...>, dtype, dtype) -> !pto.tile<...>"
+        ),
+        "level2": (
+            "pto.tinsert_fp ins(%src, %fp, %idxrow, %idxcol : "
+            "!pto.tile_buf<...>, !pto.tile_buf<...>, dtype, dtype) "
+            "outs(%dst : !pto.tile_buf<...>)"
+        ),
     },
     "TQUANT": {
         "level1": "%dst = pto.tquant %src, %qp : (!pto.tile<...>, !pto.tile<...>) -> !pto.tile<...>",
@@ -230,31 +244,7 @@ def _fallback_level2(instr: str, level1: str) -> str:
     return f"pto.{instr.lower()} ins(%src : !pto.tile_buf<...>) outs(%dst : !pto.tile_buf<...>)"
 
 
-def _sync_level2_from_table(level_formats: Dict[str, Dict[str, str]]) -> str:
-    segments: List[str] = []
-    for name in ("RECORD_EVENT", "WAIT_EVENT", "BARRIER"):
-        item = level_formats.get(name)
-        if not item:
-            continue
-        body = item.get("level2", "").strip()
-        note = item.get("notes", "").strip()
-        if body:
-            segments.append(body)
-        if note:
-            segments.append(f"// {note}")
-    return "\n".join(segments).strip()
-
-
 def _resolve_level_formats(instr: str, assembly_body: str, level_formats: Dict[str, Dict[str, str]]) -> Dict[str, str]:
-    if instr == "TSYNC":
-        level1 = "// Level 1 (SSA) does not support explicit synchronization primitives."
-        level2 = _sync_level2_from_table(level_formats)
-        if not level2:
-            level2 = (
-                "pto.record_event[src_op, dst_op, eventID]\npto.wait_event[src_op, dst_op, eventID]\npto.barrier(op)"
-            )
-        return {"level1": level1, "level2": level2}
-
     item = level_formats.get(instr, {})
     level1 = item.get("level1", "").strip()
     level2 = item.get("level2", "").strip()

@@ -1,4 +1,4 @@
-﻿# TFILLPAD_INPLACE
+# TFILLPAD_INPLACE
 
 
 ## Tile Operation Diagram

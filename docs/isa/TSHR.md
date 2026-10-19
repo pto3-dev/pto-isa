@@ -1,4 +1,4 @@
-﻿# TSHR
+# TSHR
 
 
 ## Tile Operation Diagram

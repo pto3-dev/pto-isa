@@ -28,6 +28,8 @@ enum class RdmaCompletionMode : uint32_t {
 template <typename T, size_t count>
 RdmaTestResult RunPutAsyncRdmaRootPut(int n_ranks, int n_devices, int first_rank_id, int first_device_id);
 
+RdmaTestResult RunPutAsyncNotifyRdmaSet(int n_ranks, int n_devices, int first_rank_id, int first_device_id);
+
 template <typename T, size_t count>
 RdmaTestResult RunPutAsyncRdmaRootPutPlan(
     int n_ranks, int n_devices, int first_rank_id, int first_device_id, int elem_offset, int elem_count,

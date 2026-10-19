@@ -164,15 +164,17 @@ __tf__ PTO_INTERNAL void TConcatIdx(
             unsigned src1Offset = i * dstStride + sreg0;
             uint16_t repeatTimes0 = CeilDivision(sreg0, elementsPerRepeat);
             uint16_t repeatTimes1 = CeilDivision(sreg1, elementsPerRepeat);
+            uint16_t repeatLimit0 = repeatTimes0;
+            uint16_t repeatLimit1 = repeatTimes1;
 
-            for (uint16_t j = 0; j < repeatTimes0; ++j) {
+            for (uint16_t j = 0; j < repeatLimit0; ++j) {
                 preg0 = CreatePredicate<dataType>(sreg0);
                 vlds(vreg_0, src0Ptr, i * src0Stride + j * elementsPerRepeat, NORM);
                 vsts(vreg_0, dstPtr, i * dstStride + j * elementsPerRepeat, distValue, preg0);
             }
 
             mem_bar(VST_VLD);
-            for (uint16_t j = 0; j < repeatTimes1; ++j) {
+            for (uint16_t j = 0; j < repeatLimit1; ++j) {
                 preg1 = CreatePredicate<dataType>(sreg1);
                 vlds(vreg_1, src1Ptr, i * src1Stride + j * elementsPerRepeat, NORM);
                 vci((RegTensor<IndexScalar>&)vreg_idx, (IndexScalar)(src1Offset + j * elementsPerRepeat), INC_ORDER);

@@ -17,7 +17,7 @@ PTO distinguishes itself from generic GPU ISAs by making the following architect
 - **Valid-region-first semantics**: `Rv/Cv` define architectural compute coverage.
 - **Location-intent model**: tile classes such as `Mat/Left/Right/Acc/Bias/Scale` participate in legality rules.
 - **Dual programming model**: Auto and Manual modes are both architectural citizens.
-- **Event-centric synchronization**: ordering is explicit through events and `TSYNC`.
+- **Event-centric synchronization**: ordering is explicit through events and event synchronization.
 
 ## 1.3 Architecture boundary
 

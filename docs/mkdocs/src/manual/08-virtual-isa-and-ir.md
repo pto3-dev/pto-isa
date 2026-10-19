@@ -42,7 +42,7 @@ Verification is split into two levels:
 Lowering MUST preserve:
 
 - valid-region semantics
-- explicit ordering dependencies (`event`, `TSYNC`, memory-ordering points)
+- explicit ordering dependencies (`event`, event synchronization, memory-ordering points)
 - operation meaning within architecture-defined domains
 
 Lowering MUST NOT silently reinterpret implementation-defined behavior as architecture-defined behavior.

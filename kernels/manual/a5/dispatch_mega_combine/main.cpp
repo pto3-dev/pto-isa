@@ -32,7 +32,7 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #include "tiling_builder.hpp"
 
 extern "C" rtError_t rtSetDevice(int32_t device);
-extern "C" rtError_t rtGetC2cCtrlAddr(uint64_t *addr, uint32_t *len);
+extern "C" rtError_t rtGetC2cCtrlAddr(uint64_t* addr, uint32_t* len);
 
 namespace {
 
@@ -57,20 +57,20 @@ struct PerfStats {
 };
 
 struct DeviceBuffer {
-    void *ptr = nullptr;
+    void* ptr = nullptr;
     size_t bytes = 0U;
 
     DeviceBuffer() = default;
-    DeviceBuffer(const DeviceBuffer &) = delete;
-    DeviceBuffer &operator=(const DeviceBuffer &) = delete;
+    DeviceBuffer(const DeviceBuffer&) = delete;
+    DeviceBuffer& operator=(const DeviceBuffer&) = delete;
 
-    DeviceBuffer(DeviceBuffer &&other) noexcept : ptr(other.ptr), bytes(other.bytes)
+    DeviceBuffer(DeviceBuffer&& other) noexcept : ptr(other.ptr), bytes(other.bytes)
     {
         other.ptr = nullptr;
         other.bytes = 0U;
     }
 
-    DeviceBuffer &operator=(DeviceBuffer &&other) noexcept
+    DeviceBuffer& operator=(DeviceBuffer&& other) noexcept
     {
         if (this != &other) {
             if (ptr != nullptr) {
@@ -118,7 +118,7 @@ struct RankDeviceBuffers {
     DeviceBuffer kernelTiming;
 };
 
-DeviceBuffer MakeDeviceBuffer(size_t bytes, const void *hostSrc = nullptr)
+DeviceBuffer MakeDeviceBuffer(size_t bytes, const void* hostSrc = nullptr)
 {
     DeviceBuffer buffer;
     buffer.bytes = bytes;
@@ -135,7 +135,7 @@ DeviceBuffer MakeDeviceBuffer(size_t bytes, const void *hostSrc = nullptr)
     return buffer;
 }
 
-std::vector<uint16_t> BytesToU16(const std::vector<uint8_t> &bytes)
+std::vector<uint16_t> BytesToU16(const std::vector<uint8_t>& bytes)
 {
     if (bytes.size() % sizeof(uint16_t) != 0U) {
         throw std::runtime_error("BF16 file size is not aligned");
@@ -145,15 +145,15 @@ std::vector<uint16_t> BytesToU16(const std::vector<uint8_t> &bytes)
     return out;
 }
 
-int ParseEnvInt(const char *name, int defaultValue)
+int ParseEnvInt(const char* name, int defaultValue)
 {
-    const char *value = std::getenv(name);
+    const char* value = std::getenv(name);
     if (value == nullptr || value[0] == '\0') {
         return defaultValue;
     }
     try {
         return std::stoi(value);
-    } catch (const std::exception &) {
+    } catch (const std::exception&) {
         throw std::runtime_error(std::string("invalid integer in env: ") + name);
     }
 }
@@ -169,7 +169,7 @@ RunOptions LoadRunOptions()
     return options;
 }
 
-bool ParseFirstDevice(int argc, char **argv, int worldSize, int &firstDevice)
+bool ParseFirstDevice(int argc, char** argv, int worldSize, int& firstDevice)
 {
     firstDevice = 0;
     for (int i = 1; i < argc; ++i) {
@@ -185,7 +185,7 @@ bool ParseFirstDevice(int argc, char **argv, int worldSize, int &firstDevice)
         long long value = -1;
         try {
             value = std::stoll(text, &parsed);
-        } catch (const std::exception &) {
+        } catch (const std::exception&) {
             parsed = 0U;
         }
         if (parsed != text.size() || value < 0 || value > std::numeric_limits<int>::max()) {
@@ -202,25 +202,7 @@ bool ParseFirstDevice(int argc, char **argv, int worldSize, int &firstDevice)
     return true;
 }
 
-uint64_t AlignUpU64(uint64_t value, uint64_t alignment)
-{
-    if (alignment == 0U || value > UINT64_MAX - (alignment - 1U)) {
-        throw std::runtime_error("invalid uint64 alignment");
-    }
-    return (value + alignment - 1U) / alignment * alignment;
-}
-
-uint64_t SwigluFullRowUbBytes(uint32_t n)
-{
-    auto alignUb = [](uint64_t value) { return AlignUpU64(value, UB_ALIGN); };
-    const uint64_t outputN = n / 2U;
-    const uint64_t stageBytes = alignUb(static_cast<uint64_t>(n) * sizeof(uint16_t)) +
-                                alignUb(static_cast<uint64_t>(n) * sizeof(float)) +
-                                alignUb(outputN * sizeof(float));
-    return stageBytes * 2U;
-}
-
-uint64_t CheckedMulU64(uint64_t lhs, uint64_t rhs, const char *name)
+uint64_t CheckedMulU64(uint64_t lhs, uint64_t rhs, const char* name)
 {
     if (lhs != 0U && rhs > UINT64_MAX / lhs) {
         throw std::runtime_error(std::string(name) + " byte size overflows uint64");
@@ -228,7 +210,7 @@ uint64_t CheckedMulU64(uint64_t lhs, uint64_t rhs, const char *name)
     return lhs * rhs;
 }
 
-void ValidateFullPathConstraints(const CaseConfig &cfg)
+void ValidateFullPathConstraints(const CaseConfig& cfg)
 {
     if (cfg.data_cache_version != kMxDataCacheVersion) {
         throw std::runtime_error("case data cache version does not match the MXFP8 contract");
@@ -240,18 +222,6 @@ void ValidateFullPathConstraints(const CaseConfig &cfg)
     if (cfg.expert_per_rank != 4U && cfg.expert_per_rank != 8U && cfg.expert_per_rank != 16U &&
         cfg.expert_per_rank != 32U) {
         throw std::runtime_error("expert_per_rank must be one of 4, 8, 16 or 32");
-    }
-    if (cfg.k % 128U != 0U) {
-        throw std::runtime_error("GMM1 requires K % 128 == 0");
-    }
-    if ((cfg.n & 1U) != 0U || (cfg.n / 2U) % 128U != 0U) {
-        throw std::runtime_error("MXFP8 GMM2 requires even N and (N/2) % 128 == 0");
-    }
-    if (SwigluFullRowUbBytes(cfg.n) > A5_MAIN_UB_SIZE) {
-        throw std::runtime_error("SwiGLU full-row UB capacity exceeded");
-    }
-    if ((cfg.k * sizeof(uint16_t)) % 32U != 0U) {
-        throw std::runtime_error("combine/unpermute requires K * sizeof(BF16) to be 32-byte aligned");
     }
 }
 
@@ -266,21 +236,18 @@ struct RankInputByteSizes {
     uint64_t outputElems = 0U;
 };
 
-RankInputByteSizes ExpectedRankInputByteSizes(const CaseConfig &cfg)
+RankInputByteSizes ExpectedRankInputByteSizes(const CaseConfig& cfg)
 {
     const uint64_t hidden = cfg.n / 2U;
     const uint64_t xElems = CheckedMulU64(cfg.m, cfg.k, "x");
     const uint64_t routeElems = CheckedMulU64(cfg.m, cfg.topk, "route metadata");
-    const uint64_t weight1Elems = CheckedMulU64(CheckedMulU64(cfg.expert_per_rank, cfg.n, "weight1"), cfg.k,
-                                                "weight1");
-    const uint64_t weight2Elems = CheckedMulU64(CheckedMulU64(cfg.expert_per_rank, cfg.k, "weight2"), hidden,
-                                                "weight2");
-    const uint64_t weightScale1Elems =
-        CheckedMulU64(CheckedMulU64(cfg.expert_per_rank, cfg.n, "weightScale1"), cfg.k / kMegaMoeMxGroupSize,
-                      "weightScale1");
-    const uint64_t weightScale2Elems =
-        CheckedMulU64(CheckedMulU64(cfg.expert_per_rank, cfg.k, "weightScale2"), hidden / kMegaMoeMxGroupSize,
-                      "weightScale2");
+    const uint64_t weight1Elems = CheckedMulU64(CheckedMulU64(cfg.expert_per_rank, cfg.n, "weight1"), cfg.k, "weight1");
+    const uint64_t weight2Elems =
+        CheckedMulU64(CheckedMulU64(cfg.expert_per_rank, cfg.k, "weight2"), hidden, "weight2");
+    const uint64_t weightScale1Elems = CheckedMulU64(
+        CheckedMulU64(cfg.expert_per_rank, cfg.n, "weightScale1"), cfg.k / kMegaMoeMxGroupSize, "weightScale1");
+    const uint64_t weightScale2Elems = CheckedMulU64(
+        CheckedMulU64(cfg.expert_per_rank, cfg.k, "weightScale2"), hidden / kMegaMoeMxGroupSize, "weightScale2");
     return {
         .x = CheckedMulU64(xElems, sizeof(uint16_t), "x"),
         .weight1 = weight1Elems,
@@ -293,15 +260,16 @@ RankInputByteSizes ExpectedRankInputByteSizes(const CaseConfig &cfg)
     };
 }
 
-void RequireExactBytes(const char *name, size_t observed, uint64_t expected)
+void RequireExactBytes(const char* name, size_t observed, uint64_t expected)
 {
     if (expected > SIZE_MAX || observed != static_cast<size_t>(expected)) {
-        throw std::runtime_error(std::string(name) + " byte size mismatch: observed=" + std::to_string(observed) +
-                                 " expected=" + std::to_string(expected));
+        throw std::runtime_error(
+            std::string(name) + " byte size mismatch: observed=" + std::to_string(observed) +
+            " expected=" + std::to_string(expected));
     }
 }
 
-void ValidateRankHostInputSizes(const CaseConfig &cfg, const RankHostInputs &inputs)
+void ValidateRankHostInputSizes(const CaseConfig& cfg, const RankHostInputs& inputs)
 {
     const RankInputByteSizes sizes = ExpectedRankInputByteSizes(cfg);
     RequireExactBytes("x", inputs.x.size(), sizes.x);
@@ -312,13 +280,13 @@ void ValidateRankHostInputSizes(const CaseConfig &cfg, const RankHostInputs &inp
     RequireExactBytes("weightScale2 E8M0 ScaleBDN", inputs.weightScale2.size(), sizes.weightScale2);
     RequireExactBytes("probs", inputs.probs.size(), sizes.probs);
     if (inputs.expectedOut.size() != sizes.outputElems) {
-        throw std::runtime_error("expected_out BF16 element count mismatch: observed=" +
-                                 std::to_string(inputs.expectedOut.size()) +
-                                 " expected=" + std::to_string(sizes.outputElems));
+        throw std::runtime_error(
+            "expected_out BF16 element count mismatch: observed=" + std::to_string(inputs.expectedOut.size()) +
+            " expected=" + std::to_string(sizes.outputElems));
     }
 }
 
-int32_t LoadI32(const std::vector<uint8_t> &bytes, size_t index)
+int32_t LoadI32(const std::vector<uint8_t>& bytes, size_t index)
 {
     int32_t value = 0;
     std::memcpy(&value, bytes.data() + index * sizeof(value), sizeof(value));
@@ -349,7 +317,7 @@ struct MaskPullValidationResult {
     uint64_t limit = 0U;
 };
 
-void ValidateMaskPullRoutes(const CaseConfig &cfg, const RankHostInputs &inputs, int rankId, int worldSize)
+void ValidateMaskPullRoutes(const CaseConfig& cfg, const RankHostInputs& inputs, int rankId, int worldSize)
 {
     MaskPullLocalValidation local;
     local.expertBufferBytes = inputs.expertIdx.size();
@@ -373,15 +341,15 @@ void ValidateMaskPullRoutes(const CaseConfig &cfg, const RankHostInputs &inputs,
     }
 
     std::vector<MaskPullLocalValidation> gathered(rankId == 0 ? static_cast<size_t>(worldSize) : 0U);
-    CommMpiGather(&local, static_cast<int>(sizeof(local)), COMM_MPI_CHAR,
-                  rankId == 0 ? static_cast<void *>(gathered.data()) : nullptr, static_cast<int>(sizeof(local)),
-                  COMM_MPI_CHAR, 0);
+    CommMpiGather(
+        &local, static_cast<int>(sizeof(local)), COMM_MPI_CHAR,
+        rankId == 0 ? static_cast<void*>(gathered.data()) : nullptr, static_cast<int>(sizeof(local)), COMM_MPI_CHAR, 0);
 
     MaskPullValidationResult result;
     if (rankId == 0) {
         uint64_t recvRows[PTO_HCCL_MAX_RANKS] = {};
         for (int sourceRank = 0; sourceRank < worldSize; ++sourceRank) {
-            const MaskPullLocalValidation &rankLocal = gathered[static_cast<size_t>(sourceRank)];
+            const MaskPullLocalValidation& rankLocal = gathered[static_cast<size_t>(sourceRank)];
             if (result.code == static_cast<uint32_t>(MaskPullValidationCode::Ok) &&
                 rankLocal.expertBufferBytes != expectedExpertBytes) {
                 result.code = static_cast<uint32_t>(MaskPullValidationCode::InvalidExpertBuffer);
@@ -418,38 +386,36 @@ void ValidateMaskPullRoutes(const CaseConfig &cfg, const RankHostInputs &inputs,
         case MaskPullValidationCode::Ok:
             return;
         case MaskPullValidationCode::InvalidExpertBuffer:
-            throw std::runtime_error("Mask Pull expert_idx byte size mismatch on rank " +
-                                     std::to_string(result.rank));
+            throw std::runtime_error("Mask Pull expert_idx byte size mismatch on rank " + std::to_string(result.rank));
         case MaskPullValidationCode::InvalidExpertId:
-            throw std::runtime_error("Mask Pull invalid expert id on rank " + std::to_string(result.rank) +
-                                     " slot=" + std::to_string(result.slotOrDst) +
-                                     " expert=" + std::to_string(result.expert));
+            throw std::runtime_error(
+                "Mask Pull invalid expert id on rank " + std::to_string(result.rank) +
+                " slot=" + std::to_string(result.slotOrDst) + " expert=" + std::to_string(result.expert));
         case MaskPullValidationCode::ReceiveCapacity:
-            throw std::runtime_error("Mask Pull receive capacity exceeded on dst rank " +
-                                     std::to_string(result.slotOrDst) + ": rows=" +
-                                     std::to_string(result.observed) + " maxOutputSize=" +
-                                     std::to_string(result.limit));
+            throw std::runtime_error(
+                "Mask Pull receive capacity exceeded on dst rank " + std::to_string(result.slotOrDst) +
+                ": rows=" + std::to_string(result.observed) + " maxOutputSize=" + std::to_string(result.limit));
     }
     throw std::runtime_error("unknown Mask Pull validation result");
 }
 
-bool ZeroWindowMemory(const StandaloneRankRuntime &runtime)
+bool ZeroWindowMemory(const StandaloneRankRuntime& runtime)
 {
     const uint64_t bytes = runtime.hccl.WindowClearBytes();
-    void *window = runtime.hccl.WindowClearBase(static_cast<uint32_t>(runtime.hccl.rank_id));
+    void* window = runtime.hccl.WindowClearBase();
     return aclrtMemset(window, bytes, 0, bytes) == ACL_SUCCESS;
 }
 
-void ZeroDeviceBuffer(const DeviceBuffer &buffer, const char *name)
+void ZeroDeviceBuffer(const DeviceBuffer& buffer, const char* name)
 {
     if (buffer.bytes != 0U && aclrtMemset(buffer.ptr, buffer.bytes, 0, buffer.bytes) != ACL_SUCCESS) {
         throw std::runtime_error(std::string("failed to zero ") + name);
     }
 }
 
-void ZeroWorkspaceForLaunch(const DeviceBuffer &workspace, const MegaMoeTilingData &tiling)
+void ZeroWorkspaceForLaunch(const DeviceBuffer& workspace, const MegaMoeTilingData& tiling)
 {
-    const MegaMoeFixedGroupTiling &fixed = tiling.fixedGroupTiling;
+    const MegaMoeFixedGroupTiling& fixed = tiling.fixedGroupTiling;
     if (fixed.syncOffset > workspace.bytes || kMegaMoeFixedSyncBytes > workspace.bytes - fixed.syncOffset) {
         throw std::runtime_error("fixed-group sync range exceeds workspace");
     }
@@ -457,20 +423,19 @@ void ZeroWorkspaceForLaunch(const DeviceBuffer &workspace, const MegaMoeTilingDa
     if (fixed.completionOffset > workspace.bytes || completionBytes > workspace.bytes - fixed.completionOffset) {
         throw std::runtime_error("completion doorbell range exceeds workspace");
     }
-    auto *bytes = static_cast<uint8_t *>(workspace.ptr);
+    auto* bytes = static_cast<uint8_t*>(workspace.ptr);
     if (fixed.syncOffset != 0U && aclrtMemset(bytes, fixed.syncOffset, 0, fixed.syncOffset) != ACL_SUCCESS) {
         throw std::runtime_error("failed to zero workspace prefix");
     }
     const uint64_t suffixOffset = fixed.syncOffset + kMegaMoeFixedSyncBytes;
     const uint64_t suffixBytes = workspace.bytes - suffixOffset;
-    if (suffixBytes != 0U &&
-        aclrtMemset(bytes + suffixOffset, suffixBytes, 0, suffixBytes) != ACL_SUCCESS) {
+    if (suffixBytes != 0U && aclrtMemset(bytes + suffixOffset, suffixBytes, 0, suffixBytes) != ACL_SUCCESS) {
         throw std::runtime_error("failed to zero workspace suffix");
     }
 }
 
-void PrepareLaunchState(const StandaloneRankRuntime &runtime, const RankDeviceBuffers &buffers,
-                        const MegaMoeTilingData &tiling)
+void PrepareLaunchState(
+    const StandaloneRankRuntime& runtime, const RankDeviceBuffers& buffers, const MegaMoeTilingData& tiling)
 {
     if (!ZeroWindowMemory(runtime)) {
         throw std::runtime_error("failed to zero HCCL window");
@@ -481,7 +446,7 @@ void PrepareLaunchState(const StandaloneRankRuntime &runtime, const RankDeviceBu
     ZeroWorkspaceForLaunch(buffers.workspace, tiling);
 }
 
-std::string BuildAccuracyReport(int rankId, const AccuracyReport &report)
+std::string BuildAccuracyReport(int rankId, const AccuracyReport& report)
 {
     std::ostringstream os;
     os << std::setprecision(6) << "rank=" << rankId << " max_diff=" << report.max_abs_err
@@ -490,7 +455,7 @@ std::string BuildAccuracyReport(int rankId, const AccuracyReport &report)
     return os.str();
 }
 
-void PrintOrderedByRank(int rankId, int worldSize, const std::string &text)
+void PrintOrderedByRank(int rankId, int worldSize, const std::string& text)
 {
     for (int turn = 0; turn < worldSize; ++turn) {
         CommMpiBarrier();
@@ -501,7 +466,7 @@ void PrintOrderedByRank(int rankId, int worldSize, const std::string &text)
     CommMpiBarrier();
 }
 
-PerfStats CalculatePerfStats(const std::vector<double> &samples)
+PerfStats CalculatePerfStats(const std::vector<double>& samples)
 {
     PerfStats stats;
     if (samples.empty()) {
@@ -534,15 +499,16 @@ double ToGbs(double bytes, double microseconds)
     return microseconds > 0.0 ? bytes * kMicrosecondsPerSecond / microseconds / kBytesPerGiB : 0.0;
 }
 
-std::vector<double> GatherMaxSamplesToRoot(const std::vector<double> &localSamples, int rankId, int worldSize)
+std::vector<double> GatherMaxSamplesToRoot(const std::vector<double>& localSamples, int rankId, int worldSize)
 {
     if (localSamples.empty()) {
         return {};
     }
     const int bytesPerRank = static_cast<int>(localSamples.size() * sizeof(double));
     std::vector<double> gathered(rankId == 0 ? localSamples.size() * static_cast<size_t>(worldSize) : 0U);
-    CommMpiGather(localSamples.data(), bytesPerRank, COMM_MPI_CHAR, rankId == 0 ? gathered.data() : nullptr,
-                  bytesPerRank, COMM_MPI_CHAR, 0);
+    CommMpiGather(
+        localSamples.data(), bytesPerRank, COMM_MPI_CHAR, rankId == 0 ? gathered.data() : nullptr, bytesPerRank,
+        COMM_MPI_CHAR, 0);
     if (rankId != 0) {
         return {};
     }
@@ -558,14 +524,15 @@ std::vector<double> GatherMaxSamplesToRoot(const std::vector<double> &localSampl
     return maxSamples;
 }
 
-void PrintPerfSummary(const CaseConfig &cfg, const MegaMoeBuildResult &build, const RunOptions &options,
-                      const std::vector<double> &kernelSamplesUs)
+void PrintPerfSummary(
+    const CaseConfig& cfg, const MegaMoeBuildResult& build, const RunOptions& options,
+    const std::vector<double>& kernelSamplesUs)
 {
     if (kernelSamplesUs.empty()) {
         return;
     }
     const PerfStats stats = CalculatePerfStats(kernelSamplesUs);
-    const MegaMoeFixedGroupTiling &fixed = build.tiling.fixedGroupTiling;
+    const MegaMoeFixedGroupTiling& fixed = build.tiling.fixedGroupTiling;
     std::cout << std::fixed << std::setprecision(2);
     std::cout << "\n===============================================================\n";
     std::cout << "[KERNEL_PERF] dispatch_mega_combine\n";
@@ -591,7 +558,7 @@ void PrintPerfSummary(const CaseConfig &cfg, const MegaMoeBuildResult &build, co
     std::cout << "===============================================================\n" << std::endl;
 }
 
-RankHostInputs LoadRankHostInputs(const RankFileSet &files)
+RankHostInputs LoadRankHostInputs(const RankFileSet& files)
 {
     RankHostInputs inputs;
     inputs.x = ReadBinaryFile(files.x);
@@ -605,10 +572,10 @@ RankHostInputs LoadRankHostInputs(const RankFileSet &files)
     return inputs;
 }
 
-MegaMoeBuildResult BuildAndValidateTiling(const CaseConfig &cfg, const StandaloneRankRuntime &runtime, int rankId)
+MegaMoeBuildResult BuildAndValidateTiling(const CaseConfig& cfg, const StandaloneRankRuntime& runtime, int rankId)
 {
     MegaMoeBuildResult build = BuildMegaMoeTiling(cfg, runtime);
-    const MegaMoeFixedGroupTiling &fixed = build.tiling.fixedGroupTiling;
+    const MegaMoeFixedGroupTiling& fixed = build.tiling.fixedGroupTiling;
     std::cout << "rank=" << rankId << " selectedTopology=aic:" << fixed.physicalAicNum
               << ",gmm1:" << fixed.gmm1GroupSize << ",gmm2:" << fixed.gmm2GroupSize
               << ",dispatch_aiv0:" << fixed.dispatchGroupSize
@@ -616,8 +583,8 @@ MegaMoeBuildResult BuildAndValidateTiling(const CaseConfig &cfg, const Standalon
     return build;
 }
 
-RankDeviceBuffers AllocateRankDeviceBuffers(const CaseConfig &cfg, const MegaMoeBuildResult &build,
-                                            const RankHostInputs &inputs)
+RankDeviceBuffers AllocateRankDeviceBuffers(
+    const CaseConfig& cfg, const MegaMoeBuildResult& build, const RankHostInputs& inputs)
 {
     RankDeviceBuffers buffers;
     buffers.x = MakeDeviceBuffer(inputs.x.size(), inputs.x.data());
@@ -635,7 +602,7 @@ RankDeviceBuffers AllocateRankDeviceBuffers(const CaseConfig &cfg, const MegaMoe
     return buffers;
 }
 
-MegaMoeLaunchArgs BuildLaunchArgs(const MegaMoeBuildResult &build, const RankDeviceBuffers &buffers, int rankId)
+MegaMoeLaunchArgs BuildLaunchArgs(const MegaMoeBuildResult& build, const RankDeviceBuffers& buffers, int rankId)
 {
     uint64_t fftsAddr = 0U;
     uint32_t fftsLen = 0U;
@@ -647,7 +614,7 @@ MegaMoeLaunchArgs BuildLaunchArgs(const MegaMoeBuildResult &build, const RankDev
     }
 
     MegaMoeLaunchArgs args;
-    args.ffts = reinterpret_cast<void *>(fftsAddr);
+    args.ffts = reinterpret_cast<void*>(fftsAddr);
     args.x = buffers.x.ptr;
     args.weight1 = buffers.weight1.ptr;
     args.weight2 = buffers.weight2.ptr;
@@ -665,7 +632,7 @@ MegaMoeLaunchArgs BuildLaunchArgs(const MegaMoeBuildResult &build, const RankDev
     return args;
 }
 
-void LaunchAndSynchronize(const MegaMoeLaunchArgs &args, aclrtStream stream)
+void LaunchAndSynchronize(const MegaMoeLaunchArgs& args, aclrtStream stream)
 {
     launchMegaMoe(args, stream);
     const aclError result = aclrtSynchronizeStream(stream);
@@ -674,8 +641,9 @@ void LaunchAndSynchronize(const MegaMoeLaunchArgs &args, aclrtStream stream)
     }
 }
 
-void RunWarmupIterations(const StandaloneRankRuntime &runtime, const RankDeviceBuffers &buffers,
-                         const MegaMoeTilingData &tiling, const MegaMoeLaunchArgs &args, int warmupIters)
+void RunWarmupIterations(
+    const StandaloneRankRuntime& runtime, const RankDeviceBuffers& buffers, const MegaMoeTilingData& tiling,
+    const MegaMoeLaunchArgs& args, int warmupIters)
 {
     for (int iter = 0; iter < warmupIters; ++iter) {
         PrepareLaunchState(runtime, buffers, tiling);
@@ -685,7 +653,7 @@ void RunWarmupIterations(const StandaloneRankRuntime &runtime, const RankDeviceB
     }
 }
 
-double ReadKernelTimingUs(const DeviceBuffer &kernelTiming, uint32_t blockDim)
+double ReadKernelTimingUs(const DeviceBuffer& kernelTiming, uint32_t blockDim)
 {
     const size_t expectedBytes = MegaMoeKernelTimingBytes(blockDim);
     if (kernelTiming.ptr == nullptr || kernelTiming.bytes != expectedBytes || expectedBytes == 0U) {
@@ -718,8 +686,9 @@ double ReadKernelTimingUs(const DeviceBuffer &kernelTiming, uint32_t blockDim)
     return static_cast<double>(endMax - startMin) * kNanosecondsPerSysCntTick / kNanosecondsPerMicrosecond;
 }
 
-double RunMeasuredIteration(const StandaloneRankRuntime &runtime, const RankDeviceBuffers &buffers,
-                            const MegaMoeTilingData &tiling, const MegaMoeLaunchArgs &args)
+double RunMeasuredIteration(
+    const StandaloneRankRuntime& runtime, const RankDeviceBuffers& buffers, const MegaMoeTilingData& tiling,
+    const MegaMoeLaunchArgs& args)
 {
     PrepareLaunchState(runtime, buffers, tiling);
     CommMpiBarrier();
@@ -728,9 +697,9 @@ double RunMeasuredIteration(const StandaloneRankRuntime &runtime, const RankDevi
     return ReadKernelTimingUs(buffers.kernelTiming, args.block_dim);
 }
 
-std::vector<double> RunMeasureIterations(const StandaloneRankRuntime &runtime, const RankDeviceBuffers &buffers,
-                                         const MegaMoeTilingData &tiling, const MegaMoeLaunchArgs &args,
-                                         int measureIters)
+std::vector<double> RunMeasureIterations(
+    const StandaloneRankRuntime& runtime, const RankDeviceBuffers& buffers, const MegaMoeTilingData& tiling,
+    const MegaMoeLaunchArgs& args, int measureIters)
 {
     std::vector<double> samples;
     samples.reserve(static_cast<size_t>(measureIters));
@@ -740,7 +709,7 @@ std::vector<double> RunMeasureIterations(const StandaloneRankRuntime &runtime, c
     return samples;
 }
 
-std::vector<uint16_t> CopyOutputToHost(const CaseConfig &cfg, const DeviceBuffer &out)
+std::vector<uint16_t> CopyOutputToHost(const CaseConfig& cfg, const DeviceBuffer& out)
 {
     std::vector<uint16_t> actual(static_cast<size_t>(cfg.m) * cfg.k);
     const size_t bytes = actual.size() * sizeof(uint16_t);
@@ -750,8 +719,9 @@ std::vector<uint16_t> CopyOutputToHost(const CaseConfig &cfg, const DeviceBuffer
     return actual;
 }
 
-bool RunOneRank(int rankId, int worldSize, int deviceId, uint32_t aicoreNum, const std::string &caseDir,
-                const HcclRootInfo &rootInfo)
+bool RunOneRank(
+    int rankId, int worldSize, int deviceId, uint32_t aicoreNum, const std::string& caseDir,
+    const HcclRootInfo& rootInfo)
 {
     StandaloneRankRuntime runtime;
     if (!InitStandaloneRankRuntime(runtime, rankId, worldSize, deviceId, rootInfo)) {
@@ -792,13 +762,13 @@ bool RunOneRank(int rankId, int worldSize, int deviceId, uint32_t aicoreNum, con
         CommMpiBarrier();
 
         const std::vector<uint16_t> actual = CopyOutputToHost(cfg, buffers.out);
-        WriteBinaryFile(caseDir + "/output_rank" + std::to_string(rankId) + ".bin", actual.data(),
-                        actual.size() * sizeof(uint16_t));
-        const AccuracyReport report =
-            CompareBf16File(inputs.expectedOut, actual, cfg.compare_atol, cfg.compare_rtol);
+        WriteBinaryFile(
+            caseDir + "/output_rank" + std::to_string(rankId) + ".bin", actual.data(),
+            actual.size() * sizeof(uint16_t));
+        const AccuracyReport report = CompareBf16File(inputs.expectedOut, actual, cfg.compare_atol, cfg.compare_rtol);
         ok = report.pass;
         PrintOrderedByRank(rankId, worldSize, BuildAccuracyReport(rankId, report));
-    } catch (const std::exception &ex) {
+    } catch (const std::exception& ex) {
         std::cerr << "rank=" << rankId << " error: " << ex.what() << std::endl;
         ok = false;
     }
@@ -809,7 +779,7 @@ bool RunOneRank(int rankId, int worldSize, int deviceId, uint32_t aicoreNum, con
 
 } // namespace
 
-int main(int argc, char **argv)
+int main(int argc, char** argv)
 {
     if (!CommMpiInit(&argc, &argv)) {
         std::cerr << "MPI_Init failed" << std::endl;
@@ -824,7 +794,7 @@ int main(int argc, char **argv)
         return 1;
     }
     const int deviceId = firstDevice + rankId;
-    const char *caseDirEnv = std::getenv("DISPATCH_MEGA_COMBINE_CASE_DIR");
+    const char* caseDirEnv = std::getenv("DISPATCH_MEGA_COMBINE_CASE_DIR");
     const std::string caseDir = caseDirEnv == nullptr ? "../out" : caseDirEnv;
 
     if (rankId == 0) {
@@ -862,7 +832,7 @@ int main(int argc, char **argv)
     int requestedAicoreNum = 0;
     try {
         requestedAicoreNum = ParseEnvInt("DISPATCH_MEGA_COMBINE_AICORE_NUM", 0);
-    } catch (const std::exception &ex) {
+    } catch (const std::exception& ex) {
         std::cerr << "rank=" << rankId << " " << ex.what() << std::endl;
         aclrtResetDevice(deviceId);
         aclFinalize();
@@ -880,7 +850,7 @@ int main(int argc, char **argv)
     }
     const uint32_t effectiveAicoreNum =
         requestedAicoreNum == 0 ? runtimeAicoreNum : static_cast<uint32_t>(requestedAicoreNum);
-    const A5FixedScheduleConfig *defaultSchedule = FindA5DefaultSchedule(effectiveAicoreNum);
+    const A5FixedScheduleConfig* defaultSchedule = FindA5DefaultSchedule(effectiveAicoreNum);
     if (defaultSchedule == nullptr) {
         std::cerr << "rank=" << rankId << " unsupported effective A5 AICore count=" << effectiveAicoreNum
                   << "; supported counts are 28, 32, and 36" << std::endl;

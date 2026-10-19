@@ -344,7 +344,7 @@ for (int i = 0; i < N; i++) {
 ```cpp
 for (int i = 0; i < N; i++) {
     TLOAD(tile, ...);
-    TSYNC();  // 全局同步，开销大
+    synchronize();  // 全局同步，开销大
     COMPUTE(tile);
 }
 ```

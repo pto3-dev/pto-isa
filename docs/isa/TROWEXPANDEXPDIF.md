@@ -1,4 +1,4 @@
-﻿# TROWEXPANDEXPDIF
+# TROWEXPANDEXPDIF
 
 
 ## Tile Operation Diagram

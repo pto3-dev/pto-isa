@@ -55,41 +55,47 @@ PTO_INTERNAL uint32_t TPutAsyncGetTotalElemCount(GlobalData& globalData)
 }
 
 template <typename GlobalDstData, typename GlobalSrcData>
-PTO_INTERNAL bool TPutAsyncCheckTensorCompatibility()
+PTO_INTERNAL uint64_t TPutAsyncValidatePayload(GlobalDstData& dstGlobalData, GlobalSrcData& srcGlobalData)
 {
     using SrcElem = typename GlobalSrcData::RawDType;
     static_assert(
         std::is_same_v<SrcElem, typename GlobalDstData::RawDType>, "TPUT_ASYNC: src/dst element type mismatch");
     static_assert(GlobalSrcData::layout == GlobalDstData::layout, "TPUT_ASYNC: src/dst layout mismatch");
-    return true;
+
+    PTO_ASSERT(
+        srcGlobalData.data() != nullptr && dstGlobalData.data() != nullptr,
+        "TPUT_ASYNC payload: src and dst tensor pointers must not be null.");
+    PTO_ASSERT(
+        TPutAsyncIsFlatContiguous1D(srcGlobalData) && TPutAsyncIsFlatContiguous1D(dstGlobalData),
+        "TPUT_ASYNC payload: src and dst tensors must be flat contiguous 1D.");
+
+    const uint32_t srcElems = TPutAsyncGetTotalElemCount(srcGlobalData);
+    const uint32_t dstElems = TPutAsyncGetTotalElemCount(dstGlobalData);
+    PTO_ASSERT(dstElems >= srcElems, "TPUT_ASYNC payload: dst buffer too small for src data.");
+    return static_cast<uint64_t>(srcElems) * sizeof(SrcElem);
+}
+
+template <typename GlobalSignalData>
+PTO_INTERNAL void TPutAsyncValidateNotifySignal(GlobalSignalData& dstSignalData, NotifyOp notifyOp)
+{
+    static_assert(
+        std::is_same_v<typename GlobalSignalData::RawDType, int32_t>, "TPUT_ASYNC_NOTIFY: signal type must be int32_t");
+    PTO_ASSERT(dstSignalData.data() != nullptr, "TPUT_ASYNC_NOTIFY: signal pointer must not be null.");
+    PTO_ASSERT(
+        (reinterpret_cast<uint64_t>(dstSignalData.data()) & (alignof(int32_t) - 1U)) == 0U,
+        "TPUT_ASYNC_NOTIFY: signal address must be 4-byte aligned.");
+    PTO_ASSERT(
+        notifyOp == NotifyOp::Set || notifyOp == NotifyOp::AtomicAdd,
+        "TPUT_ASYNC_NOTIFY: notifyOp must be Set or AtomicAdd.");
 }
 
 template <typename GlobalDstData, typename GlobalSrcData>
 PTO_INTERNAL AsyncEvent
 TPUT_ASYNC_SDMA_IMPL(GlobalDstData& dstGlobalData, GlobalSrcData& srcGlobalData, const AsyncSession& session)
 {
-    (void)TPutAsyncCheckTensorCompatibility<GlobalDstData, GlobalSrcData>();
-
-    PTO_ASSERT(
-        srcGlobalData.data() != nullptr && dstGlobalData.data() != nullptr,
-        "TPUT_ASYNC: src and dst tensor pointers must not be null.");
-
-    PTO_ASSERT(
-        TPutAsyncIsFlatContiguous1D(srcGlobalData),
-        "TPUT_ASYNC: src tensor must be flat contiguous 1D (packed layout, single logical line). "
-        "Multi-dimensional or non-contiguous tensors are not supported by SDMA async path.");
-    PTO_ASSERT(
-        TPutAsyncIsFlatContiguous1D(dstGlobalData),
-        "TPUT_ASYNC: dst tensor must be flat contiguous 1D (packed layout, single logical line). "
-        "Multi-dimensional or non-contiguous tensors are not supported by SDMA async path.");
-
-    const uint32_t dstElems = TPutAsyncGetTotalElemCount(dstGlobalData);
-    const uint32_t srcElems = TPutAsyncGetTotalElemCount(srcGlobalData);
-    PTO_ASSERT(dstElems >= srcElems, "TPUT_ASYNC SDMA: dst buffer too small for src data.");
-
-    using T = typename GlobalSrcData::RawDType;
+    const uint64_t transferSize = TPutAsyncValidatePayload(dstGlobalData, srcGlobalData);
     const uint64_t eventHandle =
-        sdma::__sdma_put_async(dstGlobalData.data(), srcGlobalData.data(), srcElems * sizeof(T), session);
+        sdma::__sdma_put_async(dstGlobalData.data(), srcGlobalData.data(), transferSize, session);
     return AsyncEvent(eventHandle, DmaEngine::SDMA);
 }
 

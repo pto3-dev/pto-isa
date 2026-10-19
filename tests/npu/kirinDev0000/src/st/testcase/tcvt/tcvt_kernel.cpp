@@ -16,6 +16,15 @@ See LICENSE in the root of the software repository for the full text of the Lice
 using namespace std;
 using namespace pto;
 
+template <typename T>
+AICORE constexpr inline T CeilAlign(T num_1, T num_2)
+{
+    if (num_2 == 0) {
+        return 0;
+    }
+    return (num_1 + num_2 - 1) / num_2 * num_2;
+}
+
 // FP8 wrappers for testing
 struct fp8_e4m3_wrapper {
     int8_t value;
@@ -23,11 +32,6 @@ struct fp8_e4m3_wrapper {
     operator float() const { return static_cast<float>(value); }
 };
 struct fp8_e5m2_wrapper {
-    int8_t value;
-    operator int8_t() const { return value; }
-    operator float() const { return static_cast<float>(value); }
-};
-struct hifloat8_wrapper {
     int8_t value;
     operator int8_t() const { return value; }
     operator float() const { return static_cast<float>(value); }
@@ -70,8 +74,12 @@ __global__ AICORE void runTCVT(__gm__ T* out, __gm__ S* src)
     auto srcTile = getTile<TileDataSrc, useDynamicTile>(kValidRows_, kValidCols_);
     auto dstTile = getTile<TileDataDst, useDynamicTile>(kValidRows_, kValidCols_);
 
-    TASSIGN(srcTile, 0x0 + 0x400 * block_idx);
-    TASSIGN(dstTile, 0x20000 + 0x400 * block_idx);
+    constexpr std::size_t blockAlign = 32;
+    constexpr std::size_t srcTileSize = CeilAlign<std::size_t>(kTRows_ * kTCols_ * sizeof(S), blockAlign);
+    constexpr std::size_t dstTileSize = CeilAlign<std::size_t>(kTRows_ * kTCols_ * sizeof(T), blockAlign);
+    constexpr std::size_t blockStride = srcTileSize + dstTileSize;
+    TASSIGN(srcTile, blockStride * block_idx);
+    TASSIGN(dstTile, blockStride * block_idx + srcTileSize);
 
     GlobalData_src srcGlobal(src);
 
@@ -84,12 +92,7 @@ __global__ AICORE void runTCVT(__gm__ T* out, __gm__ S* src)
     wait_flag(PIPE_MTE2, PIPE_V, EVENT_ID0);
 #endif
 
-    // FP16->H8 conversion only supports ROUND_A or ROUND_H, use CAST_ROUND instead of CAST_RINT
-    if constexpr (std::is_same_v<T, hifloat8_t> && std::is_same_v<S, half>) {
-        TCVT(dstTile, srcTile, RoundMode::CAST_ROUND);
-    } else {
-        TCVT(dstTile, srcTile, RoundMode::CAST_RINT);
-    }
+    TCVT(dstTile, srcTile, RoundMode::CAST_RINT);
 
 #ifndef __PTO_AUTO__
     set_flag(PIPE_V, PIPE_MTE3, EVENT_ID0);
@@ -113,18 +116,14 @@ void launchTCVT(D* dst, S* src, void* stream)
             std::is_same_v<D, fp8_e4m3_wrapper>, float8_e4m3_t,
             std::conditional_t<
                 std::is_same_v<D, fp8_e5m2_wrapper>, float8_e5m2_t,
-                std::conditional_t<
-                    std::is_same_v<D, hifloat8_wrapper>, hifloat8_t,
-                    std::conditional_t<std::is_same_v<D, bf16_wrapper>, bfloat16_t, D>>>>>;
+                std::conditional_t<std::is_same_v<D, bf16_wrapper>, bfloat16_t, D>>>>;
     using SrcType = std::conditional_t<
         std::is_same_v<S, aclFloat16>, half,
         std::conditional_t<
             std::is_same_v<S, fp8_e4m3_wrapper>, float8_e4m3_t,
             std::conditional_t<
                 std::is_same_v<S, fp8_e5m2_wrapper>, float8_e5m2_t,
-                std::conditional_t<
-                    std::is_same_v<S, hifloat8_wrapper>, hifloat8_t,
-                    std::conditional_t<std::is_same_v<S, bf16_wrapper>, bfloat16_t, S>>>>>;
+                std::conditional_t<std::is_same_v<S, bf16_wrapper>, bfloat16_t, S>>>>;
 
     runTCVT<DstType, SrcType, kGRows_, kGCols_, kTRows_, kTCols_, kValidRows_, kValidCols_>
         <<<1, nullptr, stream>>>(reinterpret_cast<DstType*>(dst), reinterpret_cast<SrcType*>(src));
@@ -147,16 +146,14 @@ INSTANTIATE_TCVT(int16_t, float)
 INSTANTIATE_TCVT(int32_t, float)
 INSTANTIATE_TCVT(fp8_e4m3_wrapper, float)
 INSTANTIATE_TCVT(fp8_e5m2_wrapper, float)
-INSTANTIATE_TCVT(hifloat8_wrapper, float)
 INSTANTIATE_TCVT(float, float)
 
-// FP16 Source → fp32, int32, int16, int8, uint8, h8
+// FP16 Source → fp32, int32, int16, int8, uint8
 INSTANTIATE_TCVT(float, aclFloat16)
 INSTANTIATE_TCVT(int32_t, aclFloat16)
 INSTANTIATE_TCVT(int16_t, aclFloat16)
 INSTANTIATE_TCVT(int8_t, aclFloat16)
 INSTANTIATE_TCVT(uint8_t, aclFloat16)
-INSTANTIATE_TCVT(hifloat8_wrapper, aclFloat16)
 
 // BF16 Source → fp32, int32, half (FP4 not supported on kirinDev0000)
 INSTANTIATE_TCVT(float, bf16_wrapper)
@@ -197,7 +194,6 @@ INSTANTIATE_TCVT(int16_t, uint32_t)
 // FP8 Source → float
 INSTANTIATE_TCVT(float, fp8_e4m3_wrapper)
 INSTANTIATE_TCVT(float, fp8_e5m2_wrapper)
-INSTANTIATE_TCVT(float, hifloat8_wrapper)
 
 // ============================================================================
 // Saturation Mode Test Kernels
@@ -278,16 +274,12 @@ void launchTCVTSaturationTest(D* dstSaturated, D* dstTruncated, D* dstDefault, S
         std::is_same_v<D, aclFloat16>, half,
         std::conditional_t<
             std::is_same_v<D, fp8_e4m3_wrapper>, float8_e4m3_t,
-            std::conditional_t<
-                std::is_same_v<D, fp8_e5m2_wrapper>, float8_e5m2_t,
-                std::conditional_t<std::is_same_v<D, hifloat8_wrapper>, hifloat8_t, D>>>>;
+            std::conditional_t<std::is_same_v<D, fp8_e5m2_wrapper>, float8_e5m2_t, D>>>;
     using SrcType = std::conditional_t<
         std::is_same_v<S, aclFloat16>, half,
         std::conditional_t<
             std::is_same_v<S, fp8_e4m3_wrapper>, float8_e4m3_t,
-            std::conditional_t<
-                std::is_same_v<S, fp8_e5m2_wrapper>, float8_e5m2_t,
-                std::conditional_t<std::is_same_v<S, hifloat8_wrapper>, hifloat8_t, S>>>>;
+            std::conditional_t<std::is_same_v<S, fp8_e5m2_wrapper>, float8_e5m2_t, S>>>;
 
     runTCVTSaturationTest<DstType, SrcType, kGRows_, kGCols_, kTRows_, kTCols_><<<1, nullptr, stream>>>(
         reinterpret_cast<DstType*>(dstSaturated), reinterpret_cast<DstType*>(dstTruncated),

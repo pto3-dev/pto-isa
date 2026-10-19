@@ -53,6 +53,7 @@ jobs:
           export ut_type=${{ inputs.ut_type }}
           export task_name=${{ inputs.task_name }}
           export ge_st_rt2=${{ inputs.ge_st_rt2 }}
+          export GIT_TARGET_BRANCH=${{ env.TARGET_BRANCH }}
           bash ut.sh
       -
         name: upload

@@ -144,6 +144,20 @@ AICORE inline uint64_t Read(const RdmaExecContext& ctx, __gm__ uint8_t* dst, __g
     }
 }
 
+AICORE inline uint64_t WriteNotify(
+    const RdmaExecContext& ctx, __gm__ uint8_t* dst, __gm__ uint8_t* src, uint64_t len, __gm__ int32_t* remoteSignal,
+    int32_t signalValue)
+{
+    switch (ctx.backend) {
+#ifdef PTO_RDMA_BACKEND_HNS_1825_SUPPORTED
+        case RdmaBackend::HNS_1825:
+            return hns_1825::WriteNotify(ctx, dst, src, len, remoteSignal, signalValue);
+#endif
+        default:
+            return EncodeErrorHandle(kRdmaBackendUnavailableError);
+    }
+}
+
 AICORE inline uint64_t Write(
     const AsyncSession& session, __gm__ uint8_t* dst, __gm__ uint8_t* src, uint64_t len, uint32_t peer)
 {
@@ -153,6 +167,13 @@ AICORE inline uint64_t Write(
 AICORE inline uint64_t Write(const AsyncSession& session, __gm__ uint8_t* dst, __gm__ uint8_t* src, uint64_t len)
 {
     return Write(session, dst, src, len, session.destRankId);
+}
+
+AICORE inline uint64_t WriteNotify(
+    const AsyncSession& session, __gm__ uint8_t* dst, __gm__ uint8_t* src, uint64_t len, __gm__ int32_t* remoteSignal,
+    int32_t signalValue, uint32_t peer)
+{
+    return WriteNotify(MakeExecContext(session, peer), dst, src, len, remoteSignal, signalValue);
 }
 
 AICORE inline uint64_t Read(

@@ -1,4 +1,4 @@
-﻿# TQUANT
+# TQUANT
 
 ## Tile Operation Diagram
 

@@ -63,28 +63,29 @@ __global__ AICORE void runTMovL12Bias(__gm__ cType* out, __gm__ aType* src0, __g
     TASSIGN<0x0>(biasTile);
     TASSIGN<0x0>(dstTile);
 
-    /******************************TLOAD*****************************/
     TLOAD(aMatTile, src0Global);
     TLOAD(bMatTile, src1Global);
-    Event<Op::TLOAD, Op::TMOV_M2B> evtLoad_Mov = TLOAD(biasMatTile, src2Global);
+    TLOAD(biasMatTile, src2Global);
 
-    /**************************TMOV**************************/
+    set_flag(PIPE_MTE2, PIPE_MTE1, EVENT_ID0);
+    wait_flag(PIPE_MTE2, PIPE_MTE1, EVENT_ID0);
+
     TMOV(bTile, bMatTile);
-    Event<Op::TMOV_M2B, Op::TMATMUL> evtMov_Matmul = TMOV(biasTile, biasMatTile, evtLoad_Mov);
+    TMOV(biasTile, biasMatTile);
 
-    /****************************TMATMUL********************************/
-    TMATMUL_BIAS(cTile, aMatTile, bTile, biasTile, evtMov_Matmul);
+    set_flag(PIPE_MTE1, PIPE_M, EVENT_ID0);
+    wait_flag(PIPE_MTE1, PIPE_M, EVENT_ID0);
+
+    TMATMUL_BIAS(cTile, aMatTile, bTile, biasTile);
 
     set_flag(PIPE_M, PIPE_FIX, EVENT_ID0);
     wait_flag(PIPE_M, PIPE_FIX, EVENT_ID0);
 
-    /********************************TMOV ACC->VEC********************/
     TMOV(dstTile, cTile);
 
     set_flag(PIPE_FIX, PIPE_MTE3, EVENT_ID0);
     wait_flag(PIPE_FIX, PIPE_MTE3, EVENT_ID0);
 
-    /********************************TSTORE****************************/
     TSTORE(dstGlobal, dstTile);
     out = dstGlobal.data();
 }
@@ -153,20 +154,29 @@ __global__ AICORE void runTMovAcc2Vec(__gm__ cType* out, __gm__ aType* src0, __g
     TASSIGN<M * K * sizeof(aType) + K * N * sizeof(bType)>(cTile);
     TASSIGN<0x0>(dstTile);
 
-    /******************************TLOAD*****************************/
-    Event<Op::TLOAD, Op::TMATMUL> evtLoad_MovL = TLOAD(aMatTile, src0Global);
-    Event<Op::TLOAD, Op::TMOV_M2R> evtLoad_MovR = TLOAD(bMatTile, src1Global);
+    TLOAD(aMatTile, src0Global);
+    TLOAD(bMatTile, src1Global);
 
-    /**************************TMOV**************************/
-    Event<Op::TMOV_M2R, Op::TMATMUL> evtMovR_Matmul = TMOV(bTile, bMatTile, evtLoad_MovR);
+    set_flag(PIPE_MTE2, PIPE_MTE1, EVENT_ID0);
+    wait_flag(PIPE_MTE2, PIPE_MTE1, EVENT_ID0);
 
-    /****************************TMATMUL********************************/
-    Event<Op::TMATMUL, Op::TMOV_A2V> evtMatmul_Mov = TMATMUL(cTile, aMatTile, bTile, evtLoad_MovL, evtMovR_Matmul);
-    /****************************TMOV ACC->VEC**************************/
-    Event<Op::TMOV_A2V, Op::TSTORE_VEC> evtMov_Store = TMOV(dstTile, cTile, evtMatmul_Mov);
+    TMOV(bTile, bMatTile);
 
-    /********************************TSTORE****************************/
-    TSTORE(dstGlobal, dstTile, evtMov_Store);
+    set_flag(PIPE_MTE1, PIPE_M, EVENT_ID0);
+    wait_flag(PIPE_MTE1, PIPE_M, EVENT_ID0);
+
+    TMATMUL(cTile, aMatTile, bTile);
+
+    set_flag(PIPE_M, PIPE_FIX, EVENT_ID0);
+    wait_flag(PIPE_M, PIPE_FIX, EVENT_ID0);
+
+    TMOV(dstTile, cTile);
+
+    set_flag(PIPE_FIX, PIPE_MTE3, EVENT_ID0);
+    wait_flag(PIPE_FIX, PIPE_MTE3, EVENT_ID0);
+
+    TSTORE(dstGlobal, dstTile);
+    out = dstGlobal.data();
 }
 
 template <int32_t tilingKey>

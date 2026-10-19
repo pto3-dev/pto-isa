@@ -33,7 +33,7 @@ Programs intended for cross-backend portability SHOULD:
 Portable patterns include:
 
 - explicit domain-safe tiling and valid-region management
-- clear producer/consumer phase boundaries with events/`TSYNC`
+- clear producer/consumer phase boundaries with events/event synchronization
 - backend-gated specialization with capability checks
 - deterministic fallback paths for unsupported tuples
 

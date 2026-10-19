@@ -209,10 +209,12 @@ __global__ AICORE void runTPushPopMatmulAddNoSplit(
     }
 }
 
-template <typename InT, typename MatPipe, typename AccTile, typename TileMatA, typename TileMatB, typename LeftTile,
+template <
+    typename InT, typename MatPipe, typename AccTile, typename TileMatA, typename TileMatB, typename LeftTile,
     typename RightTile, typename GlobalB, int M, int H, int K>
-AICORE void RunDynamicAccValidShapeStripOnce(MatPipe& mPipe, AccTile& accTile, TileMatA& aMatTile, TileMatB& bMatTile,
-    LeftTile& aTile, RightTile& bTile, __gm__ InT* srcA, GlobalB& globalB, uint32_t strip)
+AICORE void RunDynamicAccValidShapeStripOnce(
+    MatPipe& mPipe, AccTile& accTile, TileMatA& aMatTile, TileMatB& bMatTile, LeftTile& aTile, RightTile& bTile,
+    __gm__ InT* srcA, GlobalB& globalB, uint32_t strip)
 {
     using GlobalA = GlobalTensor<InT, pto::Shape<1, 1, 1, H, K>, pto::Stride<M * K, M * K, H * K, K, 1>>;
     GlobalA globalA(srcA + strip * H * K);
@@ -272,8 +274,9 @@ AICORE void RunDynamicAccValidShapeStripProducer(MatPipe& mPipe, __gm__ InT* src
     set_flag(PIPE_MTE1, PIPE_MTE2, EVENT_ID1);
 
     for (uint32_t strip = 0; strip < STRIP_COUNT; ++strip) {
-        RunDynamicAccValidShapeStripOnce<InT, MatPipe, AccTile, TileMatA, TileMatB, LeftTile, RightTile, GlobalB, M, H,
-            K>(mPipe, accTile, aMatTile, bMatTile, aTile, bTile, srcA, globalB, strip);
+        RunDynamicAccValidShapeStripOnce<
+            InT, MatPipe, AccTile, TileMatA, TileMatB, LeftTile, RightTile, GlobalB, M, H, K>(
+            mPipe, accTile, aMatTile, bMatTile, aTile, bTile, srcA, globalB, strip);
     }
 
     wait_flag(PIPE_MTE1, PIPE_MTE2, EVENT_ID1);
@@ -285,8 +288,7 @@ AICORE void RunDynamicAccValidShapeStripProducer(MatPipe& mPipe, __gm__ InT* src
 template <typename OutT, typename MatPipe, typename VecStripTile, int M, int H, int N, uint32_t STRIP_COUNT>
 AICORE void RunDynamicAccValidShapeStripConsumer(MatPipe& mPipe, __gm__ OutT* out)
 {
-    using GlobalOutStrip =
-        GlobalTensor<OutT, pto::Shape<1, 1, 1, H, N>, pto::Stride<M * N, M * N, H * N, N, 1>>;
+    using GlobalOutStrip = GlobalTensor<OutT, pto::Shape<1, 1, 1, H, N>, pto::Stride<M * N, M * N, H * N, N, 1>>;
 
     if (get_subblockid() == 0) {
         VecStripTile vecStripTile;
@@ -325,13 +327,10 @@ __global__ AICORE void runTPushPopAccValidShapeStripNoSplit(__gm__ OutT* out, __
 
     using GlobalA = GlobalTensor<InT, pto::Shape<1, 1, 1, M, K>, pto::Stride<M * K, M * K, M * K, K, 1>>;
     using GlobalB = GlobalTensor<InT, pto::Shape<1, 1, 1, K, N>, pto::Stride<K * N, K * N, K * N, N, 1>>;
-    using GlobalOutStrip =
-        GlobalTensor<OutT, pto::Shape<1, 1, 1, H, N>, pto::Stride<M * N, M * N, H * N, N, 1>>;
+    using GlobalOutStrip = GlobalTensor<OutT, pto::Shape<1, 1, 1, H, N>, pto::Stride<M * N, M * N, H * N, N, 1>>;
 
-    using TileMatA =
-        Tile<TileType::Mat, InT, ALIGNED_M, ALIGNED_K, BLayout::ColMajor, M, K, SLayout::RowMajor, 512>;
-    using TileMatB =
-        Tile<TileType::Mat, InT, ALIGNED_K, ALIGNED_N, BLayout::ColMajor, K, N, SLayout::RowMajor, 512>;
+    using TileMatA = Tile<TileType::Mat, InT, ALIGNED_M, ALIGNED_K, BLayout::ColMajor, M, K, SLayout::RowMajor, 512>;
+    using TileMatB = Tile<TileType::Mat, InT, ALIGNED_K, ALIGNED_N, BLayout::ColMajor, K, N, SLayout::RowMajor, 512>;
     using LeftTile = TileLeft<InT, ALIGNED_M, ALIGNED_K, M, K>;
     using RightTile = TileRight<InT, ALIGNED_K, ALIGNED_N, K, N>;
 
@@ -451,7 +450,5 @@ template void LaunchTPushPopMatmulAddNoSplit<2>(
     uint8_t* out, uint8_t* srcA, uint8_t* srcB, uint8_t* bias, void* stream);
 template void LaunchTPushPopMatmulAddNoSplit<3>(
     uint8_t* out, uint8_t* srcA, uint8_t* srcB, uint8_t* bias, void* stream);
-template void LaunchTPushPopAccValidShapeStripNoSplit<4>(
-    uint8_t* out, uint8_t* srcA, uint8_t* srcB, void* stream);
-template void LaunchTPushPopAccValidShapeStripNoSplit<5>(
-    uint8_t* out, uint8_t* srcA, uint8_t* srcB, void* stream);
+template void LaunchTPushPopAccValidShapeStripNoSplit<4>(uint8_t* out, uint8_t* srcA, uint8_t* srcB, void* stream);
+template void LaunchTPushPopAccValidShapeStripNoSplit<5>(uint8_t* out, uint8_t* srcA, uint8_t* srcB, void* stream);

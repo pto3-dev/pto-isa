@@ -49,10 +49,10 @@ PTO_INTERNAL AsyncEvent TGET_ASYNC_URMA_IMPL(
         transferSize > 0 && transferSize <= urma::kUrmaMaxWqeTransferBytes,
         "TGET_ASYNC URMA: transfer size must be in (0, 256MB] per single WQE");
 
-    const uint64_t eventHandle = urma::__urma_get_async(
+    const urma::detail::UrmaPostResult result = urma::__urma_get_async(
         reinterpret_cast<__gm__ uint8_t*>(dstGlobalData.data()),
         reinterpret_cast<__gm__ uint8_t*>(srcGlobalData.data()), transferSize, session, peer);
-    return AsyncEvent(eventHandle, DmaEngine::URMA);
+    return AsyncEvent(result.handle, DmaEngine::URMA, result.targetCqe);
 }
 
 template <typename GlobalDstData, typename GlobalSrcData>

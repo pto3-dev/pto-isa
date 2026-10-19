@@ -1,4 +1,4 @@
-﻿# TSTORE
+# TSTORE
 
 
 ## Tile Operation Diagram
@@ -34,6 +34,18 @@ pto.tstore %src, %mem : (!pto.tile<...>, !pto.partition_tensor_view<MxNxdtype>) 
 ```text
 pto.tstore ins(%src : !pto.tile_buf<...>) outs(%mem : !pto.partition_tensor_view<MxNxdtype>)
 ```
+
+### IR Level 1 (SSA)
+
+```text
+pto.tstore %t1, %sv_out[%c0, %c0]
+```
+
+### IR Level 2 (DPS)
+
+```text
+pto.tstore ins(%t1, %sv_out[%c0, %c0]) outs()
+```
 ## C++ Intrinsic
 
 Declared in `include/pto/common/pto_instr.hpp` and `include/pto/common/constants.hpp`:
@@ -48,9 +60,19 @@ template <typename TileData, typename GlobalData, AtomicType atomicType = Atomic
 PTO_INST RecordEvent TSTORE(GlobalData& dst, TileData& src, uint64_t preQuantScalar, WaitEvents&... events);
 
 template <typename TileData, typename GlobalData, typename FpTileData, AtomicType atomicType = AtomicType::AtomicNone,
-          typename... WaitEvents>
+          ReluPreMode reluPreMode = ReluPreMode::NoRelu, typename... WaitEvents>
+PTO_INST RecordEvent TSTORE(GlobalData& dst, TileData& src, FpTileData& fp, WaitEvents&... events);
+
+template <typename TileData, typename GlobalData, typename FpTileData, AtomicType atomicType = AtomicType::AtomicNone,
+          ReluPreMode reluPreMode = ReluPreMode::NoRelu, typename... WaitEvents>
 PTO_INST RecordEvent TSTORE_FP(GlobalData& dst, TileData& src, FpTileData& fp, WaitEvents&... events);
 ```
+
+`TSTORE_FP(...)` is retained for source compatibility with the legacy fp-quantized form and maps directly to
+`TSTORE_IMPL(dst, src, fp)`. The canonical `TSTORE(..., fp, ...)` overload is selected only for
+`FpTileData::Loc == TileType::Scaling`; backend implementations may apply additional legality checks.
+The vector-quantized `STPhase` form is exposed only on targets with matching backend support
+(A5, kirin9030, kirinDev0000, and CPU simulator).
 
 ## Constraints
 
@@ -61,6 +83,9 @@ PTO_INST RecordEvent TSTORE_FP(GlobalData& dst, TileData& src, FpTileData& fp, W
     - `TileData::DType` must be one of: `int8_t`, `uint8_t`, `int16_t`, `uint16_t`, `int32_t`, `uint32_t`, `int64_t`, `uint64_t`, `half`, `bfloat16_t`, `float`.
     - `sizeof(TileData::DType) == sizeof(GlobalData::DType)`.
     - Layouts must match ND/DN/NZ (or a special case where `TileData::Rows == 1` or `TileData::Cols == 1`).
+      In that special case the traversal follows the tile layout, not the `GlobalTensor` layout: the vector is
+      written as one contiguous burst and the other axis' stride is not used. A ColMajor `[N, 1]` tile stored
+      through an ND `GlobalTensor` therefore occupies `N` consecutive elements, not one element per row stride.
     - For `int64_t/uint64_t`, only ND->ND or DN->DN are supported.
     - For `TileType::Acc`:
       - Supported layout conversions: NZ2ND, NZ2NZ, NZ2NC1HWC0, NZ2NDC1HWC0. NZ2DN is **not** supported.
@@ -73,8 +98,8 @@ PTO_INST RecordEvent TSTORE_FP(GlobalData& dst, TileData& src, FpTileData& fp, W
         | --- | --- | --- |
         | `TSTORE(dst, acc)` | `float` | `float`, `half`, `bfloat16_t` |
         | `TSTORE(dst, acc)` | `int32_t` | `int32_t` |
-        | `TSTORE(dst, acc, preQuantScalar)` / `TSTORE_FP(dst, acc, fp)` | `float` | `int8_t`, `uint8_t` |
-        | `TSTORE(dst, acc, preQuantScalar)` / `TSTORE_FP(dst, acc, fp)` | `int32_t` | `int8_t`, `uint8_t`, `half` |
+        | `TSTORE(dst, acc, preQuantScalar)` / `TSTORE(dst, acc, fp)` / `TSTORE_FP(dst, acc, fp)` | `float` | `int8_t`, `uint8_t` |
+        | `TSTORE(dst, acc, preQuantScalar)` / `TSTORE(dst, acc, fp)` / `TSTORE_FP(dst, acc, fp)` | `int32_t` | `int8_t`, `uint8_t`, `half` |
 
         Other cross-type combinations are not supported.
     - Static shape constraints: `1 <= TileData::Cols <= 4095`; if ND then `1 <= TileData::Rows <= 8192`; if NZ, NC1HWC0, or NDC1HWC0 then `1 <= TileData::Rows <= 65535` and `TileData::Cols % 16 == 0`.
@@ -85,6 +110,9 @@ PTO_INST RecordEvent TSTORE_FP(GlobalData& dst, TileData& src, FpTileData& fp, W
     - `sizeof(TileData::DType) == sizeof(GlobalData::DType)`.
     - `TileData::DType` must be one of: `int8_t`, `uint8_t`, `int16_t`, `uint16_t`, `int32_t`, `uint32_t`, `int64_t`, `uint64_t`, `half`, `bfloat16_t`, `float`, `float8_e4m3_t`, `float8_e5m2_t`, `hifloat8_t`, `float8_e8m0_t`, `float4_e1m2x2_t`, `float4_e2m1x2_t`.
     - Layouts must match ND/DN/NZ (or a special case where `TileData::Rows == 1` or `TileData::Cols == 1`).
+      In that special case the traversal follows the tile layout, not the `GlobalTensor` layout: the vector is
+      written as one contiguous burst and the other axis' stride is not used. A ColMajor `[N, 1]` tile stored
+      through an ND `GlobalTensor` therefore occupies `N` consecutive elements, not one element per row stride.
     - Additional alignment constraints are enforced (e.g., for ND the row-major width in bytes must be a multiple of 32; for DN the column-major height in bytes must be a multiple of 32, with special-case exceptions).
     - For `TileType::Acc` / ACC source tiles:
       - Supported layout conversions: NZ2ND, NZ2NZ, NZ2NHWC, NZ2NCHW, NZ2NCDHW. NZ2DN is **not** supported.
@@ -96,8 +124,8 @@ PTO_INST RecordEvent TSTORE_FP(GlobalData& dst, TileData& src, FpTileData& fp, W
       | --- | --- | --- |
       | `TSTORE(dst, acc)` | `float` | `float`, `half`, `bfloat16_t` |
       | `TSTORE(dst, acc)` | `int32_t` | `int32_t` |
-      | `TSTORE(dst, acc, preQuantScalar)` / `TSTORE_FP(dst, acc, fp)` | `float` | `int8_t`, `uint8_t`, `half`, `bfloat16_t`, `hifloat8_t`, `float8_e4m3_t`, `float` |
-      | `TSTORE(dst, acc, preQuantScalar)` / `TSTORE_FP(dst, acc, fp)` | `int32_t` | `int8_t`, `uint8_t`, `half`, `bfloat16_t` |
+      | `TSTORE(dst, acc, preQuantScalar)` / `TSTORE(dst, acc, fp)` / `TSTORE_FP(dst, acc, fp)` | `float` | `int8_t`, `uint8_t`, `half`, `bfloat16_t`, `hifloat8_t`, `float8_e4m3_t`, `float` |
+      | `TSTORE(dst, acc, preQuantScalar)` / `TSTORE(dst, acc, fp)` / `TSTORE_FP(dst, acc, fp)` | `int32_t` | `int8_t`, `uint8_t`, `half`, `bfloat16_t` |
 
       Other cross-type combinations are not supported.
     - Static shape constraints match A2A3 for rows/cols; `AtomicAdd` additionally restricts destination dtype to supported atomic types.

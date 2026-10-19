@@ -51,6 +51,43 @@ void LaunchTAdd(T* out, T* src0, T* src1, void* stream)
         runTAdd<T, kGRows_, kGCols_, kTRows_, kTCols_>(out, src0, src1);
 }
 
+template <int kRows, int kCols>
+AICORE void runTAddMixedValidShape(
+    __gm__ int32_t __out__* out, __gm__ int32_t __in__* src0, __gm__ int32_t __in__* src1)
+{
+    using DynShapeDim5 = Shape<1, 1, 1, kRows, kCols>;
+    using DynStridDim5 = Stride<1, 1, 1, kCols, 1>;
+    using GlobalData = GlobalTensor<int32_t, DynShapeDim5, DynStridDim5>;
+    using DynamicTile = Tile<TileType::Vec, int32_t, kRows, kCols, BLayout::RowMajor, -1, -1>;
+    using StaticTile = Tile<TileType::Vec, int32_t, kRows, kCols, BLayout::RowMajor, kRows, kCols>;
+
+    DynamicTile dstTile(kRows, kCols);
+    StaticTile src0Tile;
+    DynamicTile src1Tile(kRows, kCols);
+    TASSIGN(dstTile, 0x0);
+    TASSIGN(src0Tile, 0x4000);
+    TASSIGN(src1Tile, 0x8000);
+
+    GlobalData src0Global(src0);
+    GlobalData src1Global(src1);
+    GlobalData dstGlobal(out);
+
+    TLOAD(src0Tile, src0Global);
+    TLOAD(src1Tile, src1Global);
+    TADD(dstTile, src0Tile, src1Tile);
+    TSTORE(dstGlobal, dstTile);
+    out = dstGlobal.data();
+}
+
+template <int kRows, int kCols>
+void LaunchTAddMixedValidShape(int32_t* out, int32_t* src0, int32_t* src1, void* stream)
+{
+    (void)stream;
+    runTAddMixedValidShape<kRows, kCols>(out, src0, src1);
+}
+
+template void LaunchTAddMixedValidShape<64, 64>(int32_t* out, int32_t* src0, int32_t* src1, void* stream);
+
 template void LaunchTAdd<float, 64, 64, 64, 64>(float* out, float* src0, float* src1, void* stream);
 template void LaunchTAdd<int32_t, 64, 64, 64, 64>(int32_t* out, int32_t* src0, int32_t* src1, void* stream);
 template void LaunchTAdd<aclFloat16, 16, 256, 16, 256>(

@@ -237,5 +237,20 @@ PTO_INTERNAL void TCVT_IMPL(
     }
 }
 
+template <typename TileDataD, typename TileDataS, typename TmpTileData>
+PTO_INTERNAL void TCVT_IMPL(
+    TileDataD& dst, TileDataS& src, TmpTileData& tmp, RoundMode mode, SaturationMode satMode, bool needSetCtrl = true)
+{
+    (void)tmp;
+    TCVT_IMPL(dst, src, mode, satMode, needSetCtrl);
+}
+
+template <typename TileDataD, typename TileDataS, typename TmpTileData>
+PTO_INTERNAL void TCVT_IMPL(TileDataD& dst, TileDataS& src, TmpTileData& tmp, RoundMode mode, bool needSetCtrl = true)
+{
+    (void)tmp;
+    TCVT_IMPL(dst, src, mode, needSetCtrl);
+}
+
 } // namespace pto
 #endif

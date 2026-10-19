@@ -94,8 +94,8 @@ void TPushPopDirBothTestFunc(uint32_t M, uint32_t K, uint32_t N)
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(outFileSize);
-    std::vector<T> devFinal(outFileSize);
+    std::vector<T> golden(outFileSize / sizeof(T));
+    std::vector<T> devFinal(outFileSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", outFileSize, golden.data(), outFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", outFileSize, devFinal.data(), outFileSize);
 

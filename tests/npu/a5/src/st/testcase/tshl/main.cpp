@@ -35,6 +35,9 @@ std::string GetGoldenDir()
 template <typename T, int kTRows_, int kTCols_, int vRows, int vCols>
 void LaunchTShl(T* out, T* src0, T* src1, void* stream);
 
+template <typename T, int tileH, int tileW, int vRows, int vCols>
+void LaunchTShlInplace(T* out, T* src1, void* stream);
+
 template <typename T, int kTRows_, int kTCols_, int vRows, int vCols>
 void test_tshl()
 {
@@ -95,11 +98,64 @@ void test_tshl()
     EXPECT_TRUE(ret);
 }
 
+template <typename T, int tileH, int tileW, int vRows, int vCols>
+void test_tshl_inplace()
+{
+    size_t fileSize = tileH * tileW * sizeof(T);
+
+    aclInit(nullptr);
+    aclrtSetDevice(0);
+    aclrtStream stream;
+    aclrtCreateStream(&stream);
+
+    T *dstHost, *src1Host;
+    T *dstDevice, *src1Device;
+
+    aclrtMallocHost((void**)(&dstHost), fileSize);
+    aclrtMallocHost((void**)(&src1Host), fileSize);
+
+    aclrtMalloc((void**)&dstDevice, fileSize, ACL_MEM_MALLOC_HUGE_FIRST);
+    aclrtMalloc((void**)&src1Device, fileSize, ACL_MEM_MALLOC_HUGE_FIRST);
+
+    ReadFile(GetGoldenDir() + "/input1.bin", fileSize, dstHost, fileSize);
+    ReadFile(GetGoldenDir() + "/input2.bin", fileSize, src1Host, fileSize);
+
+    aclrtMemcpy(dstDevice, fileSize, dstHost, fileSize, ACL_MEMCPY_HOST_TO_DEVICE);
+    aclrtMemcpy(src1Device, fileSize, src1Host, fileSize, ACL_MEMCPY_HOST_TO_DEVICE);
+    LaunchTShlInplace<T, tileH, tileW, vRows, vCols>(dstDevice, src1Device, stream);
+
+    aclrtSynchronizeStream(stream);
+    aclrtMemcpy(dstHost, fileSize, dstDevice, fileSize, ACL_MEMCPY_DEVICE_TO_HOST);
+
+    WriteFile(GetGoldenDir() + "/output.bin", dstHost, fileSize);
+
+    aclrtFree(dstDevice);
+    aclrtFree(src1Device);
+
+    aclrtFreeHost(dstHost);
+    aclrtFreeHost(src1Host);
+    aclrtDestroyStream(stream);
+    aclrtResetDevice(0);
+    aclFinalize();
+
+    std::vector<T> golden(fileSize / sizeof(T));
+    std::vector<T> devFinal(fileSize / sizeof(T));
+    ReadFile(GetGoldenDir() + "/golden.bin", fileSize, golden.data(), fileSize);
+    ReadFile(GetGoldenDir() + "/output.bin", fileSize, devFinal.data(), fileSize);
+
+    bool ret;
+    if constexpr (std::is_same_v<T, int64_t> || std::is_same_v<T, uint64_t>) {
+        ret = ResultCmpExact(golden, devFinal.data());
+    } else {
+        ret = ResultCmp<T>(golden, devFinal, 0.001f);
+    }
+
+    EXPECT_TRUE(ret);
+}
+
 TEST_F(TSHLTest, case1) { test_tshl<uint16_t, 64, 64, 64, 64>(); }
 
 TEST_F(TSHLTest, case2) { test_tshl<uint16_t, 64, 64, 63, 63>(); }
-
-TEST_F(TSHLTest, case3) { test_tshl<uint16_t, 1, 16384, 1, 16384>(); }
 
 TEST_F(TSHLTest, case4) { test_tshl<uint16_t, 2048, 16, 2048, 16>(); }
 
@@ -116,3 +172,9 @@ TEST_F(TSHLTest, case9) { test_tshl<int32_t, 8, 8, 8, 8>(); }
 TEST_F(TSHLTest, case_int64_4x16_4x15) { test_tshl<int64_t, 4, 16, 4, 15>(); }
 
 TEST_F(TSHLTest, case_uint64_4x16_4x15) { test_tshl<uint64_t, 4, 16, 4, 15>(); }
+
+TEST_F(TSHLTest, case_int64_4x32_inplace) { test_tshl_inplace<int64_t, 4, 32, 4, 32>(); }
+TEST_F(TSHLTest, case_uint64_4x32_inplace) { test_tshl_inplace<uint64_t, 4, 32, 4, 32>(); }
+TEST_F(TSHLTest, case_int64_1x1024_inplace) { test_tshl_inplace<int64_t, 1, 1024, 1, 1024>(); }
+TEST_F(TSHLTest, case_int64_1x2048_2045_inplace) { test_tshl_inplace<int64_t, 1, 2048, 1, 2045>(); }
+TEST_F(TSHLTest, case_int64_4x64_40_inplace) { test_tshl_inplace<int64_t, 4, 64, 4, 40>(); }

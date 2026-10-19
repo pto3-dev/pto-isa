@@ -6,7 +6,7 @@ This section gives an overview of PTO auto mode.
 
 ## What is Auto Mode
 
-Auto mode is a compilation mode for PTO. It does all the memory allocation for tiles and synchronization in the compiler. Programming in auto mode works just like in manual mode, except there is no need for `TASSIGN` and `TSYNC`/`Event` (in fact, these will do nothing in auto mode).
+Auto mode is a compilation mode for PTO. It does all the memory allocation for tiles and synchronization in the compiler. Programming in auto mode works just like in manual mode, except there is no need for `TASSIGN` and explicit `Event` synchronization (in fact, these will do nothing in auto mode).
 
 ## Why Use Auto Mode?
 

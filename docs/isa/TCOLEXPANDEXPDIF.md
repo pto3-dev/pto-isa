@@ -1,4 +1,4 @@
-﻿# TCOLEXPANDEXPDIF
+# TCOLEXPANDEXPDIF
 
 
 ## Tile Operation Diagram

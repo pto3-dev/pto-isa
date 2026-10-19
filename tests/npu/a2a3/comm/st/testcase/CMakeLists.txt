@@ -99,6 +99,7 @@ tput
 tget
 # Point-to-Point Communication (Asynchronous)
 tput_async
+tput_async_notify
 tget_async
 # Signal-Based Synchronization
 tnotify

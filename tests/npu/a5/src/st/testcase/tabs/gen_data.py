@@ -20,8 +20,15 @@ def gen_golden_data(case_name, param):
     H, W = [param.tile_row, param.tile_col]
     h_valid, w_valid = [param.valid_row, param.valid_col]
 
-    input1 = np.random.random(size=(H, W)).astype(dtype)
     golden = np.zeros([H, W]).astype(dtype)
+    if dtype == np.int64:
+        # Use large values so the high 32-bit half of each 64-bit element is
+        # exercised. Keep magnitudes below INT64_MIN's magnitude so abs() does
+        # not overflow.
+        rng = np.random.default_rng(5)
+        input1 = rng.integers(-(2 ** 31), 2 ** 31 - 1, size=(H, W)).astype(dtype)
+    else:
+        input1 = np.random.random(size=(H, W)).astype(dtype)
     golden[:h_valid, :w_valid] = np.abs(input1[:h_valid, :w_valid])
     input1.tofile("input1.bin")
     golden.tofile("golden.bin")
@@ -44,7 +51,8 @@ def generate_case_name(param):
         np.float16: 'half',
         np.int8: 'int8',
         np.int32: 'int32',
-        np.int16: 'int16'
+        np.int16: 'int16',
+        np.int64: 'int64'
     }[param.dtype]
     str_inplace = '_InPlace' if param.in_place else ''
     return f"TABSTest.case_{dtype_str}_{param.global_row}x{param.global_col}_{param.tile_row}x{param.tile_col}"\
@@ -70,6 +78,7 @@ if __name__ == "__main__":
         tunaryParams(np.int16, 64, 64, 64, 64, 64, 64, False),
         tunaryParams(np.int32, 64, 64, 64, 64, 64, 64, True),
         tunaryParams(np.int32, 64, 64, 64, 64, 64, 64, False),
+        tunaryParams(np.int64, 64, 64, 64, 64, 64, 64, False),
     ]
 
     for i, param in enumerate(case_params_list):

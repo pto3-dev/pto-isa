@@ -1,4 +1,4 @@
-﻿# TGEMV_ACC
+# TGEMV_ACC
 
 ## 指令示意图
 
@@ -38,7 +38,7 @@ PTO_INST RecordEvent TGEMV_ACC(TileRes &cOutMatrix, TileRes &cInMatrix, TileLeft
 
 $$ \mathrm{C}_{0,j} \gets \mathrm{C}_{0,j} + \sum_{k=0}^{K-1} \mathrm{A}_{0,k} \cdot \mathrm{B}_{k,j} $$
 
-**注意：** 精确的累加器行为和数据类型提升由目标/实现定义。
+已有的 `C` 元素是融合乘加序列的初始累加值，并非先从零独立计算点积、再在末尾加上 `C`；跨 K tile 累加时，两种顺序可能产生不同的浮点舍入结果。数据类型提升仍由目标/实现定义。
 
 ## 汇编语法
 
@@ -75,6 +75,7 @@ pto.tgemv.acc ins(%c_in, %a, %b : !pto.tile_buf<...>, !pto.tile_buf<...>, !pto.t
 - 运行时有效尺寸约束：
     - `m` 必须为 `1`
     - `k` 和 `n`（取自 `bMatrix.GetValidRow()` 与 `bMatrix.GetValidCol()`）必须位于 `[1, 4095]`
+- `TMATMUL` 的 Acc 目的 Tile 约束同样适用。
 
 ### 数据类型约束
 

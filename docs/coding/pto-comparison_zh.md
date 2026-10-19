@@ -249,7 +249,7 @@ __global__ __aicore__ void VecAdd(__gm__ float* out,
 | Block | Block（类似） |
 | Shared Memory | Tile Storage |
 | Global Memory | GlobalTensor |
-| `__syncthreads()` | Event/TSYNC |
+| `__syncthreads()` | Event |
 
 **代码迁移步骤**
 

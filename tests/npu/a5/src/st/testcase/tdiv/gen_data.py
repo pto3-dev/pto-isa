@@ -63,6 +63,9 @@ def gen_golden_data(case_name, param):
     else:
         golden[0:h_valid, 0:w_valid] = input1[0:h_valid, 0:w_valid] / input2[0:h_valid, 0:w_valid]
 
+    if "inplace" in case_name and w_valid < dst_tile_col:
+        golden[0:h_valid, w_valid:dst_tile_col] = input1[0:h_valid, w_valid:dst_tile_col]
+
     # Save the input and golden data to binary files
     input1.tofile("input1.bin")
     input2.tofile("input2.bin")
@@ -71,7 +74,7 @@ def gen_golden_data(case_name, param):
 
 class TDivParams:
     def __init__(self, dtype, dst_tile_row, dst_tile_col, src0_tile_row, src0_tile_col,
-        src1_tile_row, src1_tile_col, valid_row, valid_col, high_precision=False):
+        src1_tile_row, src1_tile_col, valid_row, valid_col, high_precision=False, custom_name=None):
         self.dtype = dtype
         self.dst_tile_row = dst_tile_row
         self.dst_tile_col = dst_tile_col
@@ -82,6 +85,7 @@ class TDivParams:
         self.valid_row = valid_row
         self.valid_col = valid_col
         self.high_precision = high_precision
+        self.custom_name = custom_name
 
 
 def generate_case_name(param):
@@ -128,10 +132,15 @@ if __name__ == "__main__":
         TDivParams(np.uint64, 4, 16, 4, 16, 4, 16, 4, 16),
         TDivParams(np.int64, 4, 64, 4, 64, 4, 64, 4, 64),
         TDivParams(np.uint64, 4, 64, 4, 64, 4, 64, 4, 64),
+        TDivParams(np.int64, 4, 32, 4, 32, 4, 32, 4, 32, custom_name="TDIVTest.case_int64_4x32_inplace"),
+TDivParams(np.uint64, 4, 32, 4, 32, 4, 32, 4, 32, custom_name="TDIVTest.case_uint64_4x32_inplace"),
+        TDivParams(np.int64, 1, 1024, 1, 1024, 1, 1024, 1, 1024, custom_name="TDIVTest.case_int64_1x1024_inplace"),
+        TDivParams(np.int64, 1, 2048, 1, 2048, 1, 2048, 1, 2045, custom_name="TDIVTest.case_int64_1x2048_2045_inplace"),
+        TDivParams(np.int64, 4, 64, 4, 64, 4, 64, 4, 40, custom_name="TDIVTest.case_int64_4x64_40_inplace"),
     ]
 
     for param in case_params_list:
-        case_name = generate_case_name(param)
+        case_name = param.custom_name if param.custom_name else generate_case_name(param)
         if not os.path.exists(case_name):
             os.makedirs(case_name)
         original_dir = os.getcwd()

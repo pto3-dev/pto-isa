@@ -76,7 +76,7 @@ license: CANN Open Software License Agreement Version 2.0
 - **位置**: 指令索引表格
 - **分类**:
   - 逐元素（Tile-Tile）指令 → 插在 `TFMOD` 后
-  - Tile-标量 / Tile-立即数 → 插在 `TSUBSC` 后
+  - Tile-标量 / Tile-立即数 → 插在 `TLRELU` 后
 
 #### include/README.md / include/README_zh.md
 - **位置**: 实现状态表格（按字母序）
@@ -90,7 +90,7 @@ license: CANN Open Software License Agreement Version 2.0
 - **位置**: 按分类排序的指令列表
 - **分类**:
   - Elementwise (Tile-Tile) → 插在 `TFMOD` 后
-  - Tile-Scalar / Tile-Immediate → 插在 `TSUBSC` 后
+  - Tile-Scalar / Tile-Immediate → 插在 `TLRELU` 后
 
 ### 3. 菜单文档
 
@@ -105,7 +105,7 @@ license: CANN Open Software License Agreement Version 2.0
 | 指令类型 | 目标文件 | 插入位置 |
 |----------|----------|----------|
 | TPOW (Elementwise) | `elementwise-ops.md` | TFMOD 后 |
-| TPOWS (Tile-Scalar) | `tile-scalar-ops.md` | TSU BSC 后 |
+| TPOWS (Tile-Scalar) | `tile-scalar-ops.md` | TLRELU 后 |
 | TROWSUM (Axis) | `axis-ops.md` | 最后一个 Axis 指令后 |
 | TLOAD (Memory) | `memory-ops.md` | 最后一个 Memory 指令后 |
 | TMATMUL (Matrix) | `matrix-ops.md` | 最后一个 Matrix 指令后 |
@@ -134,16 +134,19 @@ license: CANN Open Software License Agreement Version 2.0
 ## 常见新增指令分类与插入位置
 
 ### Tile-Tile (逐元素双Tile)
+
 - **插入位置**: `TFMOD` 之后
 - **对应文件**: `elementwise-ops.md`
 - **示例**: TPOW
 
 ### Tile-Scalar (Tile与标量)
-- **插入位置**: `TSUBSC` 之后
+
+- **插入位置**: `TLRELU` 之后
 - **对应文件**: `tile-scalar-ops.md`
 - **示例**: TPOWS
 
 ### Axis Reduce / Expand
+
 - **插入位置**: 最后一个 Axis 指令之后
 - **对应文件**: `axis-ops.md`
 

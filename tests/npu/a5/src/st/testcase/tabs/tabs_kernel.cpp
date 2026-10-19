@@ -67,3 +67,4 @@ template void LaunchTAbs<int16_t, 64, 64, 64, 64, true>(int16_t* out, int16_t* s
 template void LaunchTAbs<int16_t, 64, 64, 64, 64, false>(int16_t* out, int16_t* src, void* stream);
 template void LaunchTAbs<int32_t, 64, 64, 64, 64, true>(int32_t* out, int32_t* src, void* stream);
 template void LaunchTAbs<int32_t, 64, 64, 64, 64, false>(int32_t* out, int32_t* src, void* stream);
+template void LaunchTAbs<int64_t, 64, 64, 64, 64, false>(int64_t* out, int64_t* src, void* stream);

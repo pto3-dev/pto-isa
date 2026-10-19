@@ -1,4 +1,4 @@
-﻿# TIMG2COL
+# TIMG2COL
 
 
 ## Tile Operation Diagram

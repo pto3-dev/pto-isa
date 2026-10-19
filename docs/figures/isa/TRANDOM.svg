@@ -1,6 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" role="img" aria-label="TRANDOM tile operation diagram">
 <defs>
-  <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L0,8 L8,4 z" fill="#515151"/></marker>
+  <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0,0 L0,12 L12,6 z" fill="#C53A79"/></marker>
+  <marker id="axisArrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L0,10 L10,5 z" fill="#64748b"/></marker>
 </defs>
 <style>
 svg { font-family: Arial, Helvetica, sans-serif; }
@@ -8,94 +9,38 @@ svg { font-family: Arial, Helvetica, sans-serif; }
 .subtitle { font-size: 14px; fill: #334155; }
 .meta { font-size: 12px; fill: #64748b; }
 .frame { fill: white; }
-.panel { fill: #F5F5F5; stroke: #e2e8f0; stroke-width: 1.5; rx: 14; }
-.box { fill: #ffffff; stroke: #94a3b8; stroke-width: 1.5; rx: 12; }
-.procBox { fill: #f8fafc; stroke: #cbd5e1; stroke-width: 1.5; rx: 12; }
+.panel { fill: #FDF0F6; stroke: #e2e8f0; stroke-width: 1.5; rx: 14; }
+.tileLabel { font-size: 14px; font-weight: 700; fill: #0f172a; }
 .tileBorder { fill: none; stroke: #475569; stroke-width: 1.5; }
 .cell { fill: #ffffff; stroke: #94a3b8; stroke-width: 1; }
-.cellRand { fill: #dbeafe; stroke: #2563eb; stroke-width: 1.2; }
-.cellText { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 10px; fill: #0f172a; }
-.label { font-size: 14px; font-weight: 700; fill: #0f172a; }
-.small { font-size: 12px; fill: #334155; }
-.meta2 { font-size: 11px; fill: #64748b; }
-.arrow { stroke: #515151; stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+.cellMasked { fill: #e2e8f0; }
+.cellHL { stroke-width: 2; }
+.cellText { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size: 10px; fill: #0f172a; }
+.arrow { stroke-width: 2.5; fill: none; stroke-linejoin: round; stroke-linecap: round; }
+.axisLine { stroke: #64748b; stroke-width: 1.5; fill: none; }
+.axisText { font-size: 10px; fill: #64748b; font-weight: 700; }
+.opCircle { fill: #ffffff; stroke-width: 2; }
+.opRect { fill: #ffffff; stroke-width: 2; }
+.opText { font-size: 10px; font-weight: 800; fill: #0f172a; }
+.procBox { fill: #f8fafc; stroke: #cbd5e1; stroke-width: 1.5; rx: 12; }
+.procTitle { font-size: 14px; font-weight: 700; fill: #0f172a; }
+.procText { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size: 12px; fill: #0f172a; }
+.smallLabel { font-size: 12px; fill: #334155; }
+.scalarBox { fill: #ffffff; stroke: #cbd5e1; stroke-width: 1.5; }
+.scalarValue { font-size: 16px; font-weight: 700; }
+.validBox { fill: none; stroke-width: 2; stroke-dasharray: 6 4; }
 </style>
 <rect x="0" y="0" width="1200" height="720" class="frame" />
-<rect x="24" y="24" width="1152" height="672" class="panel" />
+<rect x="24" y="24" width="1152" height="672" class="panel"/>
 <text x="40" y="46" class="title">TRANDOM</text>
-<text x="40" y="72" class="subtitle">Generate pseudo-random values into the destination tile.</text>
-<text x="40" y="92" class="meta">Inputs: 64-bit key + 128-bit counter + rounds (7 or 10)</text>
+<text x="40" y="72" class="subtitle">Generates random numbers in the destination tile using a counter-based cipher algorithm.</text>
+<text x="40" y="92" class="meta">Template: complex</text>
+<text x="1160" y="92" class="meta" text-anchor="end">Legend: outline=example; dashed=valid rows/cols (Rv,Cv); shaded=masked; r down / c right; ortho arrows=dataflow</text>
 <line x1="36" y1="104" x2="1164" y2="104" stroke="#e2e8f0" stroke-width="1.5" />
-
-<rect x="60" y="150" width="190" height="86" class="box" />
-<text x="78" y="176" class="label">key</text>
-<text x="78" y="198" class="small">2 × 32-bit words</text>
-<text x="78" y="220" class="cellText">k0 | k1</text>
-
-<rect x="60" y="268" width="190" height="110" class="box" />
-<text x="78" y="294" class="label">counter</text>
-<text x="78" y="316" class="small">4 × 32-bit state</text>
-<text x="78" y="338" class="cellText">ctr0 | ctr1</text>
-<text x="78" y="358" class="cellText">ctr2 | ctr3</text>
-
-<rect x="60" y="410" width="190" height="82" class="box" />
-<text x="78" y="436" class="label">rounds</text>
-<text x="78" y="458" class="small">valid values: 7 or 10</text>
-<text x="78" y="480" class="cellText">default = 10</text>
-
-<rect x="350" y="190" width="280" height="220" class="procBox" />
-<text x="370" y="218" class="label">counter-based random kernel</text>
-<text x="370" y="246" class="small">for each valid element group:</text>
-<text x="370" y="272" class="cellText">1. init key / ctr state</text>
-<text x="370" y="296" class="cellText">2. run cipher-like rounds</text>
-<text x="370" y="320" class="cellText">3. reorder 4 output lanes</text>
-<text x="370" y="344" class="cellText">4. store to dst tile</text>
-<text x="370" y="378" class="meta2">state width: 128-bit</text>
-<text x="370" y="398" class="meta2">output lanes per iteration: 4</text>
-
-<path d="M 250 193 C 295 193, 305 220, 350 220" class="arrow" />
-<path d="M 250 322 C 295 322, 305 300, 350 300" class="arrow" />
-<path d="M 250 450 C 295 450, 305 360, 350 360" class="arrow" />
-
-<text x="885" y="176" class="label" text-anchor="middle">dst tile</text>
-<rect x="760" y="190" width="250" height="200" class="tileBorder" />
-
-<rect x="760" y="190" width="50" height="50" class="cell cellRand" />
-<rect x="810" y="190" width="50" height="50" class="cell cellRand" />
-<rect x="860" y="190" width="50" height="50" class="cell cellRand" />
-<rect x="910" y="190" width="50" height="50" class="cell cellRand" />
-<rect x="960" y="190" width="50" height="50" class="cell cellRand" />
-
-<rect x="760" y="240" width="50" height="50" class="cell cellRand" />
-<rect x="810" y="240" width="50" height="50" class="cell cellRand" />
-<rect x="860" y="240" width="50" height="50" class="cell cellRand" />
-<rect x="910" y="240" width="50" height="50" class="cell cellRand" />
-<rect x="960" y="240" width="50" height="50" class="cell cellRand" />
-
-<rect x="760" y="290" width="50" height="50" class="cell cellRand" />
-<rect x="810" y="290" width="50" height="50" class="cell cellRand" />
-<rect x="860" y="290" width="50" height="50" class="cell cellRand" />
-<rect x="910" y="290" width="50" height="50" class="cell cellRand" />
-<rect x="960" y="290" width="50" height="50" class="cell cellRand" />
-
-<rect x="760" y="340" width="50" height="50" class="cell cellRand" />
-<rect x="810" y="340" width="50" height="50" class="cell cellRand" />
-<rect x="860" y="340" width="50" height="50" class="cell cellRand" />
-<rect x="910" y="340" width="50" height="50" class="cell cellRand" />
-<rect x="960" y="340" width="50" height="50" class="cell cellRand" />
-
-<text x="785" y="220" class="cellText">r00</text>
-<text x="835" y="220" class="cellText">r01</text>
-<text x="885" y="220" class="cellText">r02</text>
-<text x="935" y="220" class="cellText">r03</text>
-<text x="985" y="220" class="cellText">…</text>
-
-<path d="M 630 300 C 690 300, 705 290, 760 290" class="arrow" />
-<text x="695" y="280" class="small" text-anchor="middle">store random outputs</text>
-
-<rect x="60" y="540" width="1050" height="120" class="procBox" />
-<text x="80" y="568" class="label">Conceptual behavior</text>
-<text x="80" y="596" class="cellText">for each (row, col) in valid(dst):</text>
-<text x="80" y="620" class="cellText">  dst[row, col] = Random(key, counter, rounds)</text>
-<text x="80" y="644" class="cellText">  advance counter state across the generated output stream</text>
+<rect x="40" y="502" width="1120" height="194" class="procBox" />
+<text x="56" y="528" class="procTitle">Procedure (conceptual)</text>
+<text x="56" y="554" class="procText" xml:space="preserve">
+  <tspan x="56" dy="0">(implementation-defined)</tspan>
+</text>
+<text x="56" y="680" class="meta">Note: semantics apply to the valid region unless stated otherwise.</text>
 </svg>

@@ -31,9 +31,9 @@ svg { font-family: Arial, Helvetica, sans-serif; }
 .validBox { fill: none; stroke-width: 2; stroke-dasharray: 6 4; }
 </style>
 <rect x="0" y="0" width="1200" height="720" class="frame" />
-<rect x="24" y="24" width="1152" height="672" class="panel" />
+<rect x="24" y="24" width="1152" height="672" class="panel"/>
 <text x="40" y="46" class="title">TSELS</text>
-<text x="40" y="72" class="subtitle">Select one of two source tiles using a scalar `selectMode` (global select).</text>
+<text x="40" y="72" class="subtitle">Select between source tile and scalar using a mask tile (per-element selection for source tile).</text>
 <text x="40" y="92" class="meta">Template: scalar</text>
 <text x="1160" y="92" class="meta" text-anchor="end">Legend: outline=example; dashed=valid rows/cols (Rv,Cv); shaded=masked; r down / c right; ortho arrows=dataflow</text>
 <line x1="36" y1="104" x2="1164" y2="104" stroke="#e2e8f0" stroke-width="1.5" />

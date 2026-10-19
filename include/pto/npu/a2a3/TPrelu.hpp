@@ -57,7 +57,7 @@ PTO_INTERNAL void TPRELU_IMPL(TileDataDst& dst, TileDataSrc0& src0, TileDataSrc1
 #endif
     Tile<TileType::Vec, uint8_t, 1, 32> selTmp;
     // TSEL使用的selTmp取tmp后的32B
-    TSUBVIEW(selTmp, tmp, dst.GetValidRow(), 0);
+    detail::PtoSubTileView(selTmp, tmp, dst.GetValidRow(), 0);
 #ifndef __PTO_AUTO__
     pipe_barrier(PIPE_V);
 #endif

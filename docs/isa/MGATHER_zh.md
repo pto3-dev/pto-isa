@@ -1,4 +1,4 @@
-﻿# MGATHER
+# MGATHER
 
 ## 指令示意图
 

@@ -114,7 +114,7 @@ python3 tests/script/run_st.py -r sim -v a3 -t tadd -g TADDTest.case_float_64x64
 
 - `TASSIGN` 用于手动地址绑定
 - `TLOAD` / `TSTORE` 用于 GM 与 Tile 之间的数据移动
-- `TSYNC` 与事件相关接口用于显式顺序控制
+- 事件相关接口用于显式顺序控制
 
 ### 5.2 Event 兼容性与后端相关
 
@@ -139,6 +139,17 @@ Event 的详细模型说明请参考 [Event 编程模型](Event_zh.md)。
 - [PTO ISA 快速上手](tutorial_zh.md)
 - [Tile 编程模型](Tile_zh.md)
 - [TASSIGN 指令](../isa/TASSIGN.md)
+
+### 5.4 融合乘加指令重命名
+
+自 PTO ISA v9.2.0 起，公开融合乘加指令名改为更短的 ISA 助记符：
+
+| 历史名称 | 替代名称 | 语义 |
+| --- | --- | --- |
+| `TFUSEDMULADD` | `TMADD` | `dst = src0 * dst + src1` |
+| `TMULADDDST` | `TMULA` | `dst = src0 * src1 + dst` |
+
+请同步更新 C++ intrinsic 调用、ISA 文档引用、生成图和 ST 用例名称。重命名后不再保留历史名称作为公开 wrapper。
 
 ## 6. 推荐的兼容性检查流程
 

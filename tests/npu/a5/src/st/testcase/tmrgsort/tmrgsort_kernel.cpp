@@ -212,7 +212,7 @@ PTO_INTERNAL void SortTailBlock(DstGlobalData& dstGlobal, DstTileData& dstTile, 
         TASSIGN(src1Tile, 0x0 + mrgSortedLen * sizeof(T));
 #ifdef __PTO_AUTO__
         TRESHAPE(src0Tile, srcTile);
-        TSUBVIEW(src1Tile, srcTile, 0, mrgSortedLen);
+        detail::PtoSubTileView(src1Tile, srcTile, 0, mrgSortedLen);
 #endif
         TMRGSORT<DstTileData, TmpTileData, TileData, TileData, 0>(
             dstTile, executedNumList, tmp1Tile, src0Tile, src1Tile);

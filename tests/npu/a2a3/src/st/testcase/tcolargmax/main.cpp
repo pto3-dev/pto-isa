@@ -61,8 +61,8 @@ protected:
     // template <typename T>
     bool CompareGolden(size_t dstByteSize, bool printAllEn = false)
     {
-        std::vector<uint32_t> golden(dstByteSize);
-        std::vector<uint32_t> result(dstByteSize);
+        std::vector<uint32_t> golden(dstByteSize / sizeof(uint32_t));
+        std::vector<uint32_t> result(dstByteSize / sizeof(uint32_t));
         float eps = 0.001f;
         ReadFile(GetGoldenDir() + "/golden.bin", dstByteSize, golden.data(), dstByteSize);
         ReadFile(GetGoldenDir() + "/output.bin", dstByteSize, result.data(), dstByteSize);
@@ -75,10 +75,10 @@ protected:
     template <typename TVal, typename TIdx>
     bool CompareGoldenValIdx(size_t dstByteSize, bool printAllEn = false)
     {
-        std::vector<TIdx> goldenIdx(dstByteSize);
-        std::vector<TIdx> resultIdx(dstByteSize);
-        std::vector<TVal> goldenVal(dstByteSize);
-        std::vector<TVal> resultVal(dstByteSize);
+        std::vector<TIdx> goldenIdx(dstByteSize / sizeof(TIdx));
+        std::vector<TIdx> resultIdx(dstByteSize / sizeof(TIdx));
+        std::vector<TVal> goldenVal(dstByteSize / sizeof(TVal));
+        std::vector<TVal> resultVal(dstByteSize / sizeof(TVal));
 
         float eps = 0.001f;
         ReadFile(GetGoldenDir() + "/golden.bin", dstByteSize, goldenVal.data(), dstByteSize);
@@ -136,6 +136,8 @@ protected:
         aclrtMalloc(&dstDeviceIdx, dstIdxByteSize, ACL_MEM_MALLOC_HUGE_FIRST);
         aclrtMalloc(&dstDeviceVal, dstValByteSize, ACL_MEM_MALLOC_HUGE_FIRST);
         aclrtMalloc(&srcDevice, srcByteSize, ACL_MEM_MALLOC_HUGE_FIRST);
+        aclrtMemset(dstDeviceIdx, dstIdxByteSize, 0, dstIdxByteSize);
+        aclrtMemset(dstDeviceVal, dstValByteSize, 0, dstValByteSize);
 
         ReadFile(GetGoldenDir() + "/input.bin", srcByteSize, srcHost, srcByteSize);
         aclrtMemcpy(srcDevice, srcByteSize, srcHost, srcByteSize, ACL_MEMCPY_HOST_TO_DEVICE);

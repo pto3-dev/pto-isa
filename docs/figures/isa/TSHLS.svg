@@ -31,7 +31,7 @@ svg { font-family: Arial, Helvetica, sans-serif; }
 .validBox { fill: none; stroke-width: 2; stroke-dasharray: 6 4; }
 </style>
 <rect x="0" y="0" width="1200" height="720" class="frame" />
-<rect x="24" y="24" width="1152" height="672" class="panel" />
+<rect x="24" y="24" width="1152" height="672" class="panel"/>
 <text x="40" y="46" class="title">TSHLS</text>
 <text x="40" y="72" class="subtitle">Elementwise shift-left a tile by a scalar.</text>
 <text x="40" y="92" class="meta">Template: scalar</text>
@@ -110,8 +110,8 @@ svg { font-family: Arial, Helvetica, sans-serif; }
 <text x="593" y="374" class="axisText">c</text>
 <text x="553" y="408" class="axisText" text-anchor="end">r</text>
 <circle cx="600" cy="324" r="22" class="opCircle" stroke="#1D8E63" />
-<rect x="583" y="307" width="34" height="34" rx="6" class="opRect" stroke="#1D8E63" />
-<text x="600" y="327.0" class="opText" font-size="10px" text-anchor="middle">TSHLS</text>
+<rect x="583" y="307" width="34" height="34" rx="6" class="opRect" stroke="#1D8E63"/>
+<text x="600" y="327.0" class="opText" text-anchor="middle" font-size="10px">TSHLS</text>
 <path d="M 600 300 L 600 324 L 578 324 L 578 324" class="arrow" stroke="#1D8E63" marker-end="url(#arrow)" />
 <path d="M 1080 252 L 1080 324 L 622 324 L 622 324" class="arrow" stroke="#1D8E63" marker-end="url(#arrow)" />
 <path d="M 600 346 L 600 347 L 600 347 L 600 348" class="arrow" stroke="#1D8E63" marker-end="url(#arrow)" />

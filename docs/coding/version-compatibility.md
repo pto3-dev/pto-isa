@@ -114,7 +114,7 @@ For example:
 
 - `TASSIGN` defines manual address binding
 - `TLOAD` / `TSTORE` define GM-to-tile and tile-to-GM movement
-- `TSYNC` and event-related APIs define explicit ordering
+- event-related APIs define explicit ordering
 
 ### 5.2 Event compatibility is backend-sensitive
 
@@ -139,6 +139,17 @@ See:
 - [PTO ISA Quickstart](tutorial.md)
 - [Tile Programming Model](Tile.md)
 - [TASSIGN Instruction](../isa/TASSIGN.md)
+
+### 5.4 Renamed fused multiply-add instructions
+
+Starting with PTO ISA v9.2.0, the public fused multiply-add instruction names use the shorter ISA mnemonics:
+
+| Legacy name | Replacement | Semantics |
+| --- | --- | --- |
+| `TFUSEDMULADD` | `TMADD` | `dst = src0 * dst + src1` |
+| `TMULADDDST` | `TMULA` | `dst = src0 * src1 + dst` |
+
+Update C++ intrinsic calls, ISA references, generated diagrams, and ST testcase names to the replacement names. The legacy names are not retained as public wrappers after the rename.
 
 ## 6. Recommended compatibility workflow
 

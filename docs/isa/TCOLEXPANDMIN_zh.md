@@ -1,4 +1,4 @@
-﻿# TCOLEXPANDMIN
+# TCOLEXPANDMIN
 
 ## 指令示意图
 

@@ -1,4 +1,4 @@
-﻿# TINTERLEAVE
+# TINTERLEAVE
 
 ## 指令示意图
 

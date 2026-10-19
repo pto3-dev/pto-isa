@@ -90,8 +90,8 @@ void test_tdequant()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<dstType> golden(dstFileSize);
-    std::vector<dstType> devFinal(dstFileSize);
+    std::vector<dstType> golden(dstFileSize / sizeof(dstType));
+    std::vector<dstType> devFinal(dstFileSize / sizeof(dstType));
     ReadFile(GetGoldenDir() + "/golden.bin", dstFileSize, golden.data(), dstFileSize);
     ReadFile(GetGoldenDir() + "/output.bin", dstFileSize, devFinal.data(), dstFileSize);
 

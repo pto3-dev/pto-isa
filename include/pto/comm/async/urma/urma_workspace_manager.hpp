@@ -17,6 +17,7 @@ See LICENSE in the root of the software repository for the full text of the Lice
 
 #include <cstdint>
 #include <iostream>
+#include <limits>
 #include <vector>
 
 #include "securec.h"
@@ -42,7 +43,7 @@ namespace urma {
 // HcclRankGraphGetLinks, HcclChannelAcquire), then reads ChannelEntity from
 // device/host and fills UrmaInfo for AIV-side urma_async_intrin.hpp.
 // Flow:
-//   1. HcclCommMemReg (register symmetric memory)
+//   1. Allocate the notify pool and register symmetric + notify memory
 //   2. HcclRankGraphGetLinks (find UBC_TP/CTP links per peer)
 //   3. HcclChannelAcquire(COMM_ENGINE_AIV) — returns device ChannelEntity* handles
 //      (requires CANN with ConvertAivChannelHandlesToDevicePtrs in HcclChannelAcquire)
@@ -65,16 +66,16 @@ public:
         symmetricAddr_ = symmetricAddr;
         symmetricSize_ = symmetricSize;
 
+        if (!AllocateNotifyPool()) {
+            return false;
+        }
         if (!RegisterMemory()) {
-            Finalize();
             return false;
         }
         if (!BuildChannels()) {
-            Finalize();
             return false;
         }
         if (!ExtractAndFillUrmaInfo()) {
-            Finalize();
             return false;
         }
 
@@ -82,10 +83,13 @@ public:
         return true;
     }
 
+    // The owning communication context must stop kernels, drain QPs, and
+    // destroy HCCL communication resources before calling Finalize().
     void Finalize()
     {
         FreeDeviceAddr(urmaInfoDevice_);
         FreeDeviceAddr(eidDevice_);
+        FreeDeviceAddr(notifyPoolDevice_);
         channelHandles_.clear();
         peerBaseAddrs_.clear();
         initialized_ = false;
@@ -103,6 +107,28 @@ public:
     }
 
 private:
+    bool AllocateNotifyPool()
+    {
+        const uint64_t regionCount = static_cast<uint64_t>(rankCount_) * kUrmaQpNum;
+        if (regionCount == 0U ||
+            regionCount > std::numeric_limits<uint64_t>::max() / sizeof(UrmaNotifyResourceRegion)) {
+            std::cerr << "[URMA] invalid notify pool region count=" << regionCount << std::endl;
+            return false;
+        }
+        notifyPoolSize_ = regionCount * sizeof(UrmaNotifyResourceRegion);
+        aclError err = aclrtMalloc(&notifyPoolDevice_, notifyPoolSize_, ACL_MEM_MALLOC_HUGE_FIRST);
+        if (err != ACL_SUCCESS) {
+            std::cerr << "[URMA] aclrtMalloc(notifyPool) failed: " << err << " size=" << notifyPoolSize_ << std::endl;
+            return false;
+        }
+        err = aclrtMemset(notifyPoolDevice_, notifyPoolSize_, 0, notifyPoolSize_);
+        if (err != ACL_SUCCESS) {
+            std::cerr << "[URMA] aclrtMemset(notifyPool) failed: " << err << std::endl;
+            return false;
+        }
+        return true;
+    }
+
     bool RegisterMemory()
     {
         CommMem mem{};
@@ -115,55 +141,63 @@ private:
             std::cerr << "[URMA] HcclCommMemReg failed: " << static_cast<int>(ret) << std::endl;
             return false;
         }
+
+        CommMem notifyMem{};
+        notifyMem.type = COMM_MEM_TYPE_DEVICE;
+        notifyMem.addr = notifyPoolDevice_;
+        notifyMem.size = notifyPoolSize_;
+        ret = HcclCommMemReg(comm_, kUrmaNotifyMemTag, &notifyMem, &notifyMemHandle_);
+        if (ret != HCCL_SUCCESS) {
+            std::cerr << "[URMA] HcclCommMemReg(notifyPool) failed: " << static_cast<int>(ret) << std::endl;
+            return false;
+        }
+        memHandles_[0] = memHandle_;
+        memHandles_[1] = notifyMemHandle_;
         return true;
+    }
+
+    bool BuildChannelDesc(uint32_t peer, HcclChannelDesc& desc)
+    {
+        uint32_t linkNum = 0;
+        CommLink* linkList = nullptr;
+        HcclResult rc = HcclRankGraphGetLinks(comm_, 0, rankId_, peer, &linkList, &linkNum);
+        if (rc != HCCL_SUCCESS) {
+            std::cerr << "[URMA] HcclRankGraphGetLinks peer=" << peer << " ret=" << static_cast<int>(rc) << std::endl;
+            return false;
+        }
+        for (uint32_t i = 0; i < linkNum; ++i) {
+            CommProtocol proto = linkList[i].linkAttr.linkProtocol;
+            if (proto != kCommProtocolUbcCtp && proto != kCommProtocolUbcTp) {
+                continue;
+            }
+            HcclChannelDescInit(&desc, 1);
+            desc.remoteRank = peer;
+            desc.notifyNum = 0;
+            desc.channelProtocol = proto;
+            desc.localEndpoint = linkList[i].srcEndpointDesc;
+            desc.remoteEndpoint = linkList[i].dstEndpointDesc;
+            desc.memHandles = memHandles_;
+            desc.memHandleNum = kUrmaRegisteredMemCount;
+            return true;
+        }
+        std::cerr << "[URMA] rank=" << rankId_ << " no UBC_TP/CTP link to peer=" << peer << std::endl;
+        return false;
     }
 
     bool BuildChannels()
     {
         std::vector<HcclChannelDesc> descs;
         descs.reserve(rankCount_ - 1);
-
         for (uint32_t peer = 0; peer < rankCount_; ++peer) {
             if (peer == rankId_) {
                 continue;
             }
-
-            uint32_t netLayer = 0;
-            uint32_t linkNum = 0;
-            CommLink* linkList = nullptr;
-            HcclResult rc = HcclRankGraphGetLinks(comm_, netLayer, rankId_, peer, &linkList, &linkNum);
-            if (rc != HCCL_SUCCESS) {
-                std::cerr << "[URMA] HcclRankGraphGetLinks peer=" << peer << " ret=" << static_cast<int>(rc)
-                          << std::endl;
+            HcclChannelDesc desc{};
+            if (!BuildChannelDesc(peer, desc)) {
                 return false;
             }
-
-            bool found = false;
-            for (uint32_t i = 0; i < linkNum; ++i) {
-                CommProtocol proto = linkList[i].linkAttr.linkProtocol;
-                if (proto != kCommProtocolUbcCtp && proto != kCommProtocolUbcTp) {
-                    continue;
-                }
-
-                HcclChannelDesc desc;
-                HcclChannelDescInit(&desc, 1);
-                desc.remoteRank = peer;
-                desc.notifyNum = 0;
-                desc.channelProtocol = proto;
-                desc.localEndpoint = linkList[i].srcEndpointDesc;
-                desc.remoteEndpoint = linkList[i].dstEndpointDesc;
-                desc.memHandles = &memHandle_;
-                desc.memHandleNum = 1;
-                descs.push_back(desc);
-                found = true;
-                break;
-            }
-            if (!found) {
-                std::cerr << "[URMA] rank=" << rankId_ << " no UBC_TP/CTP link to peer=" << peer << std::endl;
-                return false;
-            }
+            descs.push_back(desc);
         }
-
         channelHandles_.resize(descs.size());
         HcclResult rc = HcclChannelAcquire(
             comm_, COMM_ENGINE_AIV, descs.data(), static_cast<uint32_t>(descs.size()), channelHandles_.data());
@@ -174,48 +208,93 @@ private:
         return true;
     }
 
+    struct UrmaPeerInfoTables {
+        explicit UrmaPeerInfoTables(uint32_t rankCount)
+            : wqList(rankCount), cqList(rankCount), memList(rankCount), eidTable(rankCount * kUrmaEidBytes, 0)
+        {}
+
+        std::vector<UrmaWQCtx> wqList;
+        std::vector<UrmaCqCtx> cqList;
+        std::vector<UrmaMemInfo> memList;
+        std::vector<uint8_t> eidTable;
+    };
+
+    struct UrmaRegistrationTokenState {
+        uint32_t localTokenId{0};
+        uint32_t notifyPoolTokenId{0};
+        bool notifyPoolTokenInitialized{false};
+    };
+
     bool ExtractAndFillUrmaInfo()
     {
-        std::vector<UrmaWQCtx> wqList(rankCount_);
-        std::vector<UrmaCqCtx> cqList(rankCount_);
-        std::vector<UrmaMemInfo> memList(rankCount_);
-        std::vector<uint8_t> eidTable(rankCount_ * kUrmaEidBytes, 0);
-        uint32_t localTokenId = 0;
+        UrmaPeerInfoTables urmaPeerInfoTables(rankCount_);
+        UrmaRegistrationTokenState urmaRegistrationTokenState{};
 
-        if (!ExtractPerPeerInfo(wqList, cqList, memList, eidTable, localTokenId)) {
+        if (!ExtractPerPeerInfo(urmaPeerInfoTables, urmaRegistrationTokenState)) {
+            return false;
+        }
+        if (!InitializeAsyncQueueState(urmaPeerInfoTables.wqList, urmaPeerInfoTables.cqList)) {
             return false;
         }
         peerBaseAddrs_.resize(rankCount_);
         for (uint32_t peer = 0; peer < rankCount_; ++peer) {
-            peerBaseAddrs_[peer] = memList[peer].addr;
+            peerBaseAddrs_[peer] = urmaPeerInfoTables.memList[peer].addr;
         }
-        if (!AllocAndCopyEidTable(eidTable, memList)) {
+        if (!AllocAndCopyEidTable(urmaPeerInfoTables.eidTable, urmaPeerInfoTables.memList)) {
             return false;
         }
-        if (!BuildAndCopyUrmaInfoTable(wqList, cqList, memList, localTokenId)) {
+        if (!BuildAndCopyUrmaInfoTable(urmaPeerInfoTables, urmaRegistrationTokenState)) {
             return false;
         }
 
-        std::cerr << "[URMA] UrmaInfo OK rank=" << rankId_ << " localTokenId=0x" << std::hex << localTokenId << std::dec
+        std::cerr << "[URMA] UrmaInfo OK rank=" << rankId_ << " localTokenId=0x" << std::hex
+                  << urmaRegistrationTokenState.localTokenId << std::dec << " notifyPoolTokenId=0x" << std::hex
+                  << urmaRegistrationTokenState.notifyPoolTokenId << std::dec << " notifyPoolBytes=" << notifyPoolSize_
                   << std::endl;
         return true;
     }
 
+    bool InitializeAsyncQueueState(std::vector<UrmaWQCtx>& wqList, const std::vector<UrmaCqCtx>& cqList)
+    {
+        for (uint32_t peer = 0; peer < rankCount_; ++peer) {
+            if (peer == rankId_) {
+                continue;
+            }
+            uint32_t sqHead = 0U;
+            uint32_t sqTail = 0U;
+            uint32_t cqTail = 0U;
+            if (aclrtMemcpy(
+                    &sqHead, sizeof(sqHead), reinterpret_cast<void*>(wqList[peer].headAddr), sizeof(sqHead),
+                    ACL_MEMCPY_DEVICE_TO_HOST) != ACL_SUCCESS ||
+                aclrtMemcpy(
+                    &sqTail, sizeof(sqTail), reinterpret_cast<void*>(wqList[peer].tailAddr), sizeof(sqTail),
+                    ACL_MEMCPY_DEVICE_TO_HOST) != ACL_SUCCESS ||
+                aclrtMemcpy(
+                    &cqTail, sizeof(cqTail), reinterpret_cast<void*>(cqList[peer].tailAddr), sizeof(cqTail),
+                    ACL_MEMCPY_DEVICE_TO_HOST) != ACL_SUCCESS ||
+                sqHead != sqTail) {
+                std::cerr << "[URMA] peer=" << peer << " async queue initialization requires an empty SQ" << std::endl;
+                return false;
+            }
+            wqList[peer].submittedWqeCount = cqTail;
+        }
+        return true;
+    }
+
     bool ExtractPerPeerInfo(
-        std::vector<UrmaWQCtx>& wqList, std::vector<UrmaCqCtx>& cqList, std::vector<UrmaMemInfo>& memList,
-        std::vector<uint8_t>& eidTable, uint32_t& localTokenId)
+        UrmaPeerInfoTables& urmaPeerInfoTables, UrmaRegistrationTokenState& urmaRegistrationTokenState)
     {
         uint32_t channelIdx = 0;
         for (uint32_t peer = 0; peer < rankCount_; ++peer) {
             if (peer == rankId_) {
-                wqList[peer] = UrmaWQCtx{};
-                cqList[peer] = UrmaCqCtx{};
-                memList[peer] = UrmaMemInfo{};
-                memList[peer].addr = reinterpret_cast<uint64_t>(symmetricAddr_);
-                memList[peer].len = static_cast<uint32_t>(symmetricSize_);
+                urmaPeerInfoTables.wqList[peer] = UrmaWQCtx{};
+                urmaPeerInfoTables.cqList[peer] = UrmaCqCtx{};
+                urmaPeerInfoTables.memList[peer] = UrmaMemInfo{};
+                urmaPeerInfoTables.memList[peer].addr = reinterpret_cast<uint64_t>(symmetricAddr_);
+                urmaPeerInfoTables.memList[peer].len = static_cast<uint32_t>(symmetricSize_);
                 continue;
             }
-            if (!ExtractSinglePeer(peer, channelIdx, wqList, cqList, memList, eidTable, localTokenId)) {
+            if (!ExtractSinglePeer(peer, channelIdx, urmaPeerInfoTables, urmaRegistrationTokenState)) {
                 return false;
             }
             ++channelIdx;
@@ -223,55 +302,94 @@ private:
         return true;
     }
 
-    bool ExtractSinglePeer(
-        uint32_t peer, uint32_t channelIdx, std::vector<UrmaWQCtx>& wqList, std::vector<UrmaCqCtx>& cqList,
-        std::vector<UrmaMemInfo>& memList, std::vector<uint8_t>& eidTable, uint32_t& localTokenId)
+    struct PeerChannelState {
+        ChannelHandle handle{};
+        ChannelEntity entity{};
+        SqContext sq{};
+        CqContext cq{};
+    };
+
+    bool ReadPeerChannel(uint32_t peer, uint32_t channelIdx, PeerChannelState& state)
     {
-        ChannelHandle handle = channelHandles_[channelIdx];
-        if (handle != 0 && static_cast<uint64_t>(handle) < kDeviceVaThreshold) {
-            std::cerr << "[URMA] ChannelHandle looks like host pointer (0x" << std::hex << handle << std::dec
+        state.handle = channelHandles_[channelIdx];
+        if (state.handle != 0 && static_cast<uint64_t>(state.handle) < kDeviceVaThreshold) {
+            std::cerr << "[URMA] ChannelHandle looks like host pointer (0x" << std::hex << state.handle << std::dec
                       << ") for peer=" << peer
                       << ". Upgrade CANN: HcclChannelAcquire must return device ChannelEntity pointers for AIV URMA."
                       << std::endl;
             return false;
         }
-
-        ChannelEntity hostEntity{};
-        SqContext sq{};
-        CqContext cq{};
         RegedBufferEntity remoteBuf{};
         RegedBufferEntity localBuf{};
-
-        if (handle == 0 ||
-            !UrmaChannelHelper::TryReadChannelEntity(handle, peer, hostEntity, sq, cq, remoteBuf, localBuf)) {
+        if (state.handle == 0 || !UrmaChannelHelper::TryReadChannelEntity(
+                                     state.handle, peer, state.entity, state.sq, state.cq, remoteBuf, localBuf)) {
             std::cerr << "[URMA] Cannot read ChannelEntity for peer=" << peer << " handle=0x" << std::hex
-                      << static_cast<uint64_t>(handle) << std::dec << std::endl;
+                      << static_cast<uint64_t>(state.handle) << std::dec << std::endl;
             return false;
         }
+        return true;
+    }
 
-        RegedBufferEntity symRemoteBuf{};
-        uint64_t symRmaAddr = 0;
-        uint32_t symRmaSize = 0;
+    bool ExtractPeerRegistrations(
+        uint32_t peer, const PeerChannelState& state, RegedBufferEntity& symRemoteBuf, uint64_t& symRmaAddr,
+        uint32_t& symRmaSize, UrmaRegistrationTokenState& urmaRegistrationTokenState)
+    {
         if (!UrmaChannelHelper::SelectSymmetricRemoteBuffer(
-                comm_, kUrmaSymMemTag, symmetricSize_, handle, peer, hostEntity, symRemoteBuf, symRmaAddr,
+                comm_, kUrmaSymMemTag, symmetricSize_, state.handle, peer, state.entity, symRemoteBuf, symRmaAddr,
                 symRmaSize)) {
             return false;
         }
         RegedBufferEntity symLocalBuf{};
-        if (UrmaChannelHelper::SelectSymmetricLocalBuffer(symmetricSize_, hostEntity, peer, symLocalBuf) &&
-            symLocalBuf.type == REGED_BUFFER_RMA) {
-            localTokenId = symLocalBuf.bufferInfo.rma.protectionInfo.memInfo.ub.tokenId;
+        if (!UrmaChannelHelper::FindLocalRmaRegistration(
+                reinterpret_cast<uint64_t>(symmetricAddr_), symmetricSize_, state.entity, peer, symLocalBuf)) {
+            std::cerr << "[URMA] peer=" << peer << " no local symmetric registration found" << std::endl;
+            return false;
         }
+        urmaRegistrationTokenState.localTokenId = symLocalBuf.bufferInfo.rma.protectionInfo.memInfo.ub.tokenId;
+        RegedBufferEntity notifyLocalBuf{};
+        if (!UrmaChannelHelper::FindLocalRmaRegistration(
+                reinterpret_cast<uint64_t>(notifyPoolDevice_), notifyPoolSize_, state.entity, peer, notifyLocalBuf)) {
+            std::cerr << "[URMA] peer=" << peer << " no local notify pool registration found" << std::endl;
+            return false;
+        }
+        const uint32_t peerNotifyTokenId = notifyLocalBuf.bufferInfo.rma.protectionInfo.memInfo.ub.tokenId;
+        if (urmaRegistrationTokenState.notifyPoolTokenInitialized &&
+            urmaRegistrationTokenState.notifyPoolTokenId != peerNotifyTokenId) {
+            std::cerr << "[URMA] inconsistent notify pool token peer=" << peer << " expected=0x" << std::hex
+                      << urmaRegistrationTokenState.notifyPoolTokenId << " actual=0x" << peerNotifyTokenId << std::dec
+                      << std::endl;
+            return false;
+        }
+        urmaRegistrationTokenState.notifyPoolTokenId = peerNotifyTokenId;
+        urmaRegistrationTokenState.notifyPoolTokenInitialized = true;
+        return true;
+    }
 
-        FillWqCtx(wqList[peer], sq);
-        FillCqCtx(cqList[peer], cq);
-        FillMemInfo(memList[peer], sq, symRemoteBuf, symRmaAddr, symRmaSize);
+    static void LogPeerInfo(uint32_t peer, const UrmaWQCtx& wq, const UrmaMemInfo& mem)
+    {
+        std::cerr << "[URMA] peer=" << peer << " tpId=" << mem.tpn << " rmtAddr=0x" << std::hex << mem.addr
+                  << " sqVa=0x" << wq.bufAddr << " dbAddr=0x" << wq.dbAddr << std::dec << std::endl;
+    }
 
-        (void)memcpy_s(&eidTable[peer * kUrmaEidBytes], kUrmaEidBytes, sq.contextInfo.ubJfs.remoteEID, kUrmaEidBytes);
-
-        std::cerr << "[URMA] peer=" << peer << " tpId=" << memList[peer].tpn << " rmtAddr=0x" << std::hex
-                  << memList[peer].addr << " sqVa=0x" << wqList[peer].bufAddr << " dbAddr=0x" << wqList[peer].dbAddr
-                  << std::dec << std::endl;
+    bool ExtractSinglePeer(
+        uint32_t peer, uint32_t channelIdx, UrmaPeerInfoTables& urmaPeerInfoTables,
+        UrmaRegistrationTokenState& urmaRegistrationTokenState)
+    {
+        PeerChannelState state{};
+        RegedBufferEntity symRemoteBuf{};
+        uint64_t symRmaAddr = 0;
+        uint32_t symRmaSize = 0;
+        if (!ReadPeerChannel(peer, channelIdx, state) ||
+            !ExtractPeerRegistrations(peer, state, symRemoteBuf, symRmaAddr, symRmaSize, urmaRegistrationTokenState)) {
+            return false;
+        }
+        FillWqCtx(urmaPeerInfoTables.wqList[peer], state.sq);
+        FillCqCtx(urmaPeerInfoTables.cqList[peer], state.cq);
+        FillMemInfo(urmaPeerInfoTables.memList[peer], state.sq, symRemoteBuf, symRmaAddr, symRmaSize);
+        (void)memcpy_s(
+            &urmaPeerInfoTables.eidTable[peer * kUrmaEidBytes], kUrmaEidBytes, state.sq.contextInfo.ubJfs.remoteEID,
+            kUrmaEidBytes);
+        LogPeerInfo(peer, urmaPeerInfoTables.wqList[peer], urmaPeerInfoTables.memList[peer]);
         return true;
     }
 
@@ -335,13 +453,11 @@ private:
     }
 
     bool BuildAndCopyUrmaInfoTable(
-        const std::vector<UrmaWQCtx>& wqList, const std::vector<UrmaCqCtx>& cqList,
-        const std::vector<UrmaMemInfo>& memList, uint32_t localTokenId)
+        const UrmaPeerInfoTables& urmaPeerInfoTables, const UrmaRegistrationTokenState& urmaRegistrationTokenState)
     {
-        constexpr uint32_t qpNum = 1;
         size_t totalSize =
-            sizeof(UrmaInfo) + rankCount_ * (2U * sizeof(UrmaWQCtx) * qpNum + 2U * sizeof(UrmaCqCtx) * qpNum +
-                                             sizeof(UrmaMemInfo) * qpNum);
+            sizeof(UrmaInfo) + rankCount_ * (2U * sizeof(UrmaWQCtx) * kUrmaQpNum + 2U * sizeof(UrmaCqCtx) * kUrmaQpNum +
+                                             sizeof(UrmaMemInfo) * kUrmaQpNum);
 
         aclError err = aclrtMalloc(&urmaInfoDevice_, totalSize, ACL_MEM_MALLOC_HUGE_FIRST);
         if (err != ACL_SUCCESS) {
@@ -350,7 +466,7 @@ private:
         }
 
         std::vector<uint8_t> hostBuf(totalSize, 0);
-        FillUrmaInfoLayout(hostBuf, wqList, cqList, memList, localTokenId);
+        FillUrmaInfoLayout(hostBuf, urmaPeerInfoTables, urmaRegistrationTokenState);
 
         err = aclrtMemcpy(urmaInfoDevice_, totalSize, hostBuf.data(), totalSize, ACL_MEMCPY_HOST_TO_DEVICE);
         if (err != ACL_SUCCESS) {
@@ -361,43 +477,44 @@ private:
     }
 
     void FillUrmaInfoLayout(
-        std::vector<uint8_t>& hostBuf, const std::vector<UrmaWQCtx>& wqList, const std::vector<UrmaCqCtx>& cqList,
-        const std::vector<UrmaMemInfo>& memList, uint32_t localTokenId)
+        std::vector<uint8_t>& hostBuf, const UrmaPeerInfoTables& urmaPeerInfoTables,
+        const UrmaRegistrationTokenState& urmaRegistrationTokenState)
     {
-        constexpr uint32_t qpNum = 1;
         auto* info = reinterpret_cast<UrmaInfo*>(hostBuf.data());
-        info->qpNum = qpNum;
-        info->localTokenId = localTokenId;
+        info->qpNum = kUrmaQpNum;
+        info->localTokenId = urmaRegistrationTokenState.localTokenId;
+        info->notifyPoolTokenId = urmaRegistrationTokenState.notifyPoolTokenId;
         info->rankCount = rankCount_;
+        info->notifyPoolPtr = reinterpret_cast<uint64_t>(notifyPoolDevice_);
 
         uint8_t* devAddr = static_cast<uint8_t*>(urmaInfoDevice_) + sizeof(UrmaInfo);
         info->sqPtr = reinterpret_cast<uint64_t>(devAddr);
-        devAddr += sizeof(UrmaWQCtx) * rankCount_ * qpNum;
+        devAddr += sizeof(UrmaWQCtx) * rankCount_ * kUrmaQpNum;
         info->rqPtr = reinterpret_cast<uint64_t>(devAddr);
-        devAddr += sizeof(UrmaWQCtx) * rankCount_ * qpNum;
+        devAddr += sizeof(UrmaWQCtx) * rankCount_ * kUrmaQpNum;
         info->scqPtr = reinterpret_cast<uint64_t>(devAddr);
-        devAddr += sizeof(UrmaCqCtx) * rankCount_ * qpNum;
+        devAddr += sizeof(UrmaCqCtx) * rankCount_ * kUrmaQpNum;
         info->rcqPtr = reinterpret_cast<uint64_t>(devAddr);
-        devAddr += sizeof(UrmaCqCtx) * rankCount_ * qpNum;
+        devAddr += sizeof(UrmaCqCtx) * rankCount_ * kUrmaQpNum;
         info->memPtr = reinterpret_cast<uint64_t>(devAddr);
 
         uint8_t* hostAddr = hostBuf.data() + sizeof(UrmaInfo);
         auto* sqArr = reinterpret_cast<UrmaWQCtx*>(hostAddr);
-        hostAddr += sizeof(UrmaWQCtx) * rankCount_ * qpNum;
+        hostAddr += sizeof(UrmaWQCtx) * rankCount_ * kUrmaQpNum;
         auto* rqArr = reinterpret_cast<UrmaWQCtx*>(hostAddr);
-        hostAddr += sizeof(UrmaWQCtx) * rankCount_ * qpNum;
+        hostAddr += sizeof(UrmaWQCtx) * rankCount_ * kUrmaQpNum;
         auto* scqArr = reinterpret_cast<UrmaCqCtx*>(hostAddr);
-        hostAddr += sizeof(UrmaCqCtx) * rankCount_ * qpNum;
+        hostAddr += sizeof(UrmaCqCtx) * rankCount_ * kUrmaQpNum;
         auto* rcqArr = reinterpret_cast<UrmaCqCtx*>(hostAddr);
-        hostAddr += sizeof(UrmaCqCtx) * rankCount_ * qpNum;
+        hostAddr += sizeof(UrmaCqCtx) * rankCount_ * kUrmaQpNum;
         auto* memArr = reinterpret_cast<UrmaMemInfo*>(hostAddr);
 
         for (uint32_t rank = 0; rank < rankCount_; ++rank) {
-            sqArr[rank] = wqList[rank];
-            rqArr[rank] = wqList[rank];
-            scqArr[rank] = cqList[rank];
-            rcqArr[rank] = cqList[rank];
-            memArr[rank] = memList[rank];
+            sqArr[rank] = urmaPeerInfoTables.wqList[rank];
+            rqArr[rank] = urmaPeerInfoTables.wqList[rank];
+            scqArr[rank] = urmaPeerInfoTables.cqList[rank];
+            rcqArr[rank] = urmaPeerInfoTables.cqList[rank];
+            memArr[rank] = urmaPeerInfoTables.memList[rank];
         }
     }
 
@@ -412,6 +529,9 @@ private:
     }
 
     static constexpr const char* kUrmaSymMemTag = "pto_urma_sym";
+    static constexpr const char* kUrmaNotifyMemTag = "pto_urma_notify";
+    static constexpr uint32_t kUrmaQpNum = 1U;
+    static constexpr uint32_t kUrmaRegisteredMemCount = 2U;
     static constexpr uint64_t kDeviceVaThreshold = 0x100000000000ULL;
     static constexpr CommProtocol kCommProtocolUbcCtp = static_cast<CommProtocol>(4);
     static constexpr CommProtocol kCommProtocolUbcTp = static_cast<CommProtocol>(5);
@@ -422,11 +542,15 @@ private:
     void* symmetricAddr_{nullptr};
     uint64_t symmetricSize_{0};
     HcclMemHandle memHandle_{nullptr};
+    HcclMemHandle notifyMemHandle_{nullptr};
+    HcclMemHandle memHandles_[kUrmaRegisteredMemCount]{};
 
     std::vector<ChannelHandle> channelHandles_;
 
     void* urmaInfoDevice_{nullptr};
     void* eidDevice_{nullptr};
+    void* notifyPoolDevice_{nullptr};
+    uint64_t notifyPoolSize_{0};
     std::vector<uint64_t> peerBaseAddrs_;
 
     bool initialized_{false};

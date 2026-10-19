@@ -127,8 +127,6 @@ nav:
       - Overview: docs/isa/README.md
       - ISA Conventions: docs/isa/conventions.md
       - PTO ISA Table: docs/PTOISA.md
-      - Synchronization:
-          - TSYNC: docs/isa/TSYNC.md
       - Manual / Resource Binding:
           - TASSIGN: docs/isa/TASSIGN.md
           - SETFMATRIX: docs/isa/SETFMATRIX.md
@@ -141,6 +139,7 @@ nav:
           - TOR: docs/isa/TOR.md
           - TSUB: docs/isa/TSUB.md
           - TMUL: docs/isa/TMUL.md
+          - TMADD: docs/isa/TMADD.md
           - TMIN: docs/isa/TMIN.md
           - TMAX: docs/isa/TMAX.md
           - TCMP: docs/isa/TCMP.md
@@ -151,8 +150,7 @@ nav:
           - TLOG: docs/isa/TLOG.md
           - TRECIP: docs/isa/TRECIP.md
           - TPRELU: docs/isa/TPRELU.md
-          - TADDC: docs/isa/TADDC.md
-          - TSUBC: docs/isa/TSUBC.md
+          - TMULA: docs/isa/TMULA.md
           - TCVT: docs/isa/TCVT.md
           - TSEL: docs/isa/TSEL.md
           - TRSQRT: docs/isa/TRSQRT.md
@@ -182,8 +180,6 @@ nav:
           - TSHRS: docs/isa/TSHRS.md
           - TXORS: docs/isa/TXORS.md
           - TLRELU: docs/isa/TLRELU.md
-          - TADDSC: docs/isa/TADDSC.md
-          - TSUBSC: docs/isa/TSUBSC.md
       - Axis Reduce / Expand:
           - TROWSUM: docs/isa/TROWSUM.md
           - TROWPROD: docs/isa/TROWPROD.md
@@ -238,8 +234,6 @@ nav:
           - TRESHAPE: docs/isa/TRESHAPE.md
           - TTRANS: docs/isa/TTRANS.md
           - TIMG2COL: docs/isa/TIMG2COL.md
-          - TSUBVIEW: docs/isa/TSUBVIEW.md
-          - TGET_SCALE_ADDR: docs/isa/TGET_SCALE_ADDR.md
       - Complex Instructions:
           - TGATHER: docs/isa/TGATHER.md
           - TGATHERB: docs/isa/TGATHERB.md
@@ -261,6 +255,7 @@ nav:
           - TPUT: docs/isa/comm/TPUT.md
           - TGET: docs/isa/comm/TGET.md
           - TPUT_ASYNC: docs/isa/comm/TPUT_ASYNC.md
+          - TPUT_ASYNC_NOTIFY: docs/isa/comm/TPUT_ASYNC_NOTIFY.md
           - TGET_ASYNC: docs/isa/comm/TGET_ASYNC.md
           - TNOTIFY: docs/isa/comm/TNOTIFY.md
           - TWAIT: docs/isa/comm/TWAIT.md

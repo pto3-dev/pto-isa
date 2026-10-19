@@ -90,8 +90,8 @@ void TPushPopMatmulAddNoSplitTestFunc(uint32_t M, uint32_t K, uint32_t N)
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<OutT> golden(cFileSize);
-    std::vector<OutT> devFinal(cFileSize);
+    std::vector<OutT> golden(cFileSize / sizeof(OutT));
+    std::vector<OutT> devFinal(cFileSize / sizeof(OutT));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 
@@ -165,8 +165,8 @@ void TPushPopAccValidShapeStripNoSplitTestFunc(uint32_t M, uint32_t K, uint32_t 
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<OutT> golden(cFileSize);
-    std::vector<OutT> devFinal(cFileSize);
+    std::vector<OutT> golden(cFileSize / sizeof(OutT));
+    std::vector<OutT> devFinal(cFileSize / sizeof(OutT));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 

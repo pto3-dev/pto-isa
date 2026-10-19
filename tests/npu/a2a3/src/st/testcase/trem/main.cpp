@@ -85,8 +85,8 @@ void test_trem()
 
     using U = std::conditional_t<std::is_same_v<T, aclFloat16>, _Float16, T>;
 
-    std::vector<U> golden(dstFileSize);
-    std::vector<U> devFinal(dstFileSize);
+    std::vector<U> golden(dstFileSize / sizeof(U));
+    std::vector<U> devFinal(dstFileSize / sizeof(U));
     ReadFile(GetGoldenDir() + "/golden.bin", dstFileSize, golden.data(), dstFileSize);
     ReadFile(GetGoldenDir() + "/output.bin", dstFileSize, devFinal.data(), dstFileSize);
 

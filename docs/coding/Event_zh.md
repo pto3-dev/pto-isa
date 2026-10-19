@@ -4,7 +4,7 @@ PTO Tile Lib 支持显式事件（event）模型，用于表达操作之间的�
 
 本文档描述 `include/pto/common/pto_instr.hpp` 与 `include/pto/common/event.hpp` 中使用的 C++ 事件类型。
 
-> 注意：具体的 `pto::Event<SrcOp, DstOp>` 类型仅在设备构建（`__CCE_AICORE__`）中定义。CPU 仿真后端通常将 `TSYNC` 视为 no-op，并依赖单线程的普通程序顺序来验证语义。
+> 注意：具体的 `pto::Event<SrcOp, DstOp>` 类型仅在设备构建（`__CCE_AICORE__`）中定义。CPU 仿真后端将 event synchronization 视为 no-op，并依赖每个 CPU 工作线程内的普通程序顺序。跨工作线程的顺序必须使用 CPU_SIM 已支持的同步或通信操作来保证。
 
 ## 关键类型
 
@@ -35,19 +35,19 @@ struct Event {
 
 模板参数编码 producer/consumer 的 opcode，用于选择正确的流水线对。
 
-### `TSYNC<OpCode>()`（单流水线屏障）
+### single-op synchronization（单流水线屏障）
 
-`TSYNC<OpCode>()` 是单 op 的屏障形式，由 `TSYNC_IMPL<OpCode>()` 实现：
+single-op synchronization 是单 op 的屏障形式，由 PTO runtime 在内部实现：
 
 - 在设备上，当前实现将单 op 形式限制在向量流水线 op（`PIPE_V`）上。
-- 在 CPU 仿真后端（`__CPU_SIM`）中，`TSYNC_IMPL` 为 no-op。
+- 在 CPU 仿真后端（`__CPU_SIM`）中，该内部屏障为 no-op。
 
 ## 内建接口中的 `WaitEvents&...` 机制
 
 `include/pto/common/pto_instr.hpp` 中多数内建接口在参数末尾带有 `WaitEvents&... events` 可变参包，模式为：
 
-- 内建接口调用 `TSYNC(events...)`。
-- `TSYNC(events...)` 调用 `WaitAllEvents(events...)`，对每个 event 调用 `events.Wait()`。
+- 内建接口调用 event waits。
+- event waits 调用 `WaitAllEvents(events...)`，对每个 event 调用 `events.Wait()`。
 - 指令执行后，内建接口返回 `RecordEvent`。
 
 这支持一种“SSA 风格”的 C++ 写法：

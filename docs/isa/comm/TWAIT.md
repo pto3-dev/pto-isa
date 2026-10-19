@@ -1,4 +1,4 @@
-# pto.twait
+# TWAIT
 
 `pto.twait` is part of the [Collective Communication](communication-runtime.md) instruction set.
 

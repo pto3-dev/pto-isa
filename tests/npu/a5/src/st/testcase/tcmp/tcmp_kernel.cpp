@@ -55,6 +55,65 @@ __global__ AICORE void runTCmp(__gm__ uint8_t* out, __gm__ T* src0, __gm__ T* sr
     TSTORE(dstGlobal, dstTile);
 }
 
+template <typename T, int Rows, int Cols, int ValidRows, int ValidCols, CmpMode cmpMode>
+__global__ AICORE void runTCmpInplace(__gm__ uint8_t* out, __gm__ T* src1)
+{
+    using SrcShapeDim2 = Shape<1, 1, 1, ValidRows, ValidCols>;
+    using SrcStrideDim2 = pto::Stride<Rows * Cols, Rows * Cols, Rows * Cols, Cols, 1>;
+    using SrcGlobal = GlobalTensor<T, SrcShapeDim2, SrcStrideDim2>;
+
+    constexpr int dstCols = (Cols + 7) / 8;
+    constexpr int dstValidCols = (ValidCols + 7) / 8;
+    constexpr int dstTileCols = ((Cols / 8) + 31) / 32 * 32;
+    using DstShapeDim2 = Shape<1, 1, 1, ValidRows, dstValidCols>;
+    using DstStrideDim2 = pto::Stride<Rows * dstCols, Rows * dstCols, Rows * dstCols, dstCols, 1>;
+    using DstGlobal = GlobalTensor<uint8_t, DstShapeDim2, DstStrideDim2>;
+
+    SrcGlobal src0Global((__gm__ T*)out);
+    SrcGlobal src1Global(src1);
+    DstGlobal dstGlobal(out);
+
+    using SrcTile = Tile<TileType::Vec, T, Rows, Cols, BLayout::RowMajor, ValidRows, ValidCols>;
+    using DstTile = Tile<TileType::Vec, uint8_t, Rows, dstTileCols, BLayout::RowMajor, ValidRows, dstValidCols>;
+
+    SrcTile src0Tile;
+    SrcTile src1Tile;
+    DstTile dstTile;
+    constexpr unsigned tileBytes = Rows * Cols * sizeof(T);
+    TASSIGN(src0Tile, 0x0);
+    TASSIGN(dstTile, 0x0);
+    TASSIGN(src1Tile, tileBytes);
+
+    TLOAD(src0Tile, src0Global);
+    TLOAD(src1Tile, src1Global);
+#ifndef __PTO_AUTO__
+    set_flag(PIPE_MTE2, PIPE_V, EVENT_ID0);
+    wait_flag(PIPE_MTE2, PIPE_V, EVENT_ID0);
+#endif
+    TCMP(dstTile, src0Tile, src1Tile, cmpMode);
+#ifndef __PTO_AUTO__
+    set_flag(PIPE_V, PIPE_MTE3, EVENT_ID0);
+    wait_flag(PIPE_V, PIPE_MTE3, EVENT_ID0);
+#endif
+    TSTORE(dstGlobal, dstTile);
+}
+
+template <typename T, int Rows, int Cols, int ValidRows, int ValidCols, CmpMode cmpMode, bool isBf16 = false>
+void LaunchTCmpInplace(uint8_t* out, T* src1, void* stream)
+{
+    if constexpr (std::is_same_v<T, aclFloat16>) {
+        if constexpr (isBf16) {
+            runTCmpInplace<bfloat16_t, Rows, Cols, ValidRows, ValidCols, cmpMode>
+                <<<1, nullptr, stream>>>((out), (bfloat16_t*)(src1));
+        } else {
+            runTCmpInplace<half, Rows, Cols, ValidRows, ValidCols, cmpMode>
+                <<<1, nullptr, stream>>>((out), (half*)(src1));
+        }
+    } else {
+        runTCmpInplace<T, Rows, Cols, ValidRows, ValidCols, cmpMode><<<1, nullptr, stream>>>(out, src1);
+    }
+}
+
 template <typename T, int Rows, int Cols, int ValidRows, int ValidCols, CmpMode cmpMode, bool isBf16 = false>
 void LaunchTCmp(uint8_t* out, T* src0, T* src1, void* stream)
 {
@@ -122,3 +181,11 @@ INSTANTIATE_TCMP_INT64_MODES(uint64_t)
 #undef INSTANTIATE_TCMP_INT64_MODES
 #undef INSTANTIATE_TCMP_INT64_WIDE
 #undef INSTANTIATE_TCMP_INT64
+
+template void LaunchTCmpInplace<int64_t, 4, 32, 4, 32, CmpMode::EQ, false>(uint8_t* out, int64_t* src1, void* stream);
+template void LaunchTCmpInplace<uint64_t, 4, 32, 4, 32, CmpMode::EQ, false>(uint8_t* out, uint64_t* src1, void* stream);
+template void LaunchTCmpInplace<int64_t, 1, 1024, 1, 1024, CmpMode::EQ, false>(
+    uint8_t* out, int64_t* src1, void* stream);
+template void LaunchTCmpInplace<int64_t, 4, 64, 4, 40, CmpMode::EQ, false>(uint8_t* out, int64_t* src1, void* stream);
+template void LaunchTCmpInplace<int64_t, 1, 2048, 1, 2045, CmpMode::EQ, false>(
+    uint8_t* out, int64_t* src1, void* stream);

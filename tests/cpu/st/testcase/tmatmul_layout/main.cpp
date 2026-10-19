@@ -11,6 +11,7 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #include <pto/pto-inst.hpp>
 #include "cpu_tile_test_utils.h"
 
+#include <cmath>
 #include <gtest/gtest.h>
 
 using namespace pto;
@@ -100,6 +101,39 @@ TEST(TMatmulLayoutTest, AcceptsExplicitRowMajorLeftTileEncoding)
 
     TMATMUL_ACC(accOut, accIn, lhs, rhs);
     ExpectTileEquals(accOut, ComputeExpected<AccTile>(lhs, rhs, &accIn));
+}
+
+TEST(TMatmulLayoutTest, AccumulatesFromExistingFp32Value)
+{
+    using LeftTile = TileLeft<float, 16, 16>;
+    using RightTile = TileRight<float, 16, 16>;
+    using AccTile = TileAcc<float, 16, 16>;
+
+    LeftTile lhs;
+    RightTile rhs;
+    AccTile accIn;
+    AccTile accOut;
+    size_t addr = 0;
+    CpuTileTestUtils::AssignTileStorage(addr, lhs, rhs, accIn, accOut);
+
+    FillAll(lhs, 1.0f);
+    FillAll(rhs, 1.0f);
+    FillAll(accIn, 100000000.0f);
+
+    TMATMUL_ACC(accOut, accIn, lhs, rhs);
+
+    float expected = 100000000.0f;
+    for (int k = 0; k < lhs.GetValidCol(); ++k) {
+        expected = std::fma(1.0f, 1.0f, expected);
+    }
+    // Dot-then-add would produce 100000016.0f, only 2 ULPs away from the fused
+    // result 100000000.0f — within EXPECT_FLOAT_EQ's 4-ULP tolerance — so the
+    // accumulation order is only observable through exact comparison.
+    for (int r = 0; r < accOut.GetValidRow(); ++r) {
+        for (int c = 0; c < accOut.GetValidCol(); ++c) {
+            EXPECT_EQ(GetValue(accOut, r, c), expected);
+        }
+    }
 }
 
 TEST(TMatmulLayoutTest, CoversGemvAndBiasVariants)

@@ -34,6 +34,8 @@ template <
     typename T, int dstTileH, int dstTileW, int src0TileH, int src0TileW, int src1TileH, int src1TileW, int vRows,
     int vCols>
 void LaunchTAdd(T* out, T* src0, T* src1, void* stream);
+template <typename T, int tileH, int tileW, int vRows, int vCols>
+void LaunchTAddInplace(T* out, T* src1, void* stream);
 
 template <int dstTileH, int dstTileW, int src0TileH, int src0TileW, int src1TileH, int src1TileW, int vRows, int vCols>
 void LaunchTAddHalf(aclFloat16* out, aclFloat16* src0, aclFloat16* src1, void* stream);
@@ -139,3 +141,52 @@ TEST_F(TADDTest, case_float_16x32_16x64_16x32_16x31) { test_tadd<float, 16, 32, 
 TEST_F(TADDTest, case_int16_32x128_32x128_32x256_32x127) { test_tadd<int16_t, 32, 128, 32, 128, 32, 256, 32, 127>(); }
 TEST_F(TADDTest, case_int32_16x32_16x64_16x32_16x31) { test_tadd<int32_t, 16, 32, 16, 64, 16, 32, 16, 31>(); }
 TEST_F(TADDTest, case_half_2x128_2x128_2x128_1x106) { test_tadd<aclFloat16, 2, 128, 2, 128, 2, 128, 1, 106, true>(); }
+
+template <typename T, int tileH, int tileW, int vRows, int vCols>
+void test_tadd_inplace()
+{
+    size_t fileSize = tileH * tileW * sizeof(T);
+
+    aclInit(nullptr);
+    aclrtSetDevice(0);
+    aclrtStream stream;
+    aclrtCreateStream(&stream);
+
+    T *dstHost, *src1Host;
+    T *dstDevice, *src1Device;
+
+    aclrtMallocHost((void**)(&dstHost), fileSize);
+    aclrtMallocHost((void**)(&src1Host), fileSize);
+
+    aclrtMalloc((void**)&dstDevice, fileSize, ACL_MEM_MALLOC_HUGE_FIRST);
+    aclrtMalloc((void**)&src1Device, fileSize, ACL_MEM_MALLOC_HUGE_FIRST);
+
+    ReadFile(GetGoldenDir() + "/input1.bin", fileSize, dstHost, fileSize);
+    ReadFile(GetGoldenDir() + "/input2.bin", fileSize, src1Host, fileSize);
+
+    aclrtMemcpy(dstDevice, fileSize, dstHost, fileSize, ACL_MEMCPY_HOST_TO_DEVICE);
+    aclrtMemcpy(src1Device, fileSize, src1Host, fileSize, ACL_MEMCPY_HOST_TO_DEVICE);
+    LaunchTAddInplace<T, tileH, tileW, vRows, vCols>(dstDevice, src1Device, stream);
+
+    aclrtSynchronizeStream(stream);
+    aclrtMemcpy(dstHost, fileSize, dstDevice, fileSize, ACL_MEMCPY_DEVICE_TO_HOST);
+
+    WriteFile(GetGoldenDir() + "/output.bin", dstHost, fileSize);
+
+    aclrtFree(dstDevice);
+    aclrtFree(src1Device);
+
+    aclrtFreeHost(dstHost);
+    aclrtFreeHost(src1Host);
+    aclrtDestroyStream(stream);
+    aclrtResetDevice(0);
+    aclFinalize();
+
+    CheckTAddResult<T>(fileSize);
+}
+
+TEST_F(TADDTest, case_int64_4x32_inplace) { test_tadd_inplace<int64_t, 4, 32, 4, 32>(); }
+TEST_F(TADDTest, case_uint64_4x32_inplace) { test_tadd_inplace<uint64_t, 4, 32, 4, 32>(); }
+TEST_F(TADDTest, case_int64_1x1024_inplace) { test_tadd_inplace<int64_t, 1, 1024, 1, 1024>(); }
+TEST_F(TADDTest, case_int64_4x64_40_inplace) { test_tadd_inplace<int64_t, 4, 64, 4, 40>(); }
+TEST_F(TADDTest, case_int64_1x2048_2045_inplace) { test_tadd_inplace<int64_t, 1, 2048, 1, 2045>(); }

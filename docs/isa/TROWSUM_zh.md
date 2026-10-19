@@ -1,4 +1,4 @@
-﻿# TROWSUM
+# TROWSUM
 
 ## 指令示意图
 

@@ -11,6 +11,8 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #ifndef PTO_TILE_HPP
 #define PTO_TILE_HPP
 
+#include <type_traits>
+
 #include "pto/common/memory.hpp"
 #include <pto/common/type.hpp>
 #include <pto/common/constants.hpp>
@@ -660,13 +662,35 @@ const typename GlobalTensor<Element_, Shape_, Stride_, Layout_>::Stride
 template <typename T, int64_t rows = DYNAMIC, int64_t cols = DYNAMIC, Layout Layout_ = Layout::ND>
 struct TileShape2D;
 
+template <typename T>
+constexpr int64_t GetNZC0Size()
+{
+    using RawT = std::remove_cv_t<T>;
+
+#if defined(__CPU_SIM)
+    if constexpr (IsTwinType<RawT>()) {
+        return B4_C0_SIZE;
+    }
+#elif defined(PTO_NPU_ARCH_A5) || defined(PTO_NPU_ARCH_A6)
+    if constexpr (
+        std::is_same_v<RawT, float4_e2m1x2_t> || std::is_same_v<RawT, float4_e1m2x2_t>
+#if defined(PTO_NPU_ARCH_A6)
+        || std::is_same_v<RawT, hifloat4x2_t>
+#endif
+    ) {
+        return B4_C0_SIZE;
+    }
+#endif
+    return C0_SIZE_BYTE / sizeof(T);
+}
+
 template <typename T, int64_t cols>
 constexpr int64_t GetTileShape2DNZCols()
 {
     if constexpr (cols == DYNAMIC) {
         return DYNAMIC;
     } else {
-        return static_cast<int64_t>(cols / (C0_SIZE_BYTE / sizeof(T)));
+        return static_cast<int64_t>(cols / GetNZC0Size<T>());
     }
 }
 
@@ -681,10 +705,10 @@ constexpr int64_t GetTileShape2DNZRows()
 }
 
 template <typename T, int64_t rows, int64_t cols>
-struct TileShape2D<T, rows, cols, Layout::NZ> : public Shape<
-                                                    1, GetTileShape2DNZCols<T, cols>(), GetTileShape2DNZRows<T, rows>(),
-                                                    FRACTAL_NZ_ROW, C0_SIZE_BYTE / sizeof(T)> {
-    static constexpr int C0Size = C0_SIZE_BYTE / sizeof(T);
+struct TileShape2D<T, rows, cols, Layout::NZ>
+    : public Shape<
+          1, GetTileShape2DNZCols<T, cols>(), GetTileShape2DNZRows<T, rows>(), FRACTAL_NZ_ROW, GetNZC0Size<T>()> {
+    static constexpr int C0Size = GetNZC0Size<T>();
     using Parent = Shape<1, GetTileShape2DNZCols<T, cols>(), GetTileShape2DNZRows<T, rows>(), FRACTAL_NZ_ROW, C0Size>;
 
     static_assert((rows == DYNAMIC) || (rows % FRACTAL_NZ_ROW == 0), "rows must be divisible by 16 for Layout::NZ");
@@ -746,7 +770,7 @@ constexpr int64_t GetBaseShape2DNZCols()
     if constexpr (cols == DYNAMIC) {
         return DYNAMIC;
     } else {
-        return static_cast<int64_t>(cols / (C0_SIZE_BYTE / sizeof(T)));
+        return static_cast<int64_t>(cols / GetNZC0Size<T>());
     }
 }
 
@@ -765,16 +789,16 @@ constexpr int64_t GetBaseShape2DStride1()
     if constexpr (rows == DYNAMIC) {
         return DYNAMIC;
     } else {
-        return static_cast<int64_t>(rows * (C0_SIZE_BYTE / sizeof(T)));
+        return static_cast<int64_t>(rows * GetNZC0Size<T>());
     }
 }
 template <typename T, int64_t rows, int64_t cols>
 struct BaseShape2D<T, rows, cols, Layout::NZ>
     : public Stride<
-          GetBaseShape2DStride0<T, rows, cols>(), GetBaseShape2DStride1<T, rows>(),
-          FRACTAL_NZ_ROW*(C0_SIZE_BYTE / sizeof(T)), C0_SIZE_BYTE / sizeof(T), 1> {
-    static constexpr int C0Size = C0_SIZE_BYTE / sizeof(T);
-    static constexpr int FractalNZSize = FRACTAL_NZ_ROW * (C0_SIZE_BYTE / sizeof(T));
+          GetBaseShape2DStride0<T, rows, cols>(), GetBaseShape2DStride1<T, rows>(), FRACTAL_NZ_ROW * GetNZC0Size<T>(),
+          GetNZC0Size<T>(), 1> {
+    static constexpr int C0Size = GetNZC0Size<T>();
+    static constexpr int FractalNZSize = FRACTAL_NZ_ROW * C0Size;
     using Parent =
         Stride<GetBaseShape2DStride0<T, rows, cols>(), GetBaseShape2DStride1<T, rows>(), FractalNZSize, C0Size, 1>;
     static_assert((rows == DYNAMIC) || (rows % FRACTAL_NZ_ROW == 0), "rows must be divisible by 16 for Layout::NZ");
@@ -1306,6 +1330,12 @@ public:
     AICORE float GetCycle() { return cycle; }
 #endif
 
+#ifdef __CPU_SIM
+    DType GetElement(int64_t offset) { return GetProperDataPart(data(), offset); }
+
+    void SetElement(int64_t offset, const DType& val) { SetProperDataPart(data(), offset, val); }
+#endif
+
     AICORE TileDType& data() { return data_; }
     AICORE const TileDType& data() const { return data_; }
 
@@ -1396,6 +1426,12 @@ struct Tile {
 public:
     using DType = Element_;
 
+#ifdef __CPU_SIM
+    static constexpr size_t kPackedElementsPerByte = IsTwinType<DType>() ? 2 : 1;
+#else
+    static constexpr size_t kPackedElementsPerByte = 1;
+#endif
+
     static constexpr int getInnerRow()
     {
         if constexpr (SFractalSize_ == TileConfig::fractalCSize) {
@@ -1404,7 +1440,8 @@ public:
             return isInnerRowMajor ? TileConfig::fixedMxRowSize : TileConfig::fixedMxColSize;
         } else {
             return isBoxedLayout ?
-                       (isInnerRowMajor ? TileConfig::fixedRowSize : TileConfig::alignedSize / sizeof(DType)) :
+                       (isInnerRowMajor ? TileConfig::fixedRowSize :
+                                          (kPackedElementsPerByte * TileConfig::alignedSize) / sizeof(DType)) :
                        1;
         }
     }
@@ -1417,7 +1454,8 @@ public:
             return isInnerRowMajor ? TileConfig::fixedMxColSize : TileConfig::fixedMxRowSize;
         } else {
             return isBoxedLayout ?
-                       (isInnerRowMajor ? TileConfig::alignedSize / sizeof(DType) : TileConfig::fixedColSize) :
+                       (isInnerRowMajor ? (kPackedElementsPerByte * TileConfig::alignedSize) / sizeof(DType) :
+                                          TileConfig::fixedColSize) :
                        1;
         }
     }
@@ -1521,9 +1559,9 @@ public:
 
     static_assert(
         (BFractal_ == BLayout::RowMajor && SFractal_ == SLayout::NoneBox &&
-         Cols * sizeof(DType) % TileConfig::alignedSize == 0) ||
+         Cols * sizeof(DType) % (kPackedElementsPerByte * TileConfig::alignedSize) == 0) ||
             (BFractal_ == BLayout::ColMajor && SFractal_ == SLayout::NoneBox &&
-             Rows * sizeof(DType) % TileConfig::alignedSize == 0) ||
+             Rows * sizeof(DType) % (kPackedElementsPerByte * TileConfig::alignedSize) == 0) ||
             (SFractal_ != SLayout::NoneBox) &&
                 (((Loc == TileType::Vec) || (SFractalSize_ == TileConfig::fractalMxSize) || (Rows_ == 1) ||
                   (Rows % InnerRows == 0)) &&
@@ -1558,7 +1596,7 @@ public:
     TileDType& data()
     {
         if (!data_) {
-            internalBuffer.resize(Rows * Cols / (IsTwinType<DType>() ? 2 : 1));
+            internalBuffer.resize(Rows * Cols / kPackedElementsPerByte);
             data_ = internalBuffer.data();
         }
         return data_;
@@ -1667,11 +1705,7 @@ public:
     static constexpr size_t GetSizeInUnits()
     {
         // One unit is sizeof(DType)
-        if constexpr (IsTwinType<DType>()) {
-            return Numel / 2;
-        } else {
-            return Numel;
-        }
+        return Numel / kPackedElementsPerByte;
     }
 
     static constexpr size_t GetSizeInBytes() { return GetSizeInUnits() * sizeof(DType); }

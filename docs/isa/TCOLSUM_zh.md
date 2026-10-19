@@ -1,4 +1,4 @@
-﻿# TCOLSUM
+# TCOLSUM
 
 ## 指令示意图
 

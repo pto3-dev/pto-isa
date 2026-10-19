@@ -15,8 +15,10 @@ See LICENSE in the root of the software repository for the full text of the Lice
 using namespace std;
 using namespace PtoTestCommon;
 
-template <typename T, int Rows, int Cols, int ValidRows, int ValidCols>
+template <typename T, int Rows, int Cols, int ValidRows, int ValidCols, bool isBf16 = false>
 void LaunchTSel(T* out, uint8_t* mask, T* src0, T* src1, void* stream);
+template <typename T, int Rows, int Cols, int ValidRows, int ValidCols>
+void LaunchTSelInplace(T* out, uint8_t* mask, T* src1, void* stream);
 
 class TSELTest : public testing::Test {
 protected:
@@ -40,13 +42,13 @@ void CheckTSelResult(size_t fileSize)
     std::vector<T> devFinal(fileSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", fileSize, golden.data(), fileSize);
     ReadFile(GetGoldenDir() + "/output.bin", fileSize, devFinal.data(), fileSize);
-    if constexpr (std::is_same_v<T, int64_t> || std::is_same_v<T, uint64_t>)
+    if constexpr (std::is_integral_v<T>)
         EXPECT_TRUE(ResultCmpExact(golden, devFinal.data()));
     else
         EXPECT_TRUE(ResultCmp<T>(golden, devFinal, 0.001f));
 }
 
-template <typename T, int Rows, int Cols, int ValidRows, int ValidCols>
+template <typename T, int Rows, int Cols, int ValidRows, int ValidCols, bool isBf16 = false>
 void test_tsel()
 {
     size_t fileSize = Rows * Cols * sizeof(T);
@@ -79,7 +81,7 @@ void test_tsel()
     aclrtMemcpy(src0Device, fileSize, src0Host, fileSize, ACL_MEMCPY_HOST_TO_DEVICE);
     aclrtMemcpy(src1Device, fileSize, src1Host, fileSize, ACL_MEMCPY_HOST_TO_DEVICE);
     aclrtMemcpy(maskDevice, maskFileSize, maskHost, maskFileSize, ACL_MEMCPY_HOST_TO_DEVICE);
-    LaunchTSel<T, Rows, Cols, ValidRows, ValidCols>(dstDevice, maskDevice, src0Device, src1Device, stream);
+    LaunchTSel<T, Rows, Cols, ValidRows, ValidCols, isBf16>(dstDevice, maskDevice, src0Device, src1Device, stream);
 
     aclrtSynchronizeStream(stream);
     aclrtMemcpy(dstHost, fileSize, dstDevice, fileSize, ACL_MEMCPY_DEVICE_TO_HOST);
@@ -89,6 +91,60 @@ void test_tsel()
     aclrtFree(dstDevice);
     aclrtFree(maskDevice);
     aclrtFree(src0Device);
+    aclrtFree(src1Device);
+
+    aclrtFreeHost(dstHost);
+    aclrtFreeHost(maskHost);
+    aclrtFreeHost(src0Host);
+    aclrtFreeHost(src1Host);
+    aclrtDestroyStream(stream);
+    aclrtResetDevice(0);
+    aclFinalize();
+
+    CheckTSelResult<T>(fileSize);
+}
+
+template <typename T, int Rows, int Cols, int ValidRows, int ValidCols>
+void test_tsel_inplace()
+{
+    size_t fileSize = Rows * Cols * sizeof(T);
+    size_t maskFileSize = Rows * Cols * sizeof(uint8_t);
+
+    aclInit(nullptr);
+    aclrtSetDevice(0);
+    aclrtStream stream;
+    aclrtCreateStream(&stream);
+
+    T *dstHost, *src0Host, *src1Host;
+    uint8_t* maskHost;
+    T *dstDevice, *src1Device;
+    uint8_t* maskDevice;
+
+    aclrtMallocHost((void**)(&dstHost), fileSize);
+    aclrtMallocHost((void**)(&maskHost), maskFileSize);
+    aclrtMallocHost((void**)(&src0Host), fileSize);
+    aclrtMallocHost((void**)(&src1Host), fileSize);
+
+    aclrtMalloc((void**)&dstDevice, fileSize, ACL_MEM_MALLOC_HUGE_FIRST);
+    aclrtMalloc((void**)&maskDevice, maskFileSize, ACL_MEM_MALLOC_HUGE_FIRST);
+    aclrtMalloc((void**)&src1Device, fileSize, ACL_MEM_MALLOC_HUGE_FIRST);
+
+    ReadFile(GetGoldenDir() + "/input0.bin", fileSize, src0Host, fileSize);
+    ReadFile(GetGoldenDir() + "/input1.bin", fileSize, src1Host, fileSize);
+    ReadFile(GetGoldenDir() + "/mask.bin", maskFileSize, maskHost, maskFileSize);
+
+    aclrtMemcpy(dstDevice, fileSize, src0Host, fileSize, ACL_MEMCPY_HOST_TO_DEVICE);
+    aclrtMemcpy(src1Device, fileSize, src1Host, fileSize, ACL_MEMCPY_HOST_TO_DEVICE);
+    aclrtMemcpy(maskDevice, maskFileSize, maskHost, maskFileSize, ACL_MEMCPY_HOST_TO_DEVICE);
+    LaunchTSelInplace<T, Rows, Cols, ValidRows, ValidCols>(dstDevice, maskDevice, src1Device, stream);
+
+    aclrtSynchronizeStream(stream);
+    aclrtMemcpy(dstHost, fileSize, dstDevice, fileSize, ACL_MEMCPY_DEVICE_TO_HOST);
+
+    WriteFile(GetGoldenDir() + "/output.bin", dstHost, fileSize);
+
+    aclrtFree(dstDevice);
+    aclrtFree(maskDevice);
     aclrtFree(src1Device);
 
     aclrtFreeHost(dstHost);
@@ -114,7 +170,22 @@ TEST_F(TSELTest, case9) { test_tsel<int8_t, 2, 160, 2, 160>(); }
 TEST_F(TSELTest, case10) { test_tsel<float, 2, 512, 2, 512>(); }
 TEST_F(TSELTest, case_int64_4x16) { test_tsel<int64_t, 4, 16, 4, 16>(); }
 TEST_F(TSELTest, case_uint64_4x16) { test_tsel<uint64_t, 4, 16, 4, 16>(); }
+TEST_F(TSELTest, case_int64_49x160) { test_tsel<int64_t, 49, 160, 49, 160>(); }
+TEST_F(TSELTest, case_uint64_49x160) { test_tsel<uint64_t, 49, 160, 49, 160>(); }
 TEST_F(TSELTest, case_int64_1x16364) { test_tsel<int64_t, 1, 16364, 1, 16364>(); }
 TEST_F(TSELTest, case_uint64_1x16364) { test_tsel<uint64_t, 1, 16364, 1, 16364>(); }
 TEST_F(TSELTest, case_int64_1x16368) { test_tsel<int64_t, 1, 16368, 1, 16368>(); }
 TEST_F(TSELTest, case_uint64_1x16368) { test_tsel<uint64_t, 1, 16368, 1, 16368>(); }
+TEST_F(TSELTest, case_int64_4x32_inplace) { test_tsel_inplace<int64_t, 4, 32, 4, 32>(); }
+TEST_F(TSELTest, case_uint64_4x32_inplace) { test_tsel_inplace<uint64_t, 4, 32, 4, 32>(); }
+TEST_F(TSELTest, case_int64_1x1024_inplace) { test_tsel_inplace<int64_t, 1, 1024, 1, 1024>(); }
+TEST_F(TSELTest, case_int64_4x64_4x40_inplace) { test_tsel_inplace<int64_t, 4, 64, 4, 40>(); }
+TEST_F(TSELTest, case_int64_1x2048_1x2045_inplace) { test_tsel_inplace<int64_t, 1, 2048, 1, 2045>(); }
+TEST_F(TSELTest, case_int8_1x1024) { test_tsel<int8_t, 1, 1024, 1, 1024>(); }
+TEST_F(TSELTest, case_int8_2x512) { test_tsel<int8_t, 2, 512, 2, 512>(); }
+TEST_F(TSELTest, case_int16_2x128) { test_tsel<int16_t, 2, 128, 2, 128>(); }
+TEST_F(TSELTest, case_int16_2x160) { test_tsel<int16_t, 2, 160, 2, 160>(); }
+TEST_F(TSELTest, case_int32_2x128) { test_tsel<int32_t, 2, 128, 2, 128>(); }
+TEST_F(TSELTest, case_int32_2x160) { test_tsel<int32_t, 2, 160, 2, 160>(); }
+TEST_F(TSELTest, case_bf16_2x128) { test_tsel<aclFloat16, 2, 128, 2, 128, true>(); }
+TEST_F(TSELTest, case_bf16_2x160) { test_tsel<aclFloat16, 2, 160, 2, 160, true>(); }

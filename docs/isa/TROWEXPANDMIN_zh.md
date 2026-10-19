@@ -1,4 +1,4 @@
-﻿# TROWEXPANDMIN
+# TROWEXPANDMIN
 
 ## 指令示意图
 

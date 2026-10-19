@@ -22,6 +22,8 @@ def gen_golden_data(param):
     dst_tile_col = param.dst_tile_col
     src_tile_row = param.src_tile_row
     src_tile_col = param.src_tile_col
+    valid_row = param.valid_row
+    valid_col = param.valid_col
 
     if np.issubdtype(data_type, np.integer):
         value_max = np.iinfo(data_type).max
@@ -32,7 +34,8 @@ def gen_golden_data(param):
 
     if data_type == np.int64:
         input_arr = np.random.randint(-1000000, 1000000, size=(src_tile_row, src_tile_col)).astype(data_type)
-        divider = np.array([97], dtype=data_type)
+        divider_value = param.scalar if param.scalar is not None else 97
+        divider = np.array([divider_value], dtype=data_type)
     elif data_type == np.uint64:
         input_arr = np.random.randint(0, 2000000, size=(src_tile_row, src_tile_col)).astype(data_type)
         divider = np.array([0 if param.zero_divisor else 97], dtype=data_type)
@@ -41,14 +44,16 @@ def gen_golden_data(param):
             size=(src_tile_row, src_tile_col)).astype(data_type)
         divider = np.random.uniform(low=value_min, high=value_max, size=1).astype(data_type)
     output_arr = np.zeros((dst_tile_row, dst_tile_col), dtype=data_type)
+    if param.inplace:
+        output_arr[:src_tile_row, :src_tile_col] = input_arr[:src_tile_row, :src_tile_col]
     if data_type == np.int64:
-        values = input_arr[:rows, :cols]
+        values = input_arr[:valid_row, :valid_col]
         quotient = np.trunc(values.astype(np.float64) / float(divider[0])).astype(data_type)
-        output_arr[:rows, :cols] = values - quotient * divider[0]
+        output_arr[:valid_row, :valid_col] = values - quotient * divider[0]
     elif divider[0] == 0:
-        output_arr[:rows, :cols] = 0
+        output_arr[:valid_row, :valid_col] = 0
     else:
-        output_arr[:rows, :cols] = input_arr[:rows, :cols] % divider[0]
+        output_arr[:valid_row, :valid_col] = input_arr[:valid_row, :valid_col] % divider[0]
 
     input_arr.tofile('input.bin')
     divider.tofile('divider.bin')
@@ -57,7 +62,7 @@ def gen_golden_data(param):
 
 class TestParams:
     def __init__(self, name, data_type, dst_tile_row, dst_tile_col, src_tile_row, src_tile_col, row, col,
-                 zero_divisor=False):
+                 zero_divisor=False, scalar=None, valid_row=None, valid_col=None, inplace=False):
         self.name = name
         self.data_type = data_type
         self.dst_tile_row = dst_tile_row
@@ -66,7 +71,11 @@ class TestParams:
         self.src_tile_col = src_tile_col
         self.row = row
         self.col = col
+        self.valid_row = row if valid_row is None else valid_row
+        self.valid_col = col if valid_col is None else valid_col
         self.zero_divisor = zero_divisor
+        self.scalar = scalar
+        self.inplace = inplace
 
 
 if __name__ == "__main__":
@@ -86,6 +95,14 @@ if __name__ == "__main__":
         TestParams("TREMSTest.case_uint64_4x64", np.uint64, 4, 64, 4, 64, 4, 64),
         TestParams("TREMSTest.case_int64_1x10912", np.int64, 1, 10912, 1, 10912, 1, 10912),
         TestParams("TREMSTest.case_uint64_1x10912", np.uint64, 1, 10912, 1, 10912, 1, 10912),
+        TestParams("TREMSTest.case_int64_4x32_inplace", np.int64, 4, 32, 4, 32, 4, 32, scalar=17, inplace=True),
+TestParams("TREMSTest.case_uint64_4x32_inplace", np.uint64, 4, 32, 4, 32, 4, 32, scalar=17, inplace=True),
+        TestParams("TREMSTest.case_int64_1x1024_inplace", np.int64, 1, 1024, 1, 1024, 1, 1024,
+                   scalar=17, inplace=True),
+        TestParams("TREMSTest.case_int64_4x64_40_inplace", np.int64, 4, 64, 4, 64, 4, 64,
+                   scalar=17, valid_col=40, inplace=True),
+        TestParams("TREMSTest.case_int64_1x2048_2045_inplace", np.int64, 1, 2048, 1, 2048, 1, 2048,
+                   scalar=17, valid_col=2045, inplace=True),
     ]
 
     for case in case_params_list:

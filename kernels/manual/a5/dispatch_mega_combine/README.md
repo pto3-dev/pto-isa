@@ -97,11 +97,11 @@ for each rank, token:
 - **Deferred metadata**: reserved AIV0 workers build GMM task descriptors, source-rank `preSum`, expert-major route
   order, and the inverse `expandedRowIdx` while Dispatch and the first GMM stage are progressing.
 - **Direct CV handoff**: GMM1 sends paired BF16 x/gate tiles directly to SwiGLU through a one-slot CV FIFO; GMM2
-  sends BF16 result tiles directly to Combine through a three-slot CV FIFO. Neither GMM output is materialized in GM.
+  sends BF16 result tiles directly to Combine through a one-slot CV FIFO. Neither GMM output is materialized in GM.
 - **Adaptive vector pipelines**: Front uses ping-pong quant buffers, Dispatch chooses a 2-6-slot remote-token ring,
   and Unpermute chooses a 2-6-slot BF16/FP32 input ring within the 216 KiB main UB budget.
 - **Dual-mode GMM1 scheduling**: `M <= 512` uses an all-AIC direct wave0 followed by a mailbox P/C suffix. Larger
-  shapes use fixed-wave GMM1, while released AICs still switch to the GMM2 mailbox without a global barrier.
+  shapes use fixed-wave GMM1; Group2 switches to GMM2 after the configured full-AIC wave prefix, without a global barrier.
 - **Dynamic GMM2 scheduling**: the initial GMM2 group executes wave0 directly; all remaining GMM2 tiles use producer-
   assigned mailbox tickets, allowing Group1 AICs to join as soon as their GMM1 handoff is complete.
 - **Token-ready Unpermute**: Combine publishes ordered expert-prefix progress after its remote stores are complete.
@@ -116,9 +116,9 @@ validated mixed-core mapping. Every physical block contains one AIC and two AIV 
 | 32 | 64 | `0..20` (21) | `21..31` (11) | 16 |
 | 36 | 72 | `0..23` (24) | `24..35` (12) | 16 |
 
-The first GMM1 wave uses all available AICs. For the tuned 36-AIC canonical shapes, the steady split is overridden to
-`22:14` for `(worldSize=8, M=1024/2048, expertPerRank=16)` and `(worldSize=16, M=1024,
-expertPerRank=16)`; other listed cases use the default split. Every AIV1 is the paired SwiGLU/Combine consumer for its
+Fixed-wave GMM1 starts with a configured full-AIC prefix. For the tuned 36-AIC canonical shapes, the steady split is
+overridden to `22:14` for `(worldSize=8, M=1024/2048, expertPerRank=16)` and `(worldSize=16, M=1024,
+expertPerRank=16)`; the eight-rank `M=2048` case keeps four full-AIC waves before that split, while other listed cases use the default full-AIC prefix and split. Every AIV1 is the paired SwiGLU/Combine consumer for its
 physical AIC. All AIVs participate in final-phase Unpermute, while `M >= 512` additionally enables 16 AIV0 phase-1
 workers from a frozen expert-progress snapshot.
 
@@ -139,11 +139,11 @@ count must not exceed the physical runtime count. Dispatch width grows to at lea
 | `maxOutputSize` | Per-rank routed-row workspace limit |
 | `aicNum` | Effective AICore launch count; validated values are 28, 32, and 36 |
 | `aivNum` | Derived as `2 * aicNum`: 56, 64, or 72 |
-| `GMM baseM/baseN` | Main output tile shape is `128 x 256` |
+| `GMM baseM/baseN` | Main output tile shape is `256 x 256` |
 | `Front Mask Pull` | The only Front implementation; host rejects clipping, invalid experts, inactive tokens, and insufficient receive capacity |
 | `Fixed-role AIV UB` | Dispatch, SwiGLU, Combine, and Unpermute use a 216 KiB main region; the final 40 KiB is reserved for synchronization snapshots |
 | `Dispatch / Unpermute tiles` | Dispatch uses an adaptive 2-6-slot packed-token ring; Unpermute keeps a full K row when possible, supports up to 8192 columns per tile, and uses an adaptive 2-6-slot input ring |
-| `GMM / AIV CV tiles` | GMM1 sends paired `128 x 256` BF16 tiles through one CV slot; GMM2 sends `128 x 256` BF16 tiles through three CV slots |
+| `GMM / AIV CV tiles` | GMM1 sends paired `256 x 256` BF16 half-tiles through one CV slot; GMM2 sends `256 x 256` BF16 tiles through one CV slot |
 
 ## Supported Cases
 
@@ -185,7 +185,7 @@ aivNum=2 * aicNum
 │ AIC : GMM1 direct/fixed/mailbox -> released AICs join GMM2 mailbox           │
 │ AIV1:       CV SwiGLU                    CV Combine -> remote compact rows    │
 │                                                                              │
-│ GMM1 wave0 and GMM2 wave0 are direct; mailbox tickets schedule the suffixes  │
+│ Hybrid GMM1/GMM2 use direct wave0 + mailbox suffix; fixed GMM1 uses waves    │
 └──────────────────────────────┬───────────────────────────────────────────────┘
                                │ ordered expert-prefix progress
 ┌──────────────────────────────▼───────────────────────────────────────────────┐
@@ -229,7 +229,7 @@ srcRank.sourceTokenRecords[routeSlot / topK]
 PTO vector mask compaction produces matching route indices. Each source rank receives
 `floor(dispatchGroupSize / worldSize)` active AIV0 lanes, with any trailing Dispatch roles left idle. An adaptive
 2-6-slot ring overlaps remote packed-record loads with E4M3/E8M0 and metadata stores. Dispatch publishes cache-line-
-isolated ready counts per expert and 128-row M tile, so GMM1 waits only for the input tile it is about to consume.
+isolated ready counts per expert and 256-row M tile, so GMM1 waits only for the input tile it is about to consume.
 
 ## GMM1 / SwiGLU / GMM2 Stages
 
@@ -244,10 +244,10 @@ gmA[E4M3] / gmAScale[E8M0] x weight1[E4M3] / scale1[E8M0]
   -> paired x/gate CV tiles
 ```
 
-Each local expert is split into `128 x 256` half-output tiles; x and gate are computed as a pair and sent directly to
+Each local expert is split into `256 x 256` half-output tiles; x and gate are computed as a pair and sent directly to
 the paired AIV1 through a one-slot CV FIFO. Linear tile ids are swizzled for B-side L1 reuse. For `M <= 512`, all AICs
 execute direct wave0 and the steady GMM1 group consumes the suffix from the mailbox. For larger M, fixed-wave GMM1
-uses all AICs for wave0 and the configured GMM1 group after the split decision.
+uses all AICs for the configured full-AIC wave prefix and the configured GMM1 group afterwards.
 
 ### SwiGLU
 
@@ -261,7 +261,7 @@ x/gate BF16 CV tile
 ```
 
 The CV control stream carries the exact GMM task sequence. SwiGLU drains each E4M3/E8M0 store before incrementing the
-GMM2 dependency counter for that expert/M tile, allowing GMM2 to acquire only the input region needed by its next task.
+GMM2 dependency counter for that expert, and GMM2 starts the expert after the required SwiGLU tile count is complete.
 
 ### GMM2
 
@@ -276,7 +276,7 @@ gmSwigluA[E4M3] / gmSwigluScale[E8M0] x weight2[E4M3] / scale2[E8M0]
 
 The configured GMM2 group executes wave0 directly. All suffix tiles are producer-assigned mailbox tasks. Group1 AICs
 enter this mailbox immediately after their mode-specific GMM1 handoff, without a global GMM1/GMM2 barrier. Each AIC
-streams BF16 `128 x 256` results to its paired Combine AIV1 through a three-slot CV FIFO.
+streams BF16 `256 x 256` results to its paired Combine AIV1 through a one-slot CV FIFO.
 
 ## Combine / Unpermute Stages
 
@@ -391,8 +391,8 @@ bash run.sh --world-size 8 --first-device 0 --m 512 --k 7168 --n 4096 --topk 8 -
 
 Common constraints:
 
-- `K` must be a multiple of 128, fit the 8192-element Dispatch/Combine vector width, and satisfy packed-row capacity.
-- `N` must be even; `N / 2` must be a multiple of 128 and the full-row SwiGLU buffers must fit the 216 KiB main UB.
+- `K` must be a multiple of 128 and satisfy the Dispatch packed-row capacity.
+- `N` must be even and `N / 2` must be a multiple of 128.
 - `topK` must be in `1..32`.
 - `expertPerRank` must be `4`, `8`, `16`, or `32`; all values use the same runtime kernel with capacity for 32 local
   experts.

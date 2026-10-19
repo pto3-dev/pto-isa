@@ -38,6 +38,9 @@ template <
     typename T, int Row, int Col, int ValidRow, int ValidCol, CmpMode cmpMode, bool isSrc1Tile, bool isBf16 = false>
 void LaunchTCmps(uint8_t* out, T* src0, T* src1, void* stream);
 
+template <typename T, int Row, int Col, int ValidRow, int ValidCol, CmpMode cmpMode, bool isBf16 = false>
+void LaunchTCmpsInplace(uint8_t* out, T* src1, void* stream);
+
 template <
     typename T, int Row, int Col, int ValidRow, int ValidCol, CmpMode cmpMode, bool isSrc1Tile = false,
     bool isBf16 = false>
@@ -100,6 +103,59 @@ void test_tcmps()
     EXPECT_TRUE(ret);
 }
 
+template <typename T, int Row, int Col, int ValidRow, int ValidCol, CmpMode cmpMode, bool isBf16 = false>
+void test_tcmps_inplace()
+{
+    size_t src0FileSize = Row * Col * sizeof(T);
+    size_t src1FileSize = sizeof(T);
+    size_t dstFileSize = Row * ((Col + 7) / 8);
+
+    aclInit(nullptr);
+    aclrtSetDevice(0);
+    aclrtStream stream;
+    aclrtCreateStream(&stream);
+
+    T *src0Host, *src1Host, *src1Device;
+    uint8_t *dstHost, *dstDevice;
+
+    aclrtMallocHost((void**)(&dstHost), src0FileSize);
+    aclrtMallocHost((void**)(&src0Host), src0FileSize);
+    aclrtMallocHost((void**)(&src1Host), src1FileSize);
+
+    aclrtMalloc((void**)&dstDevice, src0FileSize, ACL_MEM_MALLOC_HUGE_FIRST);
+    aclrtMalloc((void**)&src1Device, src1FileSize, ACL_MEM_MALLOC_HUGE_FIRST);
+
+    ReadFile(GetGoldenDir() + "/input1.bin", src0FileSize, src0Host, src0FileSize);
+    ReadFile(GetGoldenDir() + "/input2.bin", src1FileSize, src1Host, src1FileSize);
+
+    aclrtMemcpy(dstDevice, src0FileSize, src0Host, src0FileSize, ACL_MEMCPY_HOST_TO_DEVICE);
+    aclrtMemcpy(src1Device, src1FileSize, src1Host, src1FileSize, ACL_MEMCPY_HOST_TO_DEVICE);
+
+    LaunchTCmpsInplace<T, Row, Col, ValidRow, ValidCol, cmpMode, isBf16>(dstDevice, src1Device, stream);
+
+    aclrtSynchronizeStream(stream);
+    aclrtMemcpy(dstHost, dstFileSize, dstDevice, dstFileSize, ACL_MEMCPY_DEVICE_TO_HOST);
+
+    WriteFile(GetGoldenDir() + "/output.bin", dstHost, dstFileSize);
+
+    aclrtFree(dstDevice);
+    aclrtFree(src1Device);
+    aclrtFreeHost(dstHost);
+    aclrtFreeHost(src0Host);
+    aclrtFreeHost(src1Host);
+    aclrtDestroyStream(stream);
+    aclrtResetDevice(0);
+    aclFinalize();
+
+    std::vector<uint8_t> golden(Row * ((Col + 7) / 8));
+    std::vector<uint8_t> devFinal(Row * ((Col + 7) / 8));
+    ReadFile(GetGoldenDir() + "/golden.bin", dstFileSize, golden.data(), dstFileSize);
+    ReadFile(GetGoldenDir() + "/output.bin", dstFileSize, devFinal.data(), dstFileSize);
+
+    bool ret = ResultCmp<uint8_t>(golden, devFinal, 0.001f);
+    EXPECT_TRUE(ret);
+}
+
 TEST_F(TCMPSTest, case_half_32x32_32x32) { test_tcmps<uint16_t, 32, 32, 32, 32, CmpMode::EQ>(); }
 TEST_F(TCMPSTest, case_float_8x64_8x64) { test_tcmps<float, 8, 64, 8, 64, CmpMode::GT, true>(); }
 TEST_F(TCMPSTest, case_int32_4x64_4x64) { test_tcmps<int32_t, 4, 64, 4, 64, CmpMode::NE>(); }
@@ -134,3 +190,10 @@ TCMPS_INT64_MODES(uint64_t, uint64)
 #undef TCMPS_INT64_MODES
 #undef TCMPS_INT64_WIDE_CASE
 #undef TCMPS_INT64_CASE
+
+TEST_F(TCMPSTest, case_int64_4x32_4x32_EQ_inplace) { test_tcmps_inplace<int64_t, 4, 32, 4, 32, CmpMode::EQ>(); }
+TEST_F(TCMPSTest, case_uint64_4x32_4x32_EQ_inplace) { test_tcmps_inplace<uint64_t, 4, 32, 4, 32, CmpMode::EQ>(); }
+TEST_F(TCMPSTest, case_int64_1x1024_1x1024_EQ_inplace) { test_tcmps_inplace<int64_t, 1, 1024, 1, 1024, CmpMode::EQ>(); }
+TEST_F(TCMPSTest, case_int64_4x64_4x40_EQ_inplace) { test_tcmps_inplace<int64_t, 4, 64, 4, 40, CmpMode::EQ>(); }
+
+TEST_F(TCMPSTest, case_int64_1x2048_1x2045_EQ_inplace) { test_tcmps_inplace<int64_t, 1, 2048, 1, 2045, CmpMode::EQ>(); }

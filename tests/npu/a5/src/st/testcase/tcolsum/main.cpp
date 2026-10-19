@@ -53,8 +53,8 @@ protected:
     template <typename T>
     bool CompareGolden(size_t dstByteSize, bool printAllEn = false)
     {
-        std::vector<T> golden(dstByteSize);
-        std::vector<T> result(dstByteSize);
+        std::vector<T> golden(dstByteSize / sizeof(T));
+        std::vector<T> result(dstByteSize / sizeof(T));
         float eps = sizeof(T) == 4 ? 0.001f : 0.005f;
         ReadFile(GetGoldenDir() + "/golden.bin", dstByteSize, golden.data(), dstByteSize);
         ReadFile(GetGoldenDir() + "/output.bin", dstByteSize, result.data(), dstByteSize);
@@ -146,6 +146,11 @@ TEST_F(TCOLSUMTest, case15)
     bool ret = TCOLSUMTestFramework<15, int16_t, 64, 64, 1, 128, 128>();
     EXPECT_TRUE(ret);
 }
+TEST_F(TCOLSUMTest, case16)
+{
+    bool ret = TCOLSUMTestFramework<16, int16_t, 64, 64, 1, 128, 128>();
+    EXPECT_TRUE(ret);
+}
 TEST_F(TCOLSUMTest, case21)
 {
     bool ret = TCOLSUMTestFramework<21, int8_t, 1, 1, 1, 256, 255>();
@@ -180,3 +185,16 @@ TEST_F(TCOLSUMTest, case_int64_4x16) { EXPECT_TRUE((TCOLSUMTestFramework<41, int
 TEST_F(TCOLSUMTest, case_uint64_4x16) { EXPECT_TRUE((TCOLSUMTestFramework<42, uint64_t, 4, 4, 1, 16, 16>())); }
 TEST_F(TCOLSUMTest, case_int64_4x64) { EXPECT_TRUE((TCOLSUMTestFramework<43, int64_t, 4, 4, 1, 64, 64>())); }
 TEST_F(TCOLSUMTest, case_uint64_4x64) { EXPECT_TRUE((TCOLSUMTestFramework<44, uint64_t, 4, 4, 1, 64, 64>())); }
+TEST_F(TCOLSUMTest, case_int64_tmp_binary_4x16) { EXPECT_TRUE((TCOLSUMTestFramework<45, int64_t, 4, 4, 1, 16, 16>())); }
+TEST_F(TCOLSUMTest, case_int64_tmp_nonbinary_4x16)
+{
+    EXPECT_TRUE((TCOLSUMTestFramework<46, int64_t, 4, 4, 1, 16, 16>()));
+}
+TEST_F(TCOLSUMTest, case_uint64_tmp_binary_4x16)
+{
+    EXPECT_TRUE((TCOLSUMTestFramework<47, uint64_t, 4, 4, 1, 16, 16>()));
+}
+TEST_F(TCOLSUMTest, case_uint64_tmp_nonbinary_4x16)
+{
+    EXPECT_TRUE((TCOLSUMTestFramework<48, uint64_t, 4, 4, 1, 16, 16>()));
+}

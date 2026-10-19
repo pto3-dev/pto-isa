@@ -1,4 +1,4 @@
-﻿# TROWPROD
+# TROWPROD
 
 
 ## Tile Operation Diagram
@@ -78,7 +78,7 @@ PTO_INST RecordEvent TROWPROD(TileDataOut &dst, TileDataIn &src, TileDataTmp &tm
 `tmp` **is used** as a per-row accumulator buffer. For each row, the implementation initializes `tmp` with `1.0` and then multiplies blocks of `src` data into `tmp` using `vmul`. After all blocks are accumulated, the scalar-mode pipeline reads `tmp` elements and computes the final product.
 
 - `tmp` must have the same element type as `src`/`dst`.
-- `tmp` size: at least 1 row and `BLOCK_BYTE_SIZE / sizeof(T)` columns (i.e., 1 block: 8 elements for `float`/`int32_t`, 16 elements for `half`/`int16_t`).
+- `tmp` size: at least 1 row and `CeilDivision(TileDataIn::Cols / 2, REPEAT_BYTE_SIZE / sizeof(T))` columns.
 - A safe default: set `tmp` to the same shape as `src`.
 
 ### A5

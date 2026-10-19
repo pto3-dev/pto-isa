@@ -77,6 +77,7 @@ endif()
 # 公共 include 路径
 include_directories(
     ${PROJECT_SOURCE_DIR}/../../../../../include
+    ${PROJECT_SOURCE_DIR}/../../../../../pkg_inc
     ${PROJECT_SOURCE_DIR}/../../../../..
     ${ASCEND_HOME_PATH}/include
     ${ASCEND_DRIVER_PATH}/kernel/inc

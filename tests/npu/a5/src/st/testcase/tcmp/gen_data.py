@@ -12,6 +12,7 @@
 
 import os
 import numpy as np
+
 try:
     import ml_dtypes
 
@@ -80,13 +81,24 @@ def gen_golden_data_tcmp(param):
     output = np.zeros((row, col), dtype=np.uint8)
     output[:valid_row, :valid_col] = bool_result[:valid_row, :valid_col]
     golden = np.packbits(output, axis=1, bitorder="little")
+    if getattr(param, "is_inplace", False) and valid_col < col:
+        dst_valid_cols = (valid_col + 7) // 8
+        dst_cols = (col + 7) // 8
+        input1_bytes = input1.reshape(-1).view(np.uint8)
+        golden_flat = golden.flatten()
+        for r in range(row):
+            for b in range(dst_valid_cols, dst_cols):
+                idx = r * dst_cols + b
+                if idx < len(input1_bytes):
+                    golden_flat[idx] = input1_bytes[idx]
+        golden = golden_flat.reshape(golden.shape)
     input1.tofile("input1.bin")
     input2.tofile("input2.bin")
     golden.tofile("golden.bin")
 
 
 class TcmpParams:
-    def __init__(self, dtype, row, col, valid_row, valid_col, cmp_mode, is_nan=False):
+    def __init__(self, dtype, row, col, valid_row, valid_col, cmp_mode, is_nan=False, is_inplace=False):
         self.dtype = dtype
         self.row = row
         self.col = col
@@ -94,23 +106,27 @@ class TcmpParams:
         self.valid_col = valid_col
         self.mode = cmp_mode
         self.is_nan = is_nan
+        self.is_inplace = is_inplace
+
 
 def generate_case_name(param):
     dtype_str = {
-        np.float32: 'float',
-        np.float16: 'half',
-        np.int32: 'int32',
-        np.int16: 'int16',
-        np.int64: 'int64',
-        np.uint64: 'uint64',
-        bfloat16: 'bfloat16'
+        np.float32: "float",
+        np.float16: "half",
+        np.int32: "int32",
+        np.int16: "int16",
+        np.int64: "int64",
+        np.uint64: "uint64",
+        bfloat16: "bfloat16",
     }[param.dtype]
     nan_suffix = "_nan" if getattr(param, "is_nan", False) else ""
+    inplace_suffix = "_inplace" if getattr(param, "is_inplace", False) else ""
     mode_suffix = f"_{param.mode}" if param.dtype in (np.int64, np.uint64) else ""
     return (
         f"TCMPTest.case_{dtype_str}_{param.row}x{param.col}_"
-        f"{param.valid_row}x{param.valid_col}{mode_suffix}{nan_suffix}"
+        f"{param.valid_row}x{param.valid_col}{mode_suffix}{inplace_suffix}{nan_suffix}"
     )
+
 
 if __name__ == "__main__":
     # Get the absolute path of the script
@@ -121,7 +137,7 @@ if __name__ == "__main__":
     if not os.path.exists(testcases_dir):
         os.makedirs(testcases_dir)
 
-    case_params_list = [ # Comment out test cases that do not handle size correctly
+    case_params_list = [  # Comment out test cases that do not handle size correctly
         TcmpParams(np.float16, 32, 32, 32, 32, "EQ"),
         TcmpParams(np.float32, 8, 64, 8, 64, "GT"),
         TcmpParams(np.int32, 4, 64, 4, 64, "NE"),
@@ -136,10 +152,21 @@ if __name__ == "__main__":
         TcmpParams(bfloat16, 32, 32, 16, 32, "EQ"),
         TcmpParams(bfloat16, 77, 80, 32, 32, "LE"),
         TcmpParams(np.float32, 32, 32, 32, 32, "NE", is_nan=True),
-        *[TcmpParams(dtype, 4, 16, 4, 15, mode)
-          for dtype in (np.int64, np.uint64) for mode in ("EQ", "NE", "LT", "GT", "GE", "LE")],
-        *[TcmpParams(dtype, 4, 64, 4, 64, mode)
-          for dtype in (np.int64, np.uint64) for mode in ("EQ", "NE", "LT", "GT", "GE", "LE")],
+        *[
+            TcmpParams(dtype, 4, 16, 4, 15, mode)
+            for dtype in (np.int64, np.uint64)
+            for mode in ("EQ", "NE", "LT", "GT", "GE", "LE")
+        ],
+        *[
+            TcmpParams(dtype, 4, 64, 4, 64, mode)
+            for dtype in (np.int64, np.uint64)
+            for mode in ("EQ", "NE", "LT", "GT", "GE", "LE")
+        ],
+        TcmpParams(np.int64, 4, 32, 4, 32, "EQ", is_inplace=True),
+TcmpParams(np.uint64, 4, 32, 4, 32, "EQ", is_inplace=True),
+        TcmpParams(np.int64, 1, 1024, 1, 1024, "EQ", is_inplace=True),
+        TcmpParams(np.int64, 4, 64, 4, 40, "EQ", is_inplace=True),
+        TcmpParams(np.int64, 1, 2048, 1, 2045, "EQ", is_inplace=True),
     ]
 
     for i, param in enumerate(case_params_list):

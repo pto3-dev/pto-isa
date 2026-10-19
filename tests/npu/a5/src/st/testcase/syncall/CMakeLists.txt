@@ -91,6 +91,7 @@ function(pto_syncall_mix11_soft_kernel TARGET SOURCE)
                 -DREGISTER_BASE -std=c++17 -D__MIX_CORE_AIC_BLOCKS__=18 -D__MIX_CORE_AIV_RATIO__=1
                 -DSYNCALL_MIX_BUILD_AIC
                 -I${PROJECT_SOURCE_DIR}/../../../../../include
+                -I${PROJECT_SOURCE_DIR}/../../../../../pkg_inc
                 -I${ASCEND_HOME_PATH}/include
                 -I${ASCEND_DRIVER_PATH}/kernel/inc
                 -I${ASCEND_HOME_PATH}/pkg_inc/
@@ -110,6 +111,7 @@ function(pto_syncall_mix11_soft_kernel TARGET SOURCE)
                 -DREGISTER_BASE -std=c++17 -D__MIX_CORE_AIC_BLOCKS__=18 -D__MIX_CORE_AIV_RATIO__=1
                 -DSYNCALL_MIX_BUILD_AIV
                 -I${PROJECT_SOURCE_DIR}/../../../../../include
+                -I${PROJECT_SOURCE_DIR}/../../../../../pkg_inc
                 -I${ASCEND_HOME_PATH}/include
                 -I${ASCEND_DRIVER_PATH}/kernel/inc
                 -I${ASCEND_HOME_PATH}/pkg_inc/

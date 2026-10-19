@@ -6,10 +6,39 @@
 
 This directory is the canonical PTO ISA tree. It combines the architecture manual, the instruction set guides, the instruction set contracts, and the exact instruction-reference groupings in one place.
 
-## Textual Assembly Inside PTO ISA
+- Source of truth (C++ intrinsics): `include/pto/common/pto_instr.hpp`
+- Common conventions (operands, events, modifiers): `docs/isa/conventions.md`
+
+## Removed interfaces and migration notes
+
+The current ISA reference no longer exposes the following legacy instruction interfaces:
+
+- `TADDC`
+- `TAddDeqRelu`
+- `TADDReluConv`
+- `TADDSC`
+- `TFUSEDMULADDRELU`
+- `TGET_SCALE_ADDR`
+- `TPairReduceSum`
+- `TSUBC`
+- `TSUBRELU`
+- `TSUBRELUCONV`
+- `TSUBSC`
+- `TSUBVIEW`
+- `TSYNC`
+
+Migration guidance:
+
+- Effective version: this cleanup takes effect in PTO ISA v9.2.0. The compatibility window for these legacy wrappers is closed; no public wrapper is retained.
+- Replace `TSYNC(events...)` with ordinary event-based ordering: pass the event object to the consumer intrinsic, or call `WaitAllEvents(events...)` before the consumer when an explicit wait is required.
+- `TSUBVIEW` is not a public ISA replacement. In-repository implementations may use `pto::detail::PtoSubTileView` as an internal helper; external code should express the data view through supported tile construction and public data movement APIs.
+- Replace ternary/scalar fused arithmetic forms with the corresponding primitive arithmetic sequence, such as `TADD`, `TSUB`, `TADDS`, `TSUBS`, `TMUL`, `TMADD`, and `TRELU`.
+- Rename legacy fused multiply-add APIs: `TFUSEDMULADD` to `TMADD`, and `TMULADDDST` to `TMULA`.
+- Replace fused add/ReLU/convert or add/dequant/ReLU forms with explicit arithmetic, conversion/dequantization, and `TRELU` steps.
+- Replace `TPairReduceSum` with the supported row/column reduction primitives that match the target layout.
+- Do not call `TGET_SCALE_ADDR`; for AUTO-mode MX tests, bind the scale tile address from the data tile in test code before invoking the MX matmul primitive.
 
 ## Synchronization
-- [TSYNC](TSYNC.md) - Synchronize PTO execution (wait on events or insert a per-op pipeline barrier).
 - [SYNCALL](SYNCALL.md) - Cross-core synchronization barrier (hardware FFTS or software GM polling).
 
 ## Manual / Resource Binding
@@ -17,7 +46,7 @@ This directory is the canonical PTO ISA tree. It combines the architecture manua
 - [SETFMATRIX](SETFMATRIX.md) - Set FMATRIX register(s) for IMG2COL-like ops.
 - [SET_IMG2COL_RPT](SET_IMG2COL_RPT.md) - Set IMG2COL repeat metadata from an IMG2COL configuration tile.
 - [SET_IMG2COL_PADDING](SET_IMG2COL_PADDING.md) - Set IMG2COL padding metadata from an IMG2COL configuration tile.
-- [SET_QUANT_SCALAR](SET_QUANT_SCALAR.md) - Set the scalar quantization parameter for subsequent TPUSh operations.
+- [SET_QUANT_SCALAR](SET_QUANT_SCALAR.md) - Set the scalar quantization parameter for subsequent TPUSH operations.
 - [SET_QUANT_VECTOR](SET_QUANT_VECTOR.md) - Set the vector quantization parameter from a Scaling tile for subsequent TPUSH operations.
 
 ## Elementwise (Tile-Tile)
@@ -27,6 +56,7 @@ This directory is the canonical PTO ISA tree. It combines the architecture manua
 - [TOR](TOR.md) - Elementwise bitwise OR of two tiles.
 - [TSUB](TSUB.md) - Elementwise subtract of two tiles.
 - [TMUL](TMUL.md) - Elementwise multiply of two tiles.
+- [TMADD](TMADD.md) - Elementwise ternary op: `src0 * dst + src1`.
 - [TMIN](TMIN.md) - Elementwise minimum of two tiles.
 - [TMAX](TMAX.md) - Elementwise maximum of two tiles.
 - [TCMP](TCMP.md) - Compare two tiles and write a packed predicate mask.
@@ -37,23 +67,18 @@ This directory is the canonical PTO ISA tree. It combines the architecture manua
 - [TLOG](TLOG.md) - Elementwise natural logarithm of a tile.
 - [TRECIP](TRECIP.md) - Elementwise reciprocal of a tile.
 - [TPRELU](TPRELU.md) - Elementwise PReLU (parametric ReLU) with a per-element slope tile.
-- [TADDC](TADDC.md) - Elementwise ternary add: `src0 + src1 + src2`.
-- [TSUBC](TSUBC.md) - Elementwise ternary op: `src0 - src1 + src2`.
 - [TCVT](TCVT.md) - Elementwise type conversion with a specified rounding mode.
 - [TSEL](TSEL.md) - Select between two tiles using a mask tile (per-element selection).
 - [TRSQRT](TRSQRT.md) - Elementwise reciprocal square root.
 - [TSQRT](TSQRT.md) - Elementwise square root.
 - [TEXP](TEXP.md) - Elementwise exponential.
+- [TPOW](TPOW.md) - Elementwise power of two tiles.
 - [TNOT](TNOT.md) - Elementwise bitwise NOT of a tile.
 - [TRELU](TRELU.md) - Elementwise ReLU of a tile.
 - [TNEG](TNEG.md) - Elementwise negation of a tile.
 - [TREM](TREM.md) - Elementwise remainder of two tiles.
 - [TFMOD](TFMOD.md) - Elementwise fmod of two tiles.
-- [TPOW](TPOW.md) - Elementwise power of two tiles.
-- [TMULADDDST](TMULADDDST.md) - Elementwise ternary op: `src0 * src1 + dst`.
-- [TSUBRELU](TSUBRELU.md) - Elementwise subtract then ReLU of two tiles.
-- [TFUSEDMULADD](TFUSEDMULADD.md) - Elementwise ternary op: `src0 * dst + src1`.
-- [TFUSEDMULADDRELU](TFUSEDMULADDRELU.md) - Elementwise ternary op: `ReLU(src0 * dst + src1)`.
+- [TMULA](TMULA.md) - Elementwise ternary op: `src0 * src1 + dst`.
 
 ## Tile-Scalar / Tile-Immediate
 - [TEXPANDS](TEXPANDS.md) - Broadcast a scalar into a destination tile.
@@ -74,8 +99,6 @@ This directory is the canonical PTO ISA tree. It combines the architecture manua
 - [TSHRS](TSHRS.md) - Elementwise shift-right a tile by a scalar.
 - [TXORS](TXORS.md) - Elementwise bitwise XOR of a tile and a scalar.
 - [TLRELU](TLRELU.md) - Leaky ReLU with a scalar slope.
-- [TADDSC](TADDSC.md) - Elementwise fused add with scalar and a second tile: `src0 + scalar + src1`.
-- [TSUBSC](TSUBSC.md) - Elementwise fused op: `src0 - scalar + src1`.
 - [TPOWS](TPOWS.md) - Elementwise power of a tile by a scalar.
 
 ## Axis Reduce / Expand
@@ -113,41 +136,42 @@ This directory is the canonical PTO ISA tree. It combines the architecture manua
 - [TPREFETCH](TPREFETCH.md) - Prefetch data from global memory into a tile-local cache/buffer (hint).
 - [TPREFETCH_ASYNC](TPREFETCH_ASYNC.md) - Asynchronously prefetch a GlobalTensor region from GM into L2 cache via SDMA CMO.
 - [TSTORE](TSTORE.md) - Store data from a Tile into a GlobalTensor (GM), optionally using atomic write or quantization parameters.
-- [TSTORE_FP](TSTORE_FP.md) - Store an accumulator tile into global memory using a scaling (`fp`) tile for vector quantization parameters.
+- [TSTORE_FP](TSTORE_FP.md) - Source-compatible C++ alias for the legacy fp-quantized store form.
 - [MGATHER](MGATHER.md) - Gather-load elements from global memory into a tile using per-element indices.
 - [MSCATTER](MSCATTER.md) - Scatter-store elements from a tile into global memory using per-element indices.
 
-- [Programming model](programming-model/tiles-and-valid-regions.md)
-- [Machine model](machine-model/execution-agents.md)
-- [Syntax and operands](syntax-and-operands/assembly-model.md)
-- [Type system](state-and-types/type-system.md)
-- [Location intent and legality](state-and-types/location-intent-and-legality.md)
-- [Memory model](memory-model/consistency-baseline.md)
+## Matrix Multiply
+- [TGEMV_MX](TGEMV_MX.md) - GEMV with additional scaling tiles for mixed-precision / quantized matrix-vector compute.
+- [TMATMUL_MX](TMATMUL_MX.md) - Matrix multiply (GEMM) with additional scaling tiles for mixed-precision / quantized matmul on supported targets.
+- [TMATMUL_MX_HIF4](TMATMUL_MX_HIF4.md) - HiFloat4 Cube matmul variant for mixed-precision TMATMUL_MX flows.
+- [TMATMUL](TMATMUL.md) - Matrix multiply (GEMM) producing an accumulator/output tile.
+- [TMATMUL_ACC](TMATMUL_ACC.md) - Matrix multiply with accumulator input (fused accumulate).
+- [TMATMUL_BIAS](TMATMUL_BIAS.md) - Matrix multiply with bias add.
+- [TGEMV](TGEMV.md) - General Matrix-Vector multiplication producing an accumulator/output tile.
+- [TGEMV_ACC](TGEMV_ACC.md) - GEMV with explicit accumulator input/output tiles.
+- [TGEMV_BIAS](TGEMV_BIAS.md) - GEMV with bias add.
 
 ## Data Movement / Layout
 - [TEXTRACT](TEXTRACT.md) - Extract a sub-tile from a source tile.
-- [TEXTRACT_FP](TEXTRACT_FP.md) - Extract with fp/scaling tile (vector-quantization parameters).
+- [TEXTRACT_FP](TEXTRACT_FP.md) - Source-compatible C++ alias for the legacy fp-quantized extraction form.
 - [TIMG2COL](TIMG2COL.md) - Image-to-column transform for convolution-like workloads.
 - [TINSERT](TINSERT.md) - Insert a sub-tile into a destination tile at an (indexRow, indexCol) offset.
-- [TINSERT_FP](TINSERT_FP.md) - Insert with fp/scaling tile (vector-quantization parameters).
+- [TINSERT_FP](TINSERT_FP.md) - Source-compatible C++ alias for the legacy fp-quantized insertion form.
 - [TFILLPAD](TFILLPAD.md) - Copy+pad a tile outside the valid region with a compile-time pad value.
 - [TFILLPAD_INPLACE](TFILLPAD_INPLACE.md) - In-place fill/pad variant.
 - [TFILLPAD_EXPAND](TFILLPAD_EXPAND.md) - Fill/pad while allowing dst to be larger than src.
 - [TMOV](TMOV.md) - Move/copy between tiles, optionally applying implementation-defined conversion modes.
-- [TMOV_FP](TMOV_FP.md) - Move/convert from an accumulator tile into a destination tile, using a scaling (`fp`) tile for vector quantization parameters.
+- [TMOV_FP](TMOV_FP.md) - Source-compatible C++ alias for the legacy fp-quantized move form.
 - [TRESHAPE](TRESHAPE.md) - Reinterpret a tile as another tile type/shape while preserving the underlying bytes.
 - [TTRANS](TTRANS.md) - Transpose with an implementation-defined temporary tile.
-- [TSUBVIEW](TSUBVIEW.md) - Reinterpret a tile as a subtile of another tile.
-- [TGET_SCALE_ADDR](TGET_SCALE_ADDR.md) - Bind the on-chip address of output tile to a scaled factor of that of input tile.
 - [TCONCAT](TCONCAT.md) - Concatenate two tiles horizontally along the column dimension.
-- [TInterleave](TINTERLEAVE.md) - Interleave two source tiles into an alternating even/odd element stream, split into two destination halves.
-- [TDeInterleave](TDEINTERLEAVE.md) - De-interleave source tiles back into even-position and odd-position element streams (inverse of TInterleave).
-- [TPAIRREDUCESUM](TPairReduceSum.md) - Pair-reduction sum: add every 2 adjacent elements and write results to the lower half of dst.
+- [TINTERLEAVE](TINTERLEAVE.md) - Interleave two source tiles into an alternating even/odd element stream, split into two destination halves.
+- [TDEINTERLEAVE](TDEINTERLEAVE.md) - Deinterleave source tile data into even-position and odd-position element streams, the inverse of TINTERLEAVE.
 
 ## Complex
 - [TPRINT](TPRINT.md) - Debug/print elements from a tile (implementation-defined).
 - [TMRGSORT](TMRGSORT.md) - Merge sort for multiple sorted lists (implementation-defined element format and layout).
-- [TSORT32](TSORT32.md) - Sort each 32-element block of `src` together with the corresponding indices from `idx`, and write the sorted value-index pairs into `dst`.
+- [TSORT32](TSORT32.md) - Sort 32-element blocks of `src` with accompanying `idx` entries and output sorted value-index pairs.
 - [TGATHER](TGATHER.md) - Gather/select elements using either an index tile or a compile-time mask pattern.
 - [TCI](TCI.md) - Generate a contiguous integer sequence into a destination tile.
 - [TTRI](TTRI.md) - Generate a triangular (lower/upper) mask tile.
@@ -161,28 +185,13 @@ This directory is the canonical PTO ISA tree. It combines the architecture manua
 - [TGATHERB](TGATHERB.md) - Gather elements using byte offsets.
 - [TSCATTER](TSCATTER.md) - Scatter rows of a source tile into a destination tile using per-element row indices.
 - [TQUANT](TQUANT.md) - Quantize a tile (e.g. FP32 to FP8) producing exponent/scaling/max outputs.
+- [TQUANT_DN](TQUANT_DN.md) - Axis-0 grouped quantization and DN-to-ZZ exponent layout conversion.
+- [TQUANT_HIF4](TQUANT_HIF4.md) - BF16 to HiFloat4 quantization algorithm and CCE mapping.
 - [TDEQUANT](TDEQUANT.md) - Affine dequantization of a quantized tile (S8/S16 -> FP32): dst = (src - offset) * scale.
 - [THISTOGRAM](THISTOGRAM.md) - Per-byte histogram (256 bins) over a selected byte of each source element, with optional cascaded upper-byte filtering; the radix-sort bucket-count primitive.
 
 ## Cross-core Communication
 - [TALLOC](TALLOC.md) - Allocate a TPipe FIFO slot as a GlobalTensor view.
 - [TPUSH](TPUSH.md) - Push a producer tile into a TPipe FIFO for Cube-Vector communication.
-- [TPOP](TPOP.md) - Pop a consumer tile from a TPipe FIFO for Cube-Vector communication.
-- [TFREE](TFREE.md) - Release FIFO space for a TPipe entry; no-op for TileData TPOP flow.
-
-## Communication
-
-## Cross-Core Communication
-
-- [TALLOC](TALLOC.md) - Allocate a TPipe FIFO slot as a GlobalTensor view.
-- [TPUSH](TPUSH.md) - Push a producer tile into a TPipe FIFO for Cube-Vector communication.
-- [TPOP](TPOP.md) - Pop a consumer tile from a TPipe FIFO for Cube-Vector communication.
-- [TFREE](TFREE.md) - Release FIFO space for a TPipe entry; no-op for TileData TPOP flow.
-
-The grouped instruction set trees under `tile/`, `vector/`, `scalar/`, `comm/`, and `system/` are the canonical PTO ISA paths.
-
-- `docs/isa/tile/ops/`
-- `docs/isa/vector/ops/`
-- `docs/isa/scalar/ops/`
-- `docs/isa/comm/`
-- `docs/isa/system/ops/`
+- [TPOP](TPOP.md) - Pop a consumer tile or GlobalTensor from a TPipe FIFO for Cube-Vector communication.
+- [TFREE](TFREE.md) - Release FIFO space for a TPipe entry; no-op for TileData TPOP flow on some targets.

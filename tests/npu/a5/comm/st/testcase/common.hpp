@@ -418,17 +418,9 @@ struct UrmaTestContext {
         return true;
     }
 
-    bool Setup(int rank_id, int n_ranks, int n_devices, int first_device_id, int root_rank, size_t commBytesNeeded)
+    bool SetupDeviceRuntime(int rank_id, int n_devices, int first_device_id, size_t commBytesNeeded)
     {
-        if (n_devices <= 0 || n_ranks <= 0) {
-            std::cerr << "[ERROR] n_devices and n_ranks must be > 0" << std::endl;
-            return false;
-        }
-        rankId = rank_id;
-        nRanks = n_ranks;
-        rootRank = root_rank;
         deviceId = rank_id % n_devices + first_device_id;
-
         aclError aErr = aclrtSetDevice(deviceId);
         if (aErr != ACL_SUCCESS) {
             std::cerr << "[ERROR] aclrtSetDevice(" << deviceId << ") failed: " << aErr << std::endl;
@@ -438,10 +430,11 @@ struct UrmaTestContext {
             std::cerr << "[ERROR] rtStreamCreate failed" << std::endl;
             return false;
         }
+        return AllocCommBuffer(commBytesNeeded);
+    }
 
-        if (!AllocCommBuffer(commBytesNeeded))
-            return false;
-
+    bool SetupCommunicator(int rank_id, int n_ranks)
+    {
         HcclRootInfo rootInfo{};
         if (rank_id == 0) {
             rtSetDevice(deviceId);
@@ -452,7 +445,6 @@ struct UrmaTestContext {
         }
         CommMpiBcast(&rootInfo, HCCL_ROOT_INFO_BYTES, COMM_MPI_CHAR, 0);
         CommMpiBarrier();
-
         HcclResult hret =
             HcclCommInitRootInfo(static_cast<uint32_t>(n_ranks), &rootInfo, static_cast<uint32_t>(rank_id), &comm);
         if (hret != HCCL_SUCCESS) {
@@ -460,13 +452,43 @@ struct UrmaTestContext {
             return false;
         }
         CommMpiBarrier();
+        return true;
+    }
 
-        if (!urmaMgr.Init(comm, static_cast<uint32_t>(rank_id), static_cast<uint32_t>(n_ranks), devBuf, allocSize)) {
-            std::cerr << "[ERROR] UrmaWorkspaceManager Init failed!" << std::endl;
-            aclrtFree(devBuf);
-            devBuf = nullptr;
+    void CleanupSetupFailure()
+    {
+        if (comm) {
             HcclCommDestroy(comm);
             comm = nullptr;
+        }
+        urmaMgr.Finalize();
+        if (devBuf) {
+            aclrtFree(devBuf);
+            devBuf = nullptr;
+        }
+        if (stream) {
+            rtStreamDestroy(stream);
+            stream = nullptr;
+        }
+    }
+
+    bool Setup(int rank_id, int n_ranks, int n_devices, int first_device_id, int root_rank, size_t commBytesNeeded)
+    {
+        if (n_devices <= 0 || n_ranks <= 0) {
+            std::cerr << "[ERROR] n_devices and n_ranks must be > 0" << std::endl;
+            return false;
+        }
+        rankId = rank_id;
+        nRanks = n_ranks;
+        rootRank = root_rank;
+        if (!SetupDeviceRuntime(rank_id, n_devices, first_device_id, commBytesNeeded) ||
+            !SetupCommunicator(rank_id, n_ranks)) {
+            CleanupSetupFailure();
+            return false;
+        }
+        if (!urmaMgr.Init(comm, static_cast<uint32_t>(rank_id), static_cast<uint32_t>(n_ranks), devBuf, allocSize)) {
+            std::cerr << "[ERROR] UrmaWorkspaceManager Init failed!" << std::endl;
+            CleanupSetupFailure();
             return false;
         }
         return true;
@@ -475,19 +497,22 @@ struct UrmaTestContext {
     void Cleanup()
     {
         CommMpiBarrier();
+        if (comm) {
+            HcclCommDestroy(comm);
+            comm = nullptr;
+        }
         urmaMgr.Finalize();
         if (devBuf) {
             aclrtFree(devBuf);
             devBuf = nullptr;
         }
-        if (comm) {
-            HcclCommDestroy(comm);
-            comm = nullptr;
-        }
         if (stream) {
             rtStreamDestroy(stream);
             stream = nullptr;
         }
+        // Do not let one rank create the next communicator while a peer is
+        // still tearing down the previous channel/CQ resources.
+        CommMpiBarrier();
     }
 };
 

@@ -99,7 +99,7 @@ Word IntegerBits(int value)
 }
 
 template <typename Word>
-int RunVector(int argc, char** argv, const char* dtype)
+int RunVector(int argc, char** argv, const char* dtype, const std::string& operation)
 {
     try {
         std::ifstream input(argv[1], std::ios::binary);
@@ -117,15 +117,28 @@ int RunVector(int argc, char** argv, const char* dtype)
         const size_t count = argc >= 4 ? std::stoul(argv[3]) : 16 * 128;
         if (count == 0 || count > 65536)
             throw std::runtime_error("element count must be in 1..65536");
-        const size_t bytes = count * sizeof(Word);
+        const size_t rows = argc == 9 ? std::stoul(argv[6]) : 1;
+        const size_t cols = argc == 9 ? std::stoul(argv[7]) : count;
+        const size_t rowStride = argc == 9 ? std::stoul(argv[8]) : cols;
+        if (!rows || !cols || rowStride < cols || rows > 16777216 / rowStride || count != rows * cols)
+            throw std::runtime_error("invalid row-transfer geometry or storage exceeds 16M elements");
+        const size_t storageCount = rows * rowStride;
+        const size_t bytes = storageCount * sizeof(Word);
         constexpr Word poison = sizeof(Word) == 2 ? 0x7e00 : 0x7fc00000;
-        std::vector<Word> lhs(count), rhs(count), result(count, poison), expected(count);
-        for (size_t i = 0; i < count; ++i) {
+        std::vector<Word> lhs(storageCount), rhs(storageCount), result(storageCount, poison),
+            expected(storageCount, poison);
+        for (size_t i = 0; i < storageCount; ++i) {
             int a = static_cast<int>(i % 17) - 8;
             int b = static_cast<int>((i * 3) % 17) - 8;
             lhs[i] = IntegerBits<Word>(a);
             rhs[i] = IntegerBits<Word>(b);
-            expected[i] = IntegerBits<Word>(a + b);
+            if (i % rowStride >= cols)
+                continue;
+            const int value =
+                operation == "copy" ? a : (operation == "sub" ? a - b : (operation == "mul" ? a * b : a + b));
+            expected[i] = IntegerBits<Word>(value);
+            if (operation == "mul" && value == 0 && ((a < 0) != (b < 0)))
+                expected[i] |= Word(1) << (sizeof(Word) * 8 - 1);
         }
         DeviceBuffer a(bytes), b(bytes), c(bytes);
         Check(aclrtMemcpy(a.address, bytes, lhs.data(), bytes, ACL_MEMCPY_HOST_TO_DEVICE), "copy lhs");
@@ -155,7 +168,7 @@ int RunVector(int argc, char** argv, const char* dtype)
         Check(aclrtSynchronizeStreamWithTimeout(session.stream, 5000), "stream synchronize");
         Check(aclrtMemcpy(result.data(), bytes, c.address, bytes, ACL_MEMCPY_DEVICE_TO_HOST), "copy result");
         size_t mismatches = 0;
-        for (size_t i = 0; i < count; ++i) {
+        for (size_t i = 0; i < storageCount; ++i) {
             if (result[i] != expected[i]) {
                 if (mismatches < 8)
                     std::cerr << "index=" << i << " actual=" << result[i] << " expected=" << expected[i] << '\n';
@@ -163,7 +176,8 @@ int RunVector(int argc, char** argv, const char* dtype)
             }
         }
         std::cout << "device=" << device << " elements=" << count << " dtype=" << dtype << " mismatches=" << mismatches
-                  << '/' << count << '\n';
+                  << '/' << storageCount << " operation=" << operation << " rows=" << rows << " cols=" << cols
+                  << " row_stride=" << rowStride << '\n';
         return mismatches ? 1 : 0;
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
@@ -173,15 +187,21 @@ int RunVector(int argc, char** argv, const char* dtype)
 
 int main(int argc, char** argv)
 {
-    if (argc < 3 || argc > 5) {
-        std::cerr << "usage: a1_single_launch KERNEL.o LOGICAL_DEVICE [ELEMENTS [fp16|fp32]]\n";
+    if (argc < 3 || (argc > 6 && argc != 9)) {
+        std::cerr << "usage: a1_single_launch KERNEL.o LOGICAL_DEVICE [ELEMENTS [fp16|fp32 [add|sub|mul|copy [ROWS "
+                     "COLS ROW_STRIDE]]]]\n";
         return 2;
     }
-    const std::string dtype = argc == 5 ? argv[4] : "fp16";
+    const std::string dtype = argc >= 5 ? argv[4] : "fp16";
+    const std::string operation = argc >= 6 ? argv[5] : "add";
+    if (operation != "add" && operation != "sub" && operation != "mul" && operation != "copy") {
+        std::cerr << "operation must be add, sub, mul or copy\n";
+        return 2;
+    }
     if (dtype == "fp16")
-        return RunVector<uint16_t>(argc, argv, "fp16");
+        return RunVector<uint16_t>(argc, argv, "fp16", operation);
     if (dtype == "fp32")
-        return RunVector<uint32_t>(argc, argv, "fp32");
+        return RunVector<uint32_t>(argc, argv, "fp32", operation);
     std::cerr << "dtype must be fp16 or fp32\n";
     return 2;
 }

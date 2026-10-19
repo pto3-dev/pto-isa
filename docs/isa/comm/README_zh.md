@@ -11,6 +11,7 @@
 
 ## 点对点通信（异步）
 - [**TPUT_ASYNC**](TPUT_ASYNC_zh.md)：异步远程写（GM → DMA 引擎 → GM）
+- [**TPUT_ASYNC_NOTIFY**](TPUT_ASYNC_NOTIFY_zh.md)：远程写并更新远端 `int32_t` signal
 - [**TGET_ASYNC**](TGET_ASYNC_zh.md)：异步远程读（GM → DMA 引擎 → GM）
 
 ## 基于信号的同步

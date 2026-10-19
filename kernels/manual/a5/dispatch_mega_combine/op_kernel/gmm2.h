@@ -23,7 +23,7 @@ See LICENSE in the root of the software repository for the full text of the Lice
 
 using Gmm2Pipeline = GmmCommonPipeline;
 
-AICORE inline void PublishGmm2CombineControl(Gmm2CombineCvPipe &pipe, const MegaMoeGmmTask &task)
+AICORE inline void PublishGmm2CombineControl(Gmm2CombineCvPipe& pipe, const MegaMoeGmmTask& task)
 {
     Gmm2CombineControlProducerAllocate(pipe);
     WriteGmmCvTaskControl(pipe.prod.controlIndex, kGmm2CombineControlFifoDepth, task);
@@ -39,15 +39,15 @@ AICORE inline MegaMoeGmmTask Gmm2CombineStageEndControl()
 
 class Gmm2 {
 public:
-    AICORE inline void Init(GM_ADDR weight2GM, GM_ADDR weightScale2GM, GM_ADDR workspaceGM,
-                            const __gm__ MegaMoeTilingData *tilingData);
-    AICORE inline void ProcessFixed(uint32_t physicalBlockId, Gmm2Pipeline &gmmPipeline,
-                                    GmmClaimedTask initialTask = {});
+    AICORE inline void Init(
+        GM_ADDR weight2GM, GM_ADDR weightScale2GM, GM_ADDR workspaceGM, const __gm__ MegaMoeTilingData* tilingData);
+    AICORE inline void ProcessFixed(
+        uint32_t physicalBlockId, Gmm2Pipeline& gmmPipeline, GmmClaimedTask initialTask = {});
 
 private:
-    AICORE inline Gmm2Pipeline::TileRun BuildGmmRun(const MegaMoeGmmTask &task,
-                                                    const GmmCommonTileInfo &tileInfo, uint32_t dataSlotBase,
-                                                    uint32_t scaleSlotBase) const
+    AICORE inline Gmm2Pipeline::TileRun BuildGmmRun(
+        const MegaMoeGmmTask& task, const GmmCommonTileInfo& tileInfo, uint32_t dataSlotBase,
+        uint32_t scaleSlotBase) const
     {
         const uint32_t scaleLeadingDim = inputK_ / kMegaMoeMxGroupSize;
         const uint64_t gmOffsetA = static_cast<uint64_t>(task.expertBase + tileInfo.blockRowStart) * inputK_;
@@ -59,46 +59,50 @@ private:
                                    static_cast<uint64_t>(tileInfo.blockColStart) * inputK_;
         const uint64_t gmOffsetBScale = static_cast<uint64_t>(task.expert) * weightScaleExpertStride +
                                         static_cast<uint64_t>(tileInfo.blockColStart) * scaleLeadingDim;
-        return Gmm2Pipeline::TileRun{gmSwigluAPtr_ + gmOffsetA,
-                                     gmSwigluScalePtr_ + gmOffsetAScale,
-                                     weight2Ptr_ + gmOffsetB,
-                                     weightScale2Ptr_ + gmOffsetBScale,
-                                     tileInfo.actualM,
-                                     tileInfo.actualN,
-                                     inputK_,
-                                     inputK_,
-                                     scaleLeadingDim,
-                                     inputK_,
-                                     scaleLeadingDim,
-                                     dataSlotBase,
-                                     scaleSlotBase};
+        return Gmm2Pipeline::TileRun{
+            gmSwigluAPtr_ + gmOffsetA,
+            gmSwigluScalePtr_ + gmOffsetAScale,
+            weight2Ptr_ + gmOffsetB,
+            weightScale2Ptr_ + gmOffsetBScale,
+            tileInfo.actualM,
+            tileInfo.actualN,
+            inputK_,
+            inputK_,
+            scaleLeadingDim,
+            inputK_,
+            scaleLeadingDim,
+            dataSlotBase,
+            scaleSlotBase};
     }
 
     struct InputReadyCache {
         uint32_t expert = UINT32_MAX;
     };
 
-    AICORE inline void AcquireInputReady(const MegaMoeGmmTask &task,
-                                         InputReadyCache &cache) const
+    AICORE inline void EnsureCombineConsumerArmed()
+    {
+        if (!combineConsumerArmed_) {
+            WaitCombineConsumerArmed(workspaceGM_, tilingData_, physicalBlockId_);
+            combineConsumerArmed_ = true;
+        }
+    }
+
+    AICORE inline void AcquireInputReady(const MegaMoeGmmTask& task, InputReadyCache& cache) const
     {
         if (cache.expert == task.expert) {
             return;
         }
-        const __gm__ MegaMoeGmmQueueTiling &queue = tilingData_->gmmSchedulerTiling.gmm2;
-        __gm__ int32_t *slot = GmmTaskDependencySlot(
+        const __gm__ MegaMoeGmmQueueTiling& queue = tilingData_->gmmSchedulerTiling.gmm2;
+        __gm__ int32_t* slot = GmmTaskDependencySlot(
             workspaceGM_, queue, tilingData_->dispatchTiling.readyCountMaxTilesPerExpert, task.expert, 0U);
-        const uint32_t expected = GmmCommonCoreLoops(task.currentM, inputK_, tilingData_->gmm1Tiling.l1TileM,
-                                                     tilingData_->gmm1Tiling.l1TileN);
+        const uint32_t expected = GmmCommonCoreLoops(task.currentM, inputK_);
         while (static_cast<uint32_t>(ld_dev(slot, 0)) < expected) {
             GmmPollBackoff();
         }
         dsb(DSB_DDR);
         cache.expert = task.expert;
     }
-    AICORE inline uint32_t CoreLoops(uint32_t currentM) const
-    {
-        return GmmCommonCoreLoops(currentM, outputN_, tilingData_->gmm2Tiling.l1TileM, tilingData_->gmm2Tiling.l1TileN);
-    }
+    AICORE inline uint32_t CoreLoops(uint32_t currentM) const { return GmmCommonCoreLoops(currentM, outputN_); }
     struct DirectWaveAssignment {
         MegaMoeGmmTask task;
         GmmCommonTileInfo tileInfo;
@@ -106,8 +110,9 @@ private:
 
     class DirectWaveCursor {
     public:
-        AICORE inline void Init(Gmm2 *owner, uint32_t waveBegin, uint32_t waveEnd, uint32_t group2LocalId,
-                                uint32_t participantCount, uint32_t participantBase)
+        AICORE inline void Init(
+            Gmm2* owner, uint32_t waveBegin, uint32_t waveEnd, uint32_t group2LocalId, uint32_t participantCount,
+            uint32_t participantBase)
         {
             owner_ = owner;
             expert_ = waveBegin;
@@ -148,13 +153,10 @@ private:
             return false;
         }
 
-        AICORE inline const DirectWaveAssignment &Current() const
-        {
-            return current_;
-        }
+        AICORE inline const DirectWaveAssignment& Current() const { return current_; }
 
     private:
-        Gmm2 *owner_ = nullptr;
+        Gmm2* owner_ = nullptr;
         MegaMoeCoreTileBalancer tileBalancer_;
         DirectWaveAssignment current_;
         uint32_t expert_ = 0U;
@@ -171,34 +173,33 @@ private:
 
     AICORE inline GmmCommonTileInfo BuildDirectTileInfo(uint32_t currentM, uint32_t loopIdx) const
     {
-        return GmmCommonBuildTileInfoWithOffset<kGmm2CombineSwizzleOffset>(
-            currentM, outputN_, tilingData_->gmm2Tiling.l1TileM, tilingData_->gmm2Tiling.l1TileN, loopIdx);
+        return GmmCommonBuildTileInfoWithOffset<kGmm2CombineSwizzleOffset>(currentM, outputN_, loopIdx);
     }
-    AICORE inline GmmClaimedTask WaitGmm2Successor(GmmMailboxConsumerCursor &mailboxCursor,
-                                                   GmmMailboxTicketProbe *successorProbe, uint32_t dataSlotBase,
-                                                   uint32_t scaleSlotBase);
-    AICORE inline GmmClaimedTask ProcessDirectWave0(Gmm2Pipeline &gmmPipeline, Gmm2CombineCvPipe &cvPipe);
-    AICORE inline void ProcessMailbox(GmmClaimedTask initialTask, Gmm2Pipeline &gmmPipeline,
-                                      Gmm2CombineCvPipe &cvPipe);
+    AICORE inline GmmClaimedTask WaitGmm2Successor(
+        GmmMailboxConsumerCursor& mailboxCursor, GmmMailboxTicketProbe* successorProbe, uint32_t dataSlotBase,
+        uint32_t scaleSlotBase);
+    AICORE inline GmmClaimedTask ProcessDirectWave0(Gmm2Pipeline& gmmPipeline, Gmm2CombineCvPipe& cvPipe);
+    AICORE inline void ProcessMailbox(GmmClaimedTask initialTask, Gmm2Pipeline& gmmPipeline, Gmm2CombineCvPipe& cvPipe);
 
     GM_ADDR workspaceGM_ = nullptr;
-    const __gm__ MegaMoeTilingData *tilingData_ = nullptr;
+    const __gm__ MegaMoeTilingData* tilingData_ = nullptr;
 
-    __gm__ float8_e4m3_t *gmSwigluAPtr_ = nullptr;
-    __gm__ float8_e8m0_t *gmSwigluScalePtr_ = nullptr;
-    __gm__ float8_e4m3_t *weight2Ptr_ = nullptr;
-    __gm__ float8_e8m0_t *weightScale2Ptr_ = nullptr;
-    __gm__ int32_t *cumsumMMPtr_ = nullptr;
+    __gm__ float8_e4m3_t* gmSwigluAPtr_ = nullptr;
+    __gm__ float8_e8m0_t* gmSwigluScalePtr_ = nullptr;
+    __gm__ float8_e4m3_t* weight2Ptr_ = nullptr;
+    __gm__ float8_e8m0_t* weightScale2Ptr_ = nullptr;
+    __gm__ int32_t* cumsumMMPtr_ = nullptr;
 
     uint32_t inputK_ = 0;
     uint32_t outputN_ = 0;
     uint32_t expertPerRank_ = 0;
     uint32_t rankSize_ = 0;
     uint32_t physicalBlockId_ = 0;
+    bool combineConsumerArmed_ = true;
 };
 
-AICORE inline void Gmm2::Init(GM_ADDR weight2GM, GM_ADDR weightScale2GM, GM_ADDR workspaceGM,
-                              const __gm__ MegaMoeTilingData *tilingData)
+AICORE inline void Gmm2::Init(
+    GM_ADDR weight2GM, GM_ADDR weightScale2GM, GM_ADDR workspaceGM, const __gm__ MegaMoeTilingData* tilingData)
 {
     workspaceGM_ = workspaceGM;
     tilingData_ = tilingData;
@@ -209,17 +210,17 @@ AICORE inline void Gmm2::Init(GM_ADDR weight2GM, GM_ADDR weightScale2GM, GM_ADDR
     outputN_ = problemK;
     expertPerRank_ = tilingData_->megaMoeInfo.expertPerRank;
     rankSize_ = tilingData_->runtimeInfo.rankSize;
+    combineConsumerArmed_ = tilingData_->gmmSchedulerTiling.gmm1ScheduleMode != kMegaMoeGmm1ScheduleWave0MailboxSuffix;
 
-    gmSwigluAPtr_ = reinterpret_cast<__gm__ float8_e4m3_t *>(workspaceGM + tilingData_->swigluTiling.gmSwigluAOffset);
+    gmSwigluAPtr_ = reinterpret_cast<__gm__ float8_e4m3_t*>(workspaceGM + tilingData_->swigluTiling.gmSwigluAOffset);
     gmSwigluScalePtr_ =
-        reinterpret_cast<__gm__ float8_e8m0_t *>(workspaceGM + tilingData_->swigluTiling.gmSwigluScaleOffset);
-    weight2Ptr_ = reinterpret_cast<__gm__ float8_e4m3_t *>(weight2GM);
-    weightScale2Ptr_ = reinterpret_cast<__gm__ float8_e8m0_t *>(weightScale2GM);
-    cumsumMMPtr_ = reinterpret_cast<__gm__ int32_t *>(workspaceGM + tilingData_->frontReorderTiling.cumsumMMOffset);
+        reinterpret_cast<__gm__ float8_e8m0_t*>(workspaceGM + tilingData_->swigluTiling.gmSwigluScaleOffset);
+    weight2Ptr_ = reinterpret_cast<__gm__ float8_e4m3_t*>(weight2GM);
+    weightScale2Ptr_ = reinterpret_cast<__gm__ float8_e8m0_t*>(weightScale2GM);
+    cumsumMMPtr_ = reinterpret_cast<__gm__ int32_t*>(workspaceGM + tilingData_->frontReorderTiling.cumsumMMOffset);
 }
 
-AICORE inline void Gmm2::ProcessFixed(uint32_t physicalBlockId, Gmm2Pipeline &gmmPipeline,
-                                      GmmClaimedTask initialTask)
+AICORE inline void Gmm2::ProcessFixed(uint32_t physicalBlockId, Gmm2Pipeline& gmmPipeline, GmmClaimedTask initialTask)
 {
     physicalBlockId_ = physicalBlockId;
     Gmm2CombineCvPipe cvPipe;
@@ -229,16 +230,12 @@ AICORE inline void Gmm2::ProcessFixed(uint32_t physicalBlockId, Gmm2Pipeline &gm
     ProcessMailbox(initialTask, gmmPipeline, cvPipe);
 }
 
-AICORE inline GmmClaimedTask Gmm2::ProcessDirectWave0(
-    Gmm2Pipeline &gmmPipeline, Gmm2CombineCvPipe &cvPipe)
+AICORE inline GmmClaimedTask Gmm2::ProcessDirectWave0(Gmm2Pipeline& gmmPipeline, Gmm2CombineCvPipe& cvPipe)
 {
     GmmClaimedTask successor;
-    const __gm__ MegaMoeFixedGroupTiling &fixed = tilingData_->fixedGroupTiling;
+    const __gm__ MegaMoeFixedGroupTiling& fixed = tilingData_->fixedGroupTiling;
     const uint32_t group2LocalId = physicalBlockId_ - fixed.gmm1GroupSize;
     const uint32_t participantCount = fixed.gmm2GroupSize;
-    if (participantCount == 0U || group2LocalId >= participantCount) {
-        return successor;
-    }
     const MegaMoeExpertWaveRange wave = GetExpertWaveRange(
         0U, expertPerRank_, fixed.fullAicExpertsPerWave, fixed.expertsPerWave, fixed.fullAicGmm1WaveCount);
 
@@ -246,13 +243,13 @@ AICORE inline GmmClaimedTask Gmm2::ProcessDirectWave0(
     directCursor.Init(this, wave.begin, wave.end, group2LocalId, participantCount, fixed.gmm1GroupSize);
     const bool hasDirectAssignment = directCursor.Advance();
 
-    const __gm__ MegaMoeGmmMailboxTiling &mailbox = tilingData_->gmmSchedulerTiling.mailbox;
+    const __gm__ MegaMoeGmmMailboxTiling& mailbox = tilingData_->gmmSchedulerTiling.mailbox;
     GmmMailboxConsumerCursor mailboxCursor;
     if (!hasDirectAssignment) {
         PublishGmmMailboxProgress(workspaceGM_, mailbox, physicalBlockId_, kGmmMailboxGmm2Wave0EndTicket);
         GmmMailboxTicketProbe successorProbe;
-        ProbeGmmMailboxSuccessorTicket(workspaceGM_, mailbox, physicalBlockId_, kGmmMailboxGmm2Wave0EndTicket,
-                                       successorProbe);
+        ProbeGmmMailboxSuccessorTicket(
+            workspaceGM_, mailbox, physicalBlockId_, kGmmMailboxGmm2Wave0EndTicket, successorProbe);
         return WaitGmm2Successor(mailboxCursor, &successorProbe, 0U, 0U);
     }
 
@@ -266,23 +263,21 @@ AICORE inline GmmClaimedTask Gmm2::ProcessDirectWave0(
         AcquireInputReady(task, inputReadyCache);
         const Gmm2Pipeline::TileRun run = BuildGmmRun(task, tileInfo, dataSlotBase, scaleSlotBase);
         GmmDirectWaveNextAssignmentProbe<DirectWaveCursor> panelProbe(
-            workspaceGM_, mailbox, physicalBlockId_, kGmmMailboxGmm2Wave0EndTicket,
-            directCursor, GmmTaskStage::kGmm2);
-        gmmPipeline.ComputeDirect<true>(run, panelProbe);
+            workspaceGM_, mailbox, physicalBlockId_, kGmmMailboxGmm2Wave0EndTicket, directCursor, GmmTaskStage::kGmm2);
+        gmmPipeline.ComputeDirect(run, panelProbe);
         const bool finalLocalTile = !panelProbe.HasNextAssignment();
         const uint32_t nextDataSlotBase = Gmm2Pipeline::AdvanceDataSlotBase(dataSlotBase, inputK_);
         const uint32_t nextScaleSlotBase = Gmm2Pipeline::AdvanceScaleSlotBase(scaleSlotBase, inputK_);
-        GmmMailboxTicketProbe *successorProbe = panelProbe.SuccessorProbe();
+        GmmMailboxTicketProbe* successorProbe = panelProbe.SuccessorProbe();
         if (finalLocalTile && successorProbe->ready) {
-            successor =
-                WaitGmm2Successor(mailboxCursor, successorProbe, nextDataSlotBase, nextScaleSlotBase);
+            successor = WaitGmm2Successor(mailboxCursor, successorProbe, nextDataSlotBase, nextScaleSlotBase);
         }
+        EnsureCombineConsumerArmed();
         gmmPipeline.EnqueueDirectReserved(cvPipe, tileInfo.actualM, tileInfo.actualN);
         gmmPipeline.DrainDirectStore();
         gmmPipeline.RecordDirect(cvPipe);
-        if (finalLocalTile && !successor.claimed) {
-            successor =
-                WaitGmm2Successor(mailboxCursor, successorProbe, nextDataSlotBase, nextScaleSlotBase);
+        if (finalLocalTile && successor.ticket == kGmmMailboxEmptyTicket) {
+            successor = WaitGmm2Successor(mailboxCursor, successorProbe, nextDataSlotBase, nextScaleSlotBase);
         }
         dataSlotBase = nextDataSlotBase;
         scaleSlotBase = nextScaleSlotBase;
@@ -294,10 +289,10 @@ AICORE inline GmmClaimedTask Gmm2::ProcessDirectWave0(
 }
 
 AICORE inline GmmClaimedTask Gmm2::WaitGmm2Successor(
-    GmmMailboxConsumerCursor &mailboxCursor, GmmMailboxTicketProbe *successorProbe, uint32_t dataSlotBase,
+    GmmMailboxConsumerCursor& mailboxCursor, GmmMailboxTicketProbe* successorProbe, uint32_t dataSlotBase,
     uint32_t scaleSlotBase)
 {
-    const __gm__ MegaMoeGmmMailboxTiling &mailbox = tilingData_->gmmSchedulerTiling.mailbox;
+    const __gm__ MegaMoeGmmMailboxTiling& mailbox = tilingData_->gmmSchedulerTiling.mailbox;
     GmmClaimedTask next = WaitGmmMailboxTask(
         workspaceGM_, mailbox, tilingData_->gmmSchedulerTiling.gmm2, mailbox.gmm2TicketBase, physicalBlockId_,
         mailboxCursor, GmmTaskStage::kGmm2, successorProbe);
@@ -305,31 +300,20 @@ AICORE inline GmmClaimedTask Gmm2::WaitGmm2Successor(
         return next;
     }
 
-    next.preloadedDataSlotBase = dataSlotBase;
-    next.preloadedScaleSlotBase = scaleSlotBase;
+    next.dataSlotBase = dataSlotBase;
+    next.scaleSlotBase = scaleSlotBase;
     return next;
 }
 
 AICORE inline void Gmm2::ProcessMailbox(
-    GmmClaimedTask initialTask, Gmm2Pipeline &gmmPipeline, Gmm2CombineCvPipe &cvPipe)
+    GmmClaimedTask initialTask, Gmm2Pipeline& gmmPipeline, Gmm2CombineCvPipe& cvPipe)
 {
-    if ASCEND_IS_AIV {
-        return;
-    }
-    const __gm__ MegaMoeGmmMailboxTiling &mailbox = tilingData_->gmmSchedulerTiling.mailbox;
-    uint32_t dataSlotBase = initialTask.preloadedDataSlotBase;
-    uint32_t scaleSlotBase = initialTask.preloadedScaleSlotBase;
+    const __gm__ MegaMoeGmmMailboxTiling& mailbox = tilingData_->gmmSchedulerTiling.mailbox;
+    uint32_t dataSlotBase = initialTask.dataSlotBase;
+    uint32_t scaleSlotBase = initialTask.scaleSlotBase;
     GmmMailboxConsumerCursor mailboxCursor = initialTask.mailboxCursor;
-    GmmClaimedTask current;
-    if (initialTask.valid) {
-        current = initialTask;
-    } else if (initialTask.stageTransition) {
-        current = ResolveGmmMailboxStageTransition(workspaceGM_, tilingData_->gmmSchedulerTiling.gmm2,
-                                                    mailbox.gmm2TicketBase, initialTask);
-    } else if (initialTask.claimed &&
-               (initialTask.task.flags & kGmmTaskFlagTerminal) != 0U) {
-        current = initialTask;
-    } else {
+    GmmClaimedTask current = initialTask;
+    if (current.ticket == kGmmMailboxEmptyTicket) {
         current = WaitGmmMailboxTask(
             workspaceGM_, mailbox, tilingData_->gmmSchedulerTiling.gmm2, mailbox.gmm2TicketBase, physicalBlockId_,
             mailboxCursor, GmmTaskStage::kGmm2, nullptr);
@@ -340,23 +324,22 @@ AICORE inline void Gmm2::ProcessMailbox(
     while (current.valid) {
         const MegaMoeGmmTask currentTask = current.task;
         const GmmCommonTileInfo tileInfo =
-            GmmCommonBuildTileInfoFromCoord(currentTask.currentM, outputN_, tilingData_->gmm2Tiling.l1TileM,
-                                            tilingData_->gmm2Tiling.l1TileN, currentTask.blockM, currentTask.blockN);
+            GmmCommonBuildTileInfoFromCoord(currentTask.currentM, outputN_, currentTask.blockM, currentTask.blockN);
         const Gmm2Pipeline::TileRun currentRun = BuildGmmRun(currentTask, tileInfo, dataSlotBase, scaleSlotBase);
-        GmmMailboxPanelProbe panelProbe(workspaceGM_, mailbox, physicalBlockId_,
-                                         current.ticket, GmmTaskStage::kGmm2);
-        gmmPipeline.ComputeDirect<true>(currentRun, panelProbe);
+        GmmMailboxPanelProbe panelProbe(workspaceGM_, mailbox, physicalBlockId_, current.ticket, GmmTaskStage::kGmm2);
+        gmmPipeline.ComputeDirect(currentRun, panelProbe);
         const uint32_t nextDataSlotBase = Gmm2Pipeline::AdvanceDataSlotBase(currentRun.dataSlotBase, inputK_);
         const uint32_t nextScaleSlotBase = Gmm2Pipeline::AdvanceScaleSlotBase(currentRun.scaleSlotBase, inputK_);
-        GmmMailboxTicketProbe *successorProbe = panelProbe.SuccessorProbe();
+        GmmMailboxTicketProbe* successorProbe = panelProbe.SuccessorProbe();
         GmmClaimedTask next;
         if (successorProbe->ready) {
             next = WaitGmm2Successor(mailboxCursor, successorProbe, nextDataSlotBase, nextScaleSlotBase);
         }
+        EnsureCombineConsumerArmed();
         gmmPipeline.EnqueueDirectReserved(cvPipe, tileInfo.actualM, tileInfo.actualN);
         gmmPipeline.DrainDirectStore();
         gmmPipeline.RecordDirect(cvPipe);
-        if (!next.claimed) {
+        if (next.ticket == kGmmMailboxEmptyTicket) {
             next = WaitGmm2Successor(mailboxCursor, successorProbe, nextDataSlotBase, nextScaleSlotBase);
         }
         if (next.valid) {
@@ -371,7 +354,7 @@ AICORE inline void Gmm2::ProcessMailbox(
     PublishGmm2CombineControl(cvPipe, Gmm2CombineStageEndControl());
     Gmm2CombineControlProducerDrain(cvPipe);
     pipe_barrier(PIPE_FIX);
-    if (current.claimed) {
+    if (current.ticket != kGmmMailboxEmptyTicket) {
         PublishGmmMailboxProgress(workspaceGM_, mailbox, physicalBlockId_, current.ticket);
     }
 }

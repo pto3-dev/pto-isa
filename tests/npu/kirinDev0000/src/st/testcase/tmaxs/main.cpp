@@ -81,8 +81,8 @@ void test_tmaxs()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(dstfileSize);
-    std::vector<T> devFinal(dstfileSize);
+    std::vector<T> golden(dstfileSize / sizeof(T));
+    std::vector<T> devFinal(dstfileSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", dstfileSize, golden.data(), dstfileSize);
     ReadFile(GetGoldenDir() + "/output.bin", dstfileSize, devFinal.data(), dstfileSize);
 

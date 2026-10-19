@@ -281,7 +281,7 @@ AICORE inline void ReduceDynamicQuantAbsMax(uint64_t maxUb, uint64_t absUb, uint
         pto::TASSIGN(tmpTile, absUb + static_cast<uint64_t>(offset) * sizeof(float));
         pto::TASSIGN(rowMaxTile, firstChunk ? maxUb : absUb);
         pto::TROWMAX(rowMaxTile, srcTile, tmpTile);
-        pto::TSYNC<pto::Op::TROWMAX>();
+        pto::detail::PtoSyncOp<pto::Op::TROWMAX>();
         if (!firstChunk) {
             ScalarTile accTile(1, 1);
             ScalarTile newTile(1, 1);
@@ -290,7 +290,7 @@ AICORE inline void ReduceDynamicQuantAbsMax(uint64_t maxUb, uint64_t absUb, uint
             pto::TASSIGN(newTile, absUb);
             pto::TASSIGN(dstTile, maxUb);
             pto::TMAX(dstTile, accTile, newTile);
-            pto::TSYNC<pto::Op::TMAX>();
+            pto::detail::PtoSyncOp<pto::Op::TMAX>();
         }
         firstChunk = false;
     }

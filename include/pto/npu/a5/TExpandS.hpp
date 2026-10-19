@@ -23,30 +23,27 @@ namespace pto {
 template <typename T, unsigned DstCols>
 PTO_INTERNAL void Int64Fill(__ubuf__ T* dst, T scalar, unsigned validRows, unsigned validCols)
 {
-    constexpr unsigned elementsPerRepeat = CCE_VL / sizeof(T);
-    uint16_t repeatTimes = CeilDivision(validCols, elementsPerRepeat);
+    constexpr unsigned elementsPerRepeat = CCE_VL * 2 / sizeof(T);
     __VEC_SCOPE__
     {
-        vector_s32 lowReg, highReg;
+        vector_s32 lowReg, highReg, half0, half1;
+        MaskReg lowMask, highMask;
         uint64_t bits = static_cast<uint64_t>(scalar);
         vbr(lowReg, static_cast<int32_t>(bits));
         vbr(highReg, static_cast<int32_t>(bits >> 32));
         uint16_t rows = validRows;
-        uint16_t fullRepeats = validCols / elementsPerRepeat;
-        uint32_t tailCols = validCols - fullRepeats * elementsPerRepeat;
-        uint32_t fullMaskCols = elementsPerRepeat;
-        MaskReg allMask = pset_b32(PAT_ALL);
-        uint32_t tailMaskCols = tailCols;
-        MaskReg tailMask = Int64TailMask(tailMaskCols, allMask);
+        uint16_t colRepeats = CeilDivision(validCols, elementsPerRepeat);
         for (uint16_t row = 0; row < rows; ++row) {
-            for (uint16_t colRepeat = 0; colRepeat < fullRepeats; ++colRepeat) {
-                MaskReg fullMask = plt_b32(fullMaskCols, POST_UPDATE);
+            uint32_t sreg = validCols;
+            for (uint16_t colRepeat = 0; colRepeat < colRepeats; ++colRepeat) {
                 uint32_t colOffset = colRepeat * elementsPerRepeat;
-                vsts(lowReg, highReg, (__ubuf__ int32_t*)dst + (row * DstCols + colOffset) * 2, 0, INTLV_B32, fullMask);
-            }
-            if (tailCols != 0) {
-                uint32_t colOffset = fullRepeats * elementsPerRepeat;
-                vsts(lowReg, highReg, (__ubuf__ int32_t*)dst + (row * DstCols + colOffset) * 2, 0, INTLV_B32, tailMask);
+                MaskReg preg = CreatePredicate<uint32_t>(sreg);
+                pintlv_b32(lowMask, highMask, preg, preg);
+                vintlv(half0, half1, lowReg, highReg);
+                vsts(half0, (__ubuf__ int32_t*)dst + (row * DstCols + colOffset) * 2, 0, NORM_B32, lowMask);
+                vsts(
+                    half1, (__ubuf__ int32_t*)dst + (row * DstCols + colOffset) * 2 + CCE_VL / sizeof(int32_t), 0,
+                    NORM_B32, highMask);
             }
         }
     }

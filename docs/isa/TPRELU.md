@@ -1,4 +1,4 @@
-﻿# TPRELU
+# TPRELU
 
 
 ## Tile Operation Diagram
@@ -66,7 +66,7 @@ PTO_INST RecordEvent TPRELU(TileDataDst &dst, TileDataSrc0 &src0, TileDataSrc1 &
 `tmp` **is used** as comparison mask storage. The A2A3 implementation decomposes PReLU as: `dst = src0 > 0 ? src0 : src0 * src1`, using `TCMPS` to write the comparison mask into `tmp`, then `TSEL` to select between `src0` and `dst` (= `src0 * src1`).
 
 - `tmp` element type must be `uint8_t`.
-- `tmp.GetValidRow() > dst.GetValidRow()` (the extra row region after the valid rows is used for the `TSEL` mask via `TSUBVIEW`).
+- `tmp.GetValidRow() > dst.GetValidRow()` (the extra row region after the valid rows is used for the `TSEL` mask via sub-tile aliasing).
 - `tmp` must be row-major.
 - In manual mode, `tmp` must not overlap with `dst`, `src0`, or `src1`.
 

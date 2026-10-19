@@ -44,18 +44,18 @@ Even though we are programming in C++, we encourage to use POD (Plain Old Data) 
 TL;DR:
 
 - Use `set_flag`, `wait_flag` or `pipe_barrier` explicitly in tile functions and all of their callees.
-- Use `PtoSetWaitFlag` or `TSYNC` anywhere else.
+- Use `PtoSetWaitFlag` anywhere else.
 
 Reason:
 The auto-sync will NOT traverse inside tile functions; as a matter of fact, the whole auto mode compiler works on the tile function level, meaning that everything inside tile function is a complete black box to auto-mode.
 
-For this reason, if any synchronization is needed inside tile function, the library developers should still add synchronizations manually. That's why using `PtoSetWaitFlag` and `TSYNC` won't work in auto mode because it's no-op. Most of the cases this interface is used by kernel developers.
+For this reason, if any synchronization is needed inside tile function, the library developers should still add synchronizations manually. That's why using `PtoSetWaitFlag` won't work in auto mode because it's no-op. Most of the cases this interface is used by kernel developers.
 
 # 4 - Avoid using `TASSIGN` for implementation
 
 Currently implementations of some pto instructions directly use `TASSIGN_IMPL`. This may be a problem for auto mode because it's no-op.
 
-If you use `TASSIGN` just to alias 2 tiles, you should use `TRESHAPE` or `TSUBVIEW` to achieve the same goal depending on your needs. Anything else won't work for auto mode.
+If you use `TASSIGN` just to alias 2 tiles, you should use `TRESHAPE` when it matches the intended view. Anything else won't work for auto mode.
 
 For instance, if you call `TASSIGN` to allocate memory based on some kind of algorithm, this will never work for auto-mode because the compiler can't possibly recognize the specific algorithm logic and do the same allocation as you want to do in manual mode.
 

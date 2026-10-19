@@ -12,6 +12,8 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #define TFILLPAD_HPP
 #include <pto/common/pto_tile.hpp>
 #include <bit>
+#include <cstring>
+#include <limits>
 #include "pto/cpu/tile_offsets.hpp"
 #include "pto/cpu/parallel.hpp"
 
@@ -21,35 +23,32 @@ template <typename TileDataDst, typename TileDataSrc, PadValue PadVal = TileData
 void TFillPad(TileDataDst& dst, TileDataSrc& src)
 {
     using DType = typename TileDataDst::DType;
-    DType padVal = 0;
-
+    DType padVal{};
     const auto validSrcRow = src.GetValidRow();
     const auto validSrcCol = src.GetValidCol();
 
-    // Handle custom pad values (PadCustom<-1.0f>, etc.)
-    if constexpr (isCustomPadValue(PadVal)) {
-        constexpr uint32_t bits = getCustomPadBits(PadVal);
-        if constexpr (std::is_same_v<DType, float>) {
-            padVal = std::bit_cast<float>(bits);
-        } else if constexpr (sizeof(DType) == 2) {
-            padVal = std::bit_cast<DType>(static_cast<uint16_t>(bits));
-        } else if constexpr (sizeof(DType) == 1) {
-            padVal = static_cast<DType>(bits & 0xFF);
-        } else {
-            padVal = std::bit_cast<DType>(bits);
-        }
-    } else if constexpr (std::numeric_limits<DType>::has_infinity) {
-        // Standard PadValue with infinity support
-        if constexpr (PadVal == PadValue::Max)
+    // Decode PadValue via GetPadValue so fp8/fp4/custom share the NPU bit maps.
+    // PadValueMap<bfloat16_t> is NPU-only: default CPU_SIM aliases bf16 to half
+    // (half's map already applies). Distinct std::bfloat16_t has no map, so keep
+    // the previous numeric_limits path for standard Zero/Min/Max.
+    if constexpr (std::is_same_v<DType, bfloat16_t> && !std::is_same_v<bfloat16_t, half> && !isCustomPadValue(PadVal)) {
+        if constexpr (PadVal == PadValue::Max) {
             padVal = std::numeric_limits<DType>::infinity();
-        else if constexpr (PadVal == PadValue::Min)
+        } else if constexpr (PadVal == PadValue::Min) {
             padVal = -std::numeric_limits<DType>::infinity();
+        }
     } else {
-        // Standard PadValue without infinity
-        if constexpr (PadVal == PadValue::Max)
-            padVal = std::numeric_limits<DType>::max();
-        else if constexpr (PadVal == PadValue::Min)
-            padVal = std::numeric_limits<DType>::min();
+        constexpr auto padBits = GetPadValue<TileDataDst>();
+        if constexpr (sizeof(DType) == 4) {
+            const uint32_t bits = static_cast<uint32_t>(padBits);
+            std::memcpy(&padVal, &bits, sizeof(DType));
+        } else if constexpr (sizeof(DType) == 2) {
+            const uint16_t bits = static_cast<uint16_t>(padBits);
+            std::memcpy(&padVal, &bits, sizeof(DType));
+        } else {
+            const uint8_t bits = static_cast<uint8_t>(padBits);
+            std::memcpy(&padVal, &bits, sizeof(DType));
+        }
     }
 
     cpu::parallel_for_1d(

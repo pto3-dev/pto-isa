@@ -224,8 +224,8 @@ void test_textract()
 
     WriteFile(GetGoldenDir() + "/output.bin", dstHost, dstFileSize);
 
-    std::vector<DT> golden(dstFileSize);
-    std::vector<DT> devFinal(dstFileSize);
+    std::vector<DT> golden(dstFileSize / sizeof(DT));
+    std::vector<DT> devFinal(dstFileSize / sizeof(DT));
     CHECK_RESULT_GTEST(ReadFile(GetGoldenDir() + "/golden.bin", dstFileSize, golden.data(), dstFileSize));
     CHECK_RESULT_GTEST(ReadFile(GetGoldenDir() + "/output.bin", dstFileSize, devFinal.data(), dstFileSize));
 

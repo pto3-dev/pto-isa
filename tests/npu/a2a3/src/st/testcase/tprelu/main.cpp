@@ -80,8 +80,8 @@ void test_tshl()
 
     using U = std::conditional_t<std::is_same_v<T, aclFloat16>, _Float16, T>;
 
-    std::vector<U> golden(fileSize);
-    std::vector<U> devFinal(fileSize);
+    std::vector<U> golden(fileSize / sizeof(U));
+    std::vector<U> devFinal(fileSize / sizeof(U));
     ReadFile(GetGoldenDir() + "/golden.bin", fileSize, golden.data(), fileSize);
     ReadFile(GetGoldenDir() + "/output.bin", fileSize, devFinal.data(), fileSize);
 

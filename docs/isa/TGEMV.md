@@ -1,4 +1,4 @@
-﻿# TGEMV
+# TGEMV
 
 
 ## Tile Operation Diagram
@@ -29,13 +29,15 @@ For `0 <= j < N` (accumulates into existing tile):
 
 $$ \mathrm{C}_{0,j} \gets \mathrm{C}_{0,j} + \sum_{k=0}^{K-1} \mathrm{A}_{0,k} \cdot \mathrm{B}_{k,j} $$
 
+The existing `C` element is the initial accumulator value for the fused multiply-accumulate sequence. It is not added after computing an independent dot product from zero.
+
 ### 3. TGEMV_BIAS (Tile-based GEMV with Bias)
 
 For `0 <= j < N` (adds bias term to matrix product):
 
 $$ \mathrm{C}_{0,j} = \mathrm{Bias}_{0,j} + \sum_{k=0}^{K-1} \mathrm{A}_{0,k} \cdot \mathrm{B}_{k,j} $$
 
-**Note:** Exact accumulator behavior and datatype promotion are target/implementation-defined.
+**Note:** For `TGEMV_BIAS`, exact accumulator behavior (including whether the bias seeds the accumulation) and datatype promotion are target/implementation-defined.
 
 ## Assembly Syntax
 
@@ -96,6 +98,7 @@ These constraints apply to `TGEMV`, `TGEMV_ACC`, and `TGEMV_BIAS` unless otherwi
 - Runtime valid-size constraints:
     - `m` must be `1`
     - `k` and `n` (taken from `bMatrix.GetValidRow()` and `bMatrix.GetValidCol()`) must be in `[1, 4095]`
+- The `TMATMUL` accumulator destination constraint also applies.
 
 ### TGEMV / TGEMV_ACC datatype constraints
 

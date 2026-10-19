@@ -1,4 +1,4 @@
-﻿# TPREFETCH
+# TPREFETCH
 
 
 ## Tile Operation Diagram
@@ -9,7 +9,7 @@
 
 Prefetch data from global memory into a tile-local cache/buffer (implementation-defined). This is typically used to reduce latency before a subsequent `TLOAD`.
 
-Note: unlike most PTO instructions, `TPREFETCH` does **not** implicitly call `TSYNC(events...)` in the C++ wrapper.
+Note: unlike most PTO instructions, `TPREFETCH` does **not** implicitly call event waits in the C++ wrapper.
 
 ## Assembly Syntax
 

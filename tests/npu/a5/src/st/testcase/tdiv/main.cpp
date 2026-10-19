@@ -40,6 +40,9 @@ template <
     bool highPrecision>
 void LaunchTDivHalf(aclFloat16* out, aclFloat16* src0, aclFloat16* src1, void* stream);
 
+template <typename T, int tileH, int tileW, int vRows, int vCols>
+void LaunchTDivInplace(T* out, T* src1, void* stream);
+
 template <typename T, bool highPrecision>
 void CheckTDivResult(size_t fileSizeDst)
 {
@@ -111,6 +114,49 @@ void test_tdiv()
     CheckTDivResult<T, highPrecision>(fileSizeDst);
 }
 
+template <typename T, int tileH, int tileW, int vRows, int vCols>
+void test_tdiv_inplace()
+{
+    size_t fileSize = tileH * tileW * sizeof(T);
+
+    aclInit(nullptr);
+    aclrtSetDevice(0);
+    aclrtStream stream;
+    aclrtCreateStream(&stream);
+
+    T *dstHost, *src1Host;
+    T *dstDevice, *src1Device;
+
+    aclrtMallocHost((void**)(&dstHost), fileSize);
+    aclrtMallocHost((void**)(&src1Host), fileSize);
+
+    aclrtMalloc((void**)&dstDevice, fileSize, ACL_MEM_MALLOC_HUGE_FIRST);
+    aclrtMalloc((void**)&src1Device, fileSize, ACL_MEM_MALLOC_HUGE_FIRST);
+
+    ReadFile(GetGoldenDir() + "/input1.bin", fileSize, dstHost, fileSize);
+    ReadFile(GetGoldenDir() + "/input2.bin", fileSize, src1Host, fileSize);
+
+    aclrtMemcpy(dstDevice, fileSize, dstHost, fileSize, ACL_MEMCPY_HOST_TO_DEVICE);
+    aclrtMemcpy(src1Device, fileSize, src1Host, fileSize, ACL_MEMCPY_HOST_TO_DEVICE);
+    LaunchTDivInplace<T, tileH, tileW, vRows, vCols>(dstDevice, src1Device, stream);
+
+    aclrtSynchronizeStream(stream);
+    aclrtMemcpy(dstHost, fileSize, dstDevice, fileSize, ACL_MEMCPY_DEVICE_TO_HOST);
+
+    WriteFile(GetGoldenDir() + "/output.bin", dstHost, fileSize);
+
+    aclrtFree(dstDevice);
+    aclrtFree(src1Device);
+
+    aclrtFreeHost(dstHost);
+    aclrtFreeHost(src1Host);
+    aclrtDestroyStream(stream);
+    aclrtResetDevice(0);
+    aclFinalize();
+
+    CheckTDivResult<T, false>(fileSize);
+}
+
 TEST_F(TDIVTest, case_float_64x64_64x64_64x64_64x64) { test_tdiv<float, 64, 64, 64, 64, 64, 64, 64, 64>(); }
 TEST_F(TDIVTest, case_int32_64x64_64x64_64x64_64x64) { test_tdiv<int32_t, 64, 64, 64, 64, 64, 64, 64, 64>(); }
 TEST_F(TDIVTest, case_int16_64x64_64x64_64x64_64x64) { test_tdiv<int16_t, 64, 64, 64, 64, 64, 64, 64, 64>(); }
@@ -138,3 +184,8 @@ TEST_F(TDIVTest, case_int64_4x16_4x16_4x16_4x16) { test_tdiv<int64_t, 4, 16, 4, 
 TEST_F(TDIVTest, case_uint64_4x16_4x16_4x16_4x16) { test_tdiv<uint64_t, 4, 16, 4, 16, 4, 16, 4, 16>(); }
 TEST_F(TDIVTest, case_int64_4x64_4x64_4x64_4x64) { test_tdiv<int64_t, 4, 64, 4, 64, 4, 64, 4, 64>(); }
 TEST_F(TDIVTest, case_uint64_4x64_4x64_4x64_4x64) { test_tdiv<uint64_t, 4, 64, 4, 64, 4, 64, 4, 64>(); }
+TEST_F(TDIVTest, case_int64_4x32_inplace) { test_tdiv_inplace<int64_t, 4, 32, 4, 32>(); }
+TEST_F(TDIVTest, case_uint64_4x32_inplace) { test_tdiv_inplace<uint64_t, 4, 32, 4, 32>(); }
+TEST_F(TDIVTest, case_int64_1x1024_inplace) { test_tdiv_inplace<int64_t, 1, 1024, 1, 1024>(); }
+TEST_F(TDIVTest, case_int64_1x2048_2045_inplace) { test_tdiv_inplace<int64_t, 1, 2048, 1, 2045>(); }
+TEST_F(TDIVTest, case_int64_4x64_40_inplace) { test_tdiv_inplace<int64_t, 4, 64, 4, 40>(); }

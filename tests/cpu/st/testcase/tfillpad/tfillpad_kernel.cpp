@@ -223,6 +223,20 @@ void launchTFILLPAD_11(uint8_t* out, uint8_t* src, int gShape0, int gShape1, int
     runTFILLPAD<bfloat16_t, 1, 1, 1, 128, 64, 128, 128, 1, PadValue::Null, PadCustomNeg1>(
         (bfloat16_t*)out, (bfloat16_t*)src, gShape0, gShape1, gShape2, gRows, gCols);
 }
+
+// Test case 17: PadValue::Min (bfloat16) — same GT/VT as case 11, exercises P2 numeric_limits fallback
+void launchTFILLPAD_17(uint8_t* out, uint8_t* src, int gShape0, int gShape1, int gShape2, int gRows, int gCols)
+{
+    runTFILLPAD<bfloat16_t, 1, 1, 1, 128, 64, 128, 128, 1, PadValue::Null, PadValue::Min>(
+        (bfloat16_t*)out, (bfloat16_t*)src, gShape0, gShape1, gShape2, gRows, gCols);
+}
+
+// Test case 18: PadValue::Max (bfloat16) — same GT/VT as case 11, exercises P2 numeric_limits fallback
+void launchTFILLPAD_18(uint8_t* out, uint8_t* src, int gShape0, int gShape1, int gShape2, int gRows, int gCols)
+{
+    runTFILLPAD<bfloat16_t, 1, 1, 1, 128, 64, 128, 128, 1, PadValue::Null, PadValue::Max>(
+        (bfloat16_t*)out, (bfloat16_t*)src, gShape0, gShape1, gShape2, gRows, gCols);
+}
 #endif
 
 // Test case 12: PadCustomNeg1_Half - custom pad value (half/fp16)
@@ -297,6 +311,12 @@ void launchTFILLPAD(uint8_t* out, uint8_t* src, void* stream)
         launchTFILLPAD_15(out, src, 1, 1, 1, 1, 15);
     } else if constexpr (testKey == 16) {
         launchTFILLPAD_16(out, src, 1, 1, 1, 1, 16);
+#ifdef CPU_SIM_BFLOAT_ENABLED
+    } else if constexpr (testKey == 17) {
+        launchTFILLPAD_17(out, src, 1, 1, 1, 128, 64);
+    } else if constexpr (testKey == 18) {
+        launchTFILLPAD_18(out, src, 1, 1, 1, 128, 64);
+#endif
     }
 }
 
@@ -397,6 +417,12 @@ int get_input_golden(uint8_t* input, uint8_t* golden)
         return get_input_golden_case<uint8_t, 1, 1, 1, 1, 15, 1, 32, PadValue::Zero>(input, golden);
     } else if constexpr (testKey == 16) {
         return get_input_golden_case<uint8_t, 1, 1, 1, 1, 16, 1, 32, PadValue::Zero>(input, golden);
+#ifdef CPU_SIM_BFLOAT_ENABLED
+    } else if constexpr (testKey == 17) {
+        return get_input_golden_case<bfloat16_t, 1, 1, 1, 128, 64, 128, 128, PadValue::Min>(input, golden);
+    } else if constexpr (testKey == 18) {
+        return get_input_golden_case<bfloat16_t, 1, 1, 1, 128, 64, 128, 128, PadValue::Max>(input, golden);
+#endif
     }
     return 0;
 }
@@ -419,6 +445,10 @@ template void launchTFILLPAD<13>(uint8_t* out, uint8_t* src, void* stream);
 template void launchTFILLPAD<14>(uint8_t* out, uint8_t* src, void* stream);
 template void launchTFILLPAD<15>(uint8_t* out, uint8_t* src, void* stream);
 template void launchTFILLPAD<16>(uint8_t* out, uint8_t* src, void* stream);
+#ifdef CPU_SIM_BFLOAT_ENABLED
+template void launchTFILLPAD<17>(uint8_t* out, uint8_t* src, void* stream);
+template void launchTFILLPAD<18>(uint8_t* out, uint8_t* src, void* stream);
+#endif
 
 template int get_input_golden<1>(uint8_t* input, uint8_t* golden);
 template int get_input_golden<2>(uint8_t* input, uint8_t* golden);
@@ -438,3 +468,7 @@ template int get_input_golden<13>(uint8_t* input, uint8_t* golden);
 template int get_input_golden<14>(uint8_t* input, uint8_t* golden);
 template int get_input_golden<15>(uint8_t* input, uint8_t* golden);
 template int get_input_golden<16>(uint8_t* input, uint8_t* golden);
+#ifdef CPU_SIM_BFLOAT_ENABLED
+template int get_input_golden<17>(uint8_t* input, uint8_t* golden);
+template int get_input_golden<18>(uint8_t* input, uint8_t* golden);
+#endif

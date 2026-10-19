@@ -1,4 +1,4 @@
-﻿# TCOLPROD
+# TCOLPROD
 
 
 ## Tile Operation Diagram

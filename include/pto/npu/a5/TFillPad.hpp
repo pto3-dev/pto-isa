@@ -54,26 +54,45 @@ __tf__ PTO_INTERNAL void TFillPad(
     typename TileDataDst::TileDType __out__ dst, typename TileDataSrc::TileDType __in__ src, uint64_t dstValidRow,
     uint64_t dstValidCol, uint64_t srcValidRow, uint64_t srcValidCol)
 {
-    using T = typename TileDataSrc::DType;
-    using U = typename TileDataDst::DType;
+    using RawT = typename TileDataSrc::DType;
+    using RawU = typename TileDataDst::DType;
+    // fp8/hif8/fp4x2 are 1-byte packed types: CCE only allows pointer ops, not scalar
+    // vdup/assignment. Fill them (and s8/u8) as uint8_t bit patterns.
+    using T = std::conditional_t<sizeof(RawT) == 1, uint8_t, RawT>;
+    using U = std::conditional_t<sizeof(RawU) == 1, uint8_t, RawU>;
     __ubuf__ T* srcPtr = (__ubuf__ T*)__cce_get_tile_ptr(src);
     __ubuf__ U* dstPtr = (__ubuf__ U*)__cce_get_tile_ptr(dst);
-    constexpr unsigned elementsPerRepeat = CCE_VL / sizeof(typename TileDataSrc::DType);
-    constexpr unsigned srcStride = TileDataSrc::Cols;
-    constexpr unsigned dstStride = TileDataDst::Cols;
-    unsigned padCols = TileDataDst::Cols - srcValidCol;
+    constexpr unsigned elementsPerRepeat = CCE_VL / sizeof(T);
+    // Stride/pad stay in DType elements. fp4x2 ValidCol/Cols are nibble-counted
+    // (same as TLOAD/TSTORE/TCVT); only then GetByteSize packs to bytes so fill
+    // matches TSTORE burst length. Using GetByteSize on float/u16/s32 would
+    // treat sizeof*N as an element count and over-pad / overflow UB.
+    unsigned packedValidCol = static_cast<unsigned>(srcValidCol);
+    unsigned srcStride = TileDataSrc::Cols;
+    unsigned dstStride = TileDataDst::Cols;
+    if constexpr (caps::IsFP4<RawT>()) {
+        packedValidCol = GetByteSize<RawT>(static_cast<uint32_t>(srcValidCol));
+        srcStride = GetByteSize<RawT>(TileDataSrc::Cols);
+        dstStride = GetByteSize<RawU>(TileDataDst::Cols);
+    }
+    unsigned padCols = dstStride - packedValidCol;
     unsigned padRows = dstValidRow - srcValidRow;
     auto uint_pv = GetPadValue<TileDataDst>();
-    T padValue;
-    *(T*)&padValue = *((T*)&uint_pv);
+    T padValue{};
+    if constexpr (sizeof(T) == 1) {
+        padValue = static_cast<T>(static_cast<uint8_t>(uint_pv));
+    } else {
+        *(T*)&padValue = *((T*)&uint_pv);
+    }
 
+    static_assert(sizeof(RawT) == sizeof(RawU), "Fix: TFillPad src and dst data type is different!");
     static_assert(sizeof(T) == sizeof(U), "Fix: TFillPad src and dst data type is different!");
     __VEC_SCOPE__
     {
         constexpr auto distValue =
             std::integral_constant<::DistVST, static_cast<::DistVST>(GetDistVst<T, DistVST::DIST_NORM>())>();
         if constexpr (!inplace) {
-            CopyValidElementsVec<T>(dstPtr, srcPtr, srcValidRow, srcValidCol, srcStride, dstStride, distValue);
+            CopyValidElementsVec<T>(dstPtr, srcPtr, srcValidRow, packedValidCol, srcStride, dstStride, distValue);
         }
         uint16_t padRepeatTimes = CeilDivision(padCols, elementsPerRepeat);
         RegTensor<T> vreg_pad0;
@@ -82,7 +101,7 @@ __tf__ PTO_INTERNAL void TFillPad(
         vdup(vreg_pad0, padValue, pg_all, MODE_ZEROING);
         for (uint16_t i = 0; i < (uint16_t)(srcValidRow); ++i) {
             uint32_t cols = (uint32_t)(padCols);
-            __ubuf__ T* pdst = dstPtr + i * dstStride + srcValidCol;
+            __ubuf__ T* pdst = dstPtr + i * dstStride + packedValidCol;
             for (uint16_t j = 0; j < (uint16_t)padRepeatTimes; ++j) {
                 uint32_t sreg = cols > elementsPerRepeat ? elementsPerRepeat : cols;
                 vstus(ureg, sreg, vreg_pad0, pdst, POST_UPDATE);

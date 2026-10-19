@@ -6,7 +6,7 @@
 
 ## 1. 概述
 
-PTO kernel 以 C++ 形式编写，并通过 `TLOAD`、`TADD`、`TMATMUL`、`TSYNC`、`TSTORE` 等 PTO intrinsic 表达计算与数据移动。
+PTO kernel 以 C++ 形式编写，并通过 `TLOAD`、`TADD`、`TMATMUL`、`TSTORE` 等 PTO intrinsic 表达计算与数据移动，需要时通过 event 表达顺序。
 
 常用的公共入口头文件是：
 
@@ -50,7 +50,6 @@ PTO C++ 源码
 该头文件暴露了以下一类接口：
 
 - `TASSIGN`
-- `TSYNC`
 - `TLOAD`
 - `TSTORE`
 - `TADD`、`TMUL`、`TEXP` 等向量类指令

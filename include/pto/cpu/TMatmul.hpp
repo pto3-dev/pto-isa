@@ -45,6 +45,14 @@ PTO_INTERNAL void CheckMadValid()
              (TileRight::SFractal == SLayout::ColMajor)) &&
             ((TileAcc::Loc == TileType::Acc) && (!TileAcc::isRowMajor) && (TileAcc::SFractal == SLayout::RowMajor)),
         "Non-conforming matrix fractal");
+    // Mirror the NPU mad guard: the CPU model could honor the parent geometry,
+    // but parity makes broken kernels fail in CPU sim too.
+    static_assert(
+        (TileAcc::Compact != CompactMode::Null) || (TileAcc::Cols <= FRACTAL_NZ_ROW) ||
+            ((TileAcc::ValidRow + FRACTAL_NZ_ROW - 1) / FRACTAL_NZ_ROW * FRACTAL_NZ_ROW == TileAcc::Rows) ||
+            (TileAcc::ValidRow == DYNAMIC),
+        "The Acc tile is a row window of a taller tile (ValidRow < Rows) with more than one block column; "
+        "this shape is rejected on NPU (mad has no destination-stride operand) and on CPU for parity.");
 }
 
 template <typename TileAcc, typename TileLeft, typename TileRight>
@@ -56,9 +64,18 @@ void TMatmulNzZn(TileAcc& dst, TileAcc* acc, TileLeft& src0, TileRight& src1)
     uint16_t K = src0.GetValidCol();
     uint16_t N = src1.GetValidCol();
 
+    // Materialize lazy tile storage before starting workers. Tile::data() is not
+    // thread-safe during its first access in CPU auto-allocation mode.
+    (void)dst.data();
+    if (acc != nullptr) {
+        (void)acc->data();
+    }
+    (void)src0.data();
+    (void)src1.data();
+
     cpu::parallel_for_1d(0, M, static_cast<std::size_t>(M) * N * K, [&](std::size_t i) {
         for (uint16_t j = 0; j < N; j++) {
-            typename TileAcc::DType mul_acc = 0;
+            typename TileAcc::DType mul_acc = acc ? acc->GetElement(i, j) : 0;
 
             PTO_CPU_VECTORIZE_LOOP
             for (uint16_t k = 0; k < K; k++) {
@@ -71,7 +88,7 @@ void TMatmulNzZn(TileAcc& dst, TileAcc* acc, TileLeft& src0, TileRight& src1)
                 }
             }
 
-            dst.SetElement(i, j, acc ? acc->GetElement(i, j) + mul_acc : mul_acc);
+            dst.SetElement(i, j, mul_acc);
         }
     });
 }
@@ -145,9 +162,21 @@ void TMatmulMX(
     uint16_t N = src1.GetValidCol();
     CheckMadMxValid<TileAcc, TileLeft, TileLeftScale, TileRight, TileRightScale>();
     CheckDynamicMmad(M, K, N);
+
+    // Materialize lazy tile storage before starting workers. Tile::data() is not
+    // thread-safe during its first access in CPU auto-allocation mode.
+    (void)dst.data();
+    if (acc != nullptr) {
+        (void)acc->data();
+    }
+    (void)src0.data();
+    (void)src1.data();
+    (void)scale0.data();
+    (void)scale1.data();
+
     cpu::parallel_for_1d(0, M, static_cast<std::size_t>(M) * N * K, [&](std::size_t i) {
         for (uint16_t j = 0; j < N; j++) {
-            typename TileAcc::DType mul_acc = 0;
+            typename TileAcc::DType mul_acc = acc ? acc->GetElement(i, j) : 0;
 
             PTO_CPU_VECTORIZE_LOOP
             for (uint16_t k = 0; k < K; k++) {
@@ -157,7 +186,7 @@ void TMatmulMX(
                 mul_acc += src0.GetElement(i, k) * src1.GetElement(k, j) * scaleFactor;
             }
 
-            dst.SetElement(i, j, acc ? acc->GetElement(i, j) + mul_acc : mul_acc);
+            dst.SetElement(i, j, mul_acc);
         }
     });
 }

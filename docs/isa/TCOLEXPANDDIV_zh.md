@@ -1,4 +1,4 @@
-﻿# TCOLEXPANDDIV
+# TCOLEXPANDDIV
 
 ## 指令示意图
 

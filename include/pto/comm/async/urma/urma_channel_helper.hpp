@@ -197,6 +197,25 @@ public:
         return false;
     }
 
+    static bool FindLocalRmaRegistration(
+        uint64_t address, uint64_t size, const ChannelEntity& entity, uint32_t peer, RegedBufferEntity& selected)
+    {
+        if (entity.localBufferAddr == nullptr || entity.localBufferNum == 0) {
+            return false;
+        }
+        for (uint32_t i = 0; i < entity.localBufferNum; ++i) {
+            RegedBufferEntity buf{};
+            if (!ReadRegedBufferEntityAt(entity.localBufferAddr, entity.localBufferNum, i, peer, buf)) {
+                continue;
+            }
+            if (buf.type == REGED_BUFFER_RMA && buf.bufferInfo.rma.addr == address && buf.bufferInfo.rma.size == size) {
+                selected = buf;
+                return true;
+            }
+        }
+        return false;
+    }
+
 private:
     static bool GetRemoteMemByTag(
         HcclComm comm, const char* symMemTag, ChannelHandle handle, uint32_t peer, void** outAddr, uint64_t* outSize)

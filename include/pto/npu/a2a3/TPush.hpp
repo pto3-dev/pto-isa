@@ -206,6 +206,8 @@ struct TPipe {
             } else if constexpr (Split == TileSplitAxis::TILE_LEFT_RIGHT_ODD) {
                 // TILE_LEFT_RIGHT_ODD: Vec1 starts at column ProdN+1 within row 0 → offset = (ProdN + 1) * sizeof(T)
                 subAIVOffset = subBlockId * (gmValidC + subBlockId) * sizeof(T);
+                // [xx, 15] -> [xx, 8] + [xx, 7], row stride of AIV0 and AIV1 are same, both are 15.
+                gmStrideR = gmValidC * splitNum + 2 * subBlockId - 1;
             }
             using GlobalShape = pto::Shape<1, 1, 1, -1, -1>;
             using GlobalStride = pto::Stride<1, 1, 1, -1, 1>;
@@ -396,29 +398,24 @@ struct TPipe {
         PTO_INTERNAL void popVecTileFromGMFiFo(RingFiFo& fifo, TileCons& tile, int32_t subBlockId)
         {
             using T = typename TileCons::DType;
+            int gmValidR = tile.GetValidRow();
+            int gmValidC = tile.GetValidCol();
             constexpr int splitNum = 2;
             // get gm row stride
-            size_t gmStrideR = tile.GetValidCol();
-            if constexpr (Split == TileSplitAxis::TILE_LEFT_RIGHT) {
-                gmStrideR = splitNum * tile.GetValidCol();
-            } else if constexpr (Split == TileSplitAxis::TILE_LEFT_RIGHT_ODD) {
-                gmStrideR = splitNum * tile.GetValidCol() + 2 * subBlockId - 1;
-            } else {
-                gmStrideR = tile.GetValidCol();
-            }
+            int gmStrideR = (Split == TileSplitAxis::TILE_LEFT_RIGHT) ? splitNum * gmValidC : gmValidC;
             // global tensor
             size_t subAIVOffset = 0;
             if constexpr (Split == TileSplitAxis::TILE_NO_SPLIT) {
                 subAIVOffset = 0; // TILE_NO_SPLIT : single reader, no offset needed
             } else if constexpr (Split == TileSplitAxis::TILE_UP_DOWN) {
-                subAIVOffset = subBlockId * tile.GetValidRow() * tile.GetValidCol() * sizeof(T);
+                subAIVOffset = subBlockId * gmValidR * gmValidC * sizeof(T);
             } else if constexpr (Split == TileSplitAxis::TILE_LEFT_RIGHT) {
-                subAIVOffset = subBlockId * tile.GetValidCol() * sizeof(T);
+                subAIVOffset = subBlockId * gmValidC * sizeof(T);
             } else if constexpr (Split == TileSplitAxis::TILE_UP_DOWN_ODD) {
-                subAIVOffset = subBlockId * (tile.GetValidRow() + subBlockId) * tile.GetValidCol() * sizeof(T);
+                subAIVOffset = subBlockId * (gmValidR + subBlockId) * gmValidC * sizeof(T);
             } else if constexpr (Split == TileSplitAxis::TILE_LEFT_RIGHT_ODD) {
-                subAIVOffset =
-                    subBlockId * (tile.GetValidCol() + subBlockId) * sizeof(T); // subBlockId=1 to shift one column
+                subAIVOffset = subBlockId * (gmValidC + subBlockId) * sizeof(T); // subBlockId=1 to shift one column
+                gmStrideR = splitNum * gmValidC + 2 * subBlockId - 1;
             }
             size_t entryBase = (static_cast<size_t>(tileIndex) % RingFiFo::SLOT_NUM) * RingFiFo::SLOT_SIZE;
             __gm__ T* addr = (__gm__ T*)((uint64_t)fifo.GM_SLOT_BUFFER + entryBase + subAIVOffset + entryOffset);
@@ -426,7 +423,7 @@ struct TPipe {
             using GlobalShape = pto::Shape<1, 1, 1, -1, -1>;
             using GlobalStride = pto::Stride<1, 1, 1, -1, 1>;
             using GlobalData = GlobalTensor<T, GlobalShape, GlobalStride>;
-            GlobalData globalData(addr, GlobalShape(tile.GetValidRow(), tile.GetValidCol()), GlobalStride(gmStrideR));
+            GlobalData globalData(addr, GlobalShape(gmValidR, gmValidC), GlobalStride(gmStrideR));
 
             // local vector tile. Strided by SLOT_SIZE, like the GM ring above: striding by
             // the popped tile's own Rows*Cols makes slot i+1 of a smaller tile land inside

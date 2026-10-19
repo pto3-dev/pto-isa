@@ -374,8 +374,7 @@ void LaunchTStoreAcc2gmScalarNz2NDC1HWC0(uint8_t* out, uint8_t* src0, uint8_t* s
 {
     if constexpr (tilingKey == 1) {
         TStoreAcc2gmScalarNz2NDC1HWC0<0, float, float, float, 1, 2, 4, 16, 8, 128, 64, 31>(
-            reinterpret_cast<float*>(out), reinterpret_cast<float*>(src0), reinterpret_cast<float*>(src1),
-            scalarQuant);
+            reinterpret_cast<float*>(out), reinterpret_cast<float*>(src0), reinterpret_cast<float*>(src1), scalarQuant);
     } else if constexpr (tilingKey == 2) {
         TStoreAcc2gmScalarNz2NDC1HWC0<0, int32_t, int32_t, int8_t, 1, 2, 4, 16, 8, 128, 128, 31>(
             reinterpret_cast<int32_t*>(out), reinterpret_cast<int8_t*>(src0), reinterpret_cast<int8_t*>(src1),

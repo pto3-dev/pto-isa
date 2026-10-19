@@ -18,54 +18,35 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #include "op_kernel/utils/hccl_window_context.hpp"
 
 using rtError_t = int32_t;
-using rtStream_t = void *;
+using rtStream_t = void*;
 
-extern "C" rtError_t rtStreamCreate(rtStream_t *stream, int32_t priority);
+extern "C" rtError_t rtStreamCreate(rtStream_t* stream, int32_t priority);
 extern "C" rtError_t rtStreamDestroy(rtStream_t stream);
-extern "C" HcclResult HcclAllocComResourceByTiling(HcclComm comm, void *stream, void *resourceTiling,
-                                                   void **commContext);
-extern "C" HcclResult HcomGetCommHandleByGroup(const char *group, HcclComm *commHandle);
-extern "C" HcclResult HcomGetL0TopoTypeEx(const char *group, uint32_t *topoType, uint32_t isSetDevice);
+extern "C" HcclResult HcclAllocComResourceByTiling(
+    HcclComm comm, void* stream, void* resourceTiling, void** commContext);
+extern "C" HcclResult HcomGetCommHandleByGroup(const char* group, HcclComm* commHandle);
+extern "C" HcclResult HcomGetL0TopoTypeEx(const char* group, uint32_t* topoType, uint32_t isSetDevice);
 
 struct StandaloneHcclContext {
     int rank_id = 0;
     int world_size = 0;
-    int device_id = 0;
     rtStream_t hccl_stream = nullptr;
     HcclComm comm = nullptr;
-    PtoRemoteWindowContext *remote_window_ctx = nullptr;
+    PtoRemoteWindowContext* remote_window_ctx = nullptr;
     PtoRemoteWindowContext host_remote_window_ctx{};
     uint64_t raw_window_bytes = 0;
-    uint64_t raw_window_in[PTO_HCCL_MAX_RANKS] = {};
+    uint64_t raw_local_window_in = 0;
     bool owns_remote_window_ctx = false;
 
-    PtoRemoteWindowContext *RemoteWindowContextPtr() const
-    {
-        return remote_window_ctx;
-    }
+    PtoRemoteWindowContext* RemoteWindowContextPtr() const { return remote_window_ctx; }
 
-    uint64_t WindowBytes() const
-    {
-        return host_remote_window_ctx.windowBytes;
-    }
+    uint64_t WindowBytes() const { return host_remote_window_ctx.windowBytes; }
 
-    void *WindowIn(uint32_t rank) const
-    {
-        return reinterpret_cast<void *>(host_remote_window_ctx.windowIn[rank]);
-    }
+    uint64_t WindowClearBytes() const { return raw_window_bytes; }
 
-    uint64_t WindowClearBytes() const
-    {
-        return raw_window_bytes == 0 ? host_remote_window_ctx.windowBytes : raw_window_bytes;
-    }
+    void* WindowClearBase() const { return reinterpret_cast<void*>(raw_local_window_in); }
 
-    void *WindowClearBase(uint32_t rank) const
-    {
-        const uint64_t rawBase = raw_window_in[rank];
-        return reinterpret_cast<void *>(rawBase == 0 ? host_remote_window_ctx.windowIn[rank] : rawBase);
-    }
-
-    void AttachExternalRemoteWindowContext(PtoRemoteWindowContext *remoteWindowCtx);
+    void AttachExternalRemoteWindowContext(PtoRemoteWindowContext* remoteWindowCtx);
     void ReleaseRemoteWindowContext();
     void ResetHostRemoteWindowContext();
     void SetHostContextWorkspace(uint64_t workspaceBase, uint64_t workspaceBytes);
@@ -80,6 +61,6 @@ struct StandaloneRankRuntime {
     aclrtStream compute_stream = nullptr;
 };
 
-bool InitStandaloneRankRuntime(StandaloneRankRuntime &runtime, int rank_id, int world_size, int device_id,
-                               const HcclRootInfo &root_info);
-void DestroyStandaloneRankRuntime(StandaloneRankRuntime &runtime);
+bool InitStandaloneRankRuntime(
+    StandaloneRankRuntime& runtime, int rank_id, int world_size, int device_id, const HcclRootInfo& root_info);
+void DestroyStandaloneRankRuntime(StandaloneRankRuntime& runtime);

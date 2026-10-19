@@ -1,0 +1,184 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" role="img" aria-label="TMATMUL_MX_HIF4 tile operation diagram">
+<defs>
+  <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0,0 L0,12 L12,6 z" fill="#1B7F91"/></marker>
+  <marker id="axisArrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L0,10 L10,5 z" fill="#64748b"/></marker>
+</defs>
+<style>
+svg { font-family: Arial, Helvetica, sans-serif; }
+.title { font-size: 30px; font-weight: 700; fill: #0f172a; }
+.subtitle { font-size: 14px; fill: #334155; }
+.meta { font-size: 12px; fill: #64748b; }
+.frame { fill: white; }
+.panel { fill: #E8F8FB; stroke: #e2e8f0; stroke-width: 1.5; rx: 14; }
+.tileLabel { font-size: 14px; font-weight: 700; fill: #0f172a; }
+.tileBorder { fill: none; stroke: #475569; stroke-width: 1.5; }
+.cell { fill: #ffffff; stroke: #94a3b8; stroke-width: 1; }
+.cellMasked { fill: #e2e8f0; }
+.cellHL { stroke-width: 2; }
+.cellText { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size: 10px; fill: #0f172a; }
+.arrow { stroke-width: 2.5; fill: none; stroke-linejoin: round; stroke-linecap: round; }
+.axisLine { stroke: #64748b; stroke-width: 1.5; fill: none; }
+.axisText { font-size: 10px; fill: #64748b; font-weight: 700; }
+.opCircle { fill: #ffffff; stroke-width: 2; }
+.opRect { fill: #ffffff; stroke-width: 2; }
+.opText { font-size: 10px; font-weight: 800; fill: #0f172a; }
+.procBox { fill: #f8fafc; stroke: #cbd5e1; stroke-width: 1.5; rx: 12; }
+.procTitle { font-size: 14px; font-weight: 700; fill: #0f172a; }
+.procText { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size: 12px; fill: #0f172a; }
+.smallLabel { font-size: 12px; fill: #334155; }
+.scalarBox { fill: #ffffff; stroke: #cbd5e1; stroke-width: 1.5; }
+.scalarValue { font-size: 16px; font-weight: 700; }
+.validBox { fill: none; stroke-width: 2; stroke-dasharray: 6 4; }
+</style>
+<rect x="0" y="0" width="1200" height="720" class="frame" />
+<rect x="24" y="24" width="1152" height="672" class="panel"/>
+<text x="40" y="46" class="title">TMATMUL_MX_HIF4</text>
+<text x="40" y="72" class="subtitle">HiFloat4 Cube matmul variant for mixed-precision TMATMUL_MX flows.</text>
+<text x="40" y="92" class="meta">Template: matmul</text>
+<text x="1160" y="92" class="meta" text-anchor="end">Legend: outline=example; dashed=valid rows/cols (Rv,Cv); shaded=masked; r down / c right; ortho arrows=dataflow</text>
+<line x1="36" y1="104" x2="1164" y2="104" stroke="#e2e8f0" stroke-width="1.5" />
+<text x="600" y="140" class="subtitle" text-anchor="middle" fill="#1B7F91">L0C[i,j] += dequant_hif4(A, scaleA)[i,k] * dequant_hif4(B, scaleB)[k,j]</text>
+<text x="407" y="168" class="tileLabel" text-anchor="middle">A data (HiF4 PK4)</text>
+<rect x="352" y="178" width="110" height="110" class="tileBorder" />
+<rect x="352" y="178" width="22" height="22" class="cell" />
+<rect x="374" y="178" width="22" height="22" class="cell" />
+<rect x="396" y="178" width="22" height="22" class="cell" />
+<rect x="418" y="178" width="22" height="22" class="cell" />
+<rect x="440" y="178" width="22" height="22" class="cell cellMasked" />
+<rect x="352" y="200" width="22" height="22" class="cell" />
+<rect x="374" y="200" width="22" height="22" class="cell cellHL" stroke="#1B7F91" />
+<rect x="396" y="200" width="22" height="22" class="cell" />
+<rect x="418" y="200" width="22" height="22" class="cell" />
+<rect x="440" y="200" width="22" height="22" class="cell cellMasked" />
+<rect x="352" y="222" width="22" height="22" class="cell" />
+<rect x="374" y="222" width="22" height="22" class="cell" />
+<rect x="396" y="222" width="22" height="22" class="cell" />
+<rect x="418" y="222" width="22" height="22" class="cell" />
+<rect x="440" y="222" width="22" height="22" class="cell cellMasked" />
+<rect x="352" y="244" width="22" height="22" class="cell" />
+<rect x="374" y="244" width="22" height="22" class="cell" />
+<rect x="396" y="244" width="22" height="22" class="cell" />
+<rect x="418" y="244" width="22" height="22" class="cell" />
+<rect x="440" y="244" width="22" height="22" class="cell cellMasked" />
+<rect x="352" y="266" width="22" height="22" class="cell cellMasked" />
+<rect x="374" y="266" width="22" height="22" class="cell cellMasked" />
+<rect x="396" y="266" width="22" height="22" class="cell cellMasked" />
+<rect x="418" y="266" width="22" height="22" class="cell cellMasked" />
+<rect x="440" y="266" width="22" height="22" class="cell cellMasked" />
+<rect x="352" y="178" width="88" height="88" class="validBox" stroke="#1B7F91" />
+<text x="356" y="262" class="axisText">Rv</text>
+<text x="436" y="190" class="axisText" text-anchor="end">Cv</text>
+<path d="M 362 188 L 396 188" class="axisLine" marker-end="url(#axisArrow)" />
+<path d="M 362 188 L 362 222" class="axisLine" marker-end="url(#axisArrow)" />
+<text x="400" y="192" class="axisText">c</text>
+<text x="360" y="226" class="axisText" text-anchor="end">r</text>
+<text x="543" y="294" class="tileLabel" text-anchor="middle">A scale</text>
+<rect x="510" y="304" width="66" height="44" class="tileBorder" />
+<rect x="510" y="304" width="22" height="22" class="cell" />
+<text x="521" y="316" class="cellText" text-anchor="middle" dominant-baseline="middle">Ea</text>
+<rect x="532" y="304" width="22" height="22" class="cell cellHL" stroke="#1B7F91" />
+<text x="543" y="316" class="cellText" text-anchor="middle" dominant-baseline="middle">Eb</text>
+<rect x="554" y="304" width="22" height="22" class="cell cellMasked" />
+<rect x="510" y="326" width="22" height="22" class="cell" />
+<rect x="532" y="326" width="22" height="22" class="cell" />
+<text x="543" y="338" class="cellText" text-anchor="middle" dominant-baseline="middle">Ec</text>
+<rect x="554" y="326" width="22" height="22" class="cell cellMasked" />
+<rect x="510" y="304" width="44" height="44" class="validBox" stroke="#1B7F91" />
+<text x="514" y="344" class="axisText">Rv</text>
+<text x="550" y="316" class="axisText" text-anchor="end">Cv</text>
+<text x="679" y="168" class="tileLabel" text-anchor="middle">B data (HiF4 PK4)</text>
+<rect x="624" y="178" width="110" height="110" class="tileBorder" />
+<rect x="624" y="178" width="22" height="22" class="cell" />
+<rect x="646" y="178" width="22" height="22" class="cell" />
+<rect x="668" y="178" width="22" height="22" class="cell" />
+<rect x="690" y="178" width="22" height="22" class="cell" />
+<rect x="712" y="178" width="22" height="22" class="cell cellMasked" />
+<rect x="624" y="200" width="22" height="22" class="cell" />
+<rect x="646" y="200" width="22" height="22" class="cell" />
+<rect x="668" y="200" width="22" height="22" class="cell cellHL" stroke="#1B7F91" />
+<rect x="690" y="200" width="22" height="22" class="cell" />
+<rect x="712" y="200" width="22" height="22" class="cell cellMasked" />
+<rect x="624" y="222" width="22" height="22" class="cell" />
+<rect x="646" y="222" width="22" height="22" class="cell" />
+<rect x="668" y="222" width="22" height="22" class="cell" />
+<rect x="690" y="222" width="22" height="22" class="cell" />
+<rect x="712" y="222" width="22" height="22" class="cell cellMasked" />
+<rect x="624" y="244" width="22" height="22" class="cell" />
+<rect x="646" y="244" width="22" height="22" class="cell" />
+<rect x="668" y="244" width="22" height="22" class="cell" />
+<rect x="690" y="244" width="22" height="22" class="cell" />
+<rect x="712" y="244" width="22" height="22" class="cell cellMasked" />
+<rect x="624" y="266" width="22" height="22" class="cell cellMasked" />
+<rect x="646" y="266" width="22" height="22" class="cell cellMasked" />
+<rect x="668" y="266" width="22" height="22" class="cell cellMasked" />
+<rect x="690" y="266" width="22" height="22" class="cell cellMasked" />
+<rect x="712" y="266" width="22" height="22" class="cell cellMasked" />
+<rect x="624" y="178" width="88" height="88" class="validBox" stroke="#1B7F91" />
+<text x="628" y="262" class="axisText">Rv</text>
+<text x="708" y="190" class="axisText" text-anchor="end">Cv</text>
+<path d="M 634 188 L 668 188" class="axisLine" marker-end="url(#axisArrow)" />
+<path d="M 634 188 L 634 222" class="axisLine" marker-end="url(#axisArrow)" />
+<text x="672" y="192" class="axisText">c</text>
+<text x="632" y="226" class="axisText" text-anchor="end">r</text>
+<text x="815" y="294" class="tileLabel" text-anchor="middle">B scale</text>
+<rect x="782" y="304" width="66" height="44" class="tileBorder" />
+<rect x="782" y="304" width="22" height="22" class="cell" />
+<text x="793" y="316" class="cellText" text-anchor="middle" dominant-baseline="middle">Ea</text>
+<rect x="804" y="304" width="22" height="22" class="cell cellHL" stroke="#1B7F91" />
+<text x="815" y="316" class="cellText" text-anchor="middle" dominant-baseline="middle">Eb</text>
+<rect x="826" y="304" width="22" height="22" class="cell cellMasked" />
+<rect x="782" y="326" width="22" height="22" class="cell" />
+<rect x="804" y="326" width="22" height="22" class="cell" />
+<text x="815" y="338" class="cellText" text-anchor="middle" dominant-baseline="middle">Ec</text>
+<rect x="826" y="326" width="22" height="22" class="cell cellMasked" />
+<rect x="782" y="304" width="44" height="44" class="validBox" stroke="#1B7F91" />
+<text x="786" y="344" class="axisText">Rv</text>
+<text x="822" y="316" class="axisText" text-anchor="end">Cv</text>
+<text x="600" y="368" class="tileLabel" text-anchor="middle">L0C / dst (FP32)</text>
+<rect x="545" y="378" width="110" height="110" class="tileBorder" />
+<rect x="545" y="378" width="22" height="22" class="cell" />
+<rect x="567" y="378" width="22" height="22" class="cell" />
+<rect x="589" y="378" width="22" height="22" class="cell" />
+<rect x="611" y="378" width="22" height="22" class="cell" />
+<rect x="633" y="378" width="22" height="22" class="cell cellMasked" />
+<rect x="545" y="400" width="22" height="22" class="cell" />
+<rect x="567" y="400" width="22" height="22" class="cell" />
+<rect x="589" y="400" width="22" height="22" class="cell cellHL" stroke="#1B7F91" />
+<rect x="611" y="400" width="22" height="22" class="cell" />
+<rect x="633" y="400" width="22" height="22" class="cell cellMasked" />
+<rect x="545" y="422" width="22" height="22" class="cell" />
+<rect x="567" y="422" width="22" height="22" class="cell" />
+<rect x="589" y="422" width="22" height="22" class="cell" />
+<rect x="611" y="422" width="22" height="22" class="cell" />
+<rect x="633" y="422" width="22" height="22" class="cell cellMasked" />
+<rect x="545" y="444" width="22" height="22" class="cell" />
+<rect x="567" y="444" width="22" height="22" class="cell" />
+<rect x="589" y="444" width="22" height="22" class="cell" />
+<rect x="611" y="444" width="22" height="22" class="cell" />
+<rect x="633" y="444" width="22" height="22" class="cell cellMasked" />
+<rect x="545" y="466" width="22" height="22" class="cell cellMasked" />
+<rect x="567" y="466" width="22" height="22" class="cell cellMasked" />
+<rect x="589" y="466" width="22" height="22" class="cell cellMasked" />
+<rect x="611" y="466" width="22" height="22" class="cell cellMasked" />
+<rect x="633" y="466" width="22" height="22" class="cell cellMasked" />
+<rect x="545" y="378" width="88" height="88" class="validBox" stroke="#1B7F91" />
+<text x="549" y="462" class="axisText">Rv</text>
+<text x="629" y="390" class="axisText" text-anchor="end">Cv</text>
+<path d="M 555 388 L 589 388" class="axisLine" marker-end="url(#axisArrow)" />
+<path d="M 555 388 L 555 422" class="axisLine" marker-end="url(#axisArrow)" />
+<text x="593" y="392" class="axisText">c</text>
+<text x="553" y="426" class="axisText" text-anchor="end">r</text>
+<path d="M 385 300 L 385 343 L 600 343 L 600 366" class="arrow" stroke="#1B7F91" marker-end="url(#arrow)" />
+<path d="M 543 360 L 543 353 L 600 353 L 600 366" class="arrow" stroke="#1B7F91" marker-end="url(#arrow)" />
+<path d="M 679 300 L 679 363 L 600 363 L 600 366" class="arrow" stroke="#1B7F91" marker-end="url(#arrow)" />
+<path d="M 815 360 L 815 373 L 600 373 L 600 366" class="arrow" stroke="#1B7F91" marker-end="url(#arrow)" />
+<rect x="40" y="502" width="1120" height="194" class="procBox" />
+<text x="56" y="528" class="procTitle">Procedure (conceptual)</text>
+<text x="56" y="554" class="procText" xml:space="preserve">
+  <tspan x="56" dy="0">TEXTRACT places HiF4 data in L0A/L0B and scale patches in L0AMX/L0BMX.</tspan>
+  <tspan x="56" dy="16">Each 64B scale patch carries Ea/Eb and Ec metadata for 64-value groups.</tspan>
+  <tspan x="56" dy="16">mad_mx(hifloat4x2_t) applies the three-level scale inside Cube.</tspan>
+  <tspan x="56" dy="16">Accumulate into L0C as FP32; TSTORE/FIXPIPE may cast the result to BF16.</tspan>
+</text>
+<text x="56" y="680" class="meta">Note: semantics apply to the valid region unless stated otherwise.</text>
+</svg>

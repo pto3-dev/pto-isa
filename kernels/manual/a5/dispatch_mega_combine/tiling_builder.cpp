@@ -26,22 +26,19 @@ constexpr uint32_t kDispatchRouteItemAlignment = 256U;
 constexpr uint32_t kDispatchMetaSlotBytes = 32U;
 constexpr uint32_t kDispatchRouteCountBytes = 32U;
 constexpr uint32_t kDispatchMaskLoadGuardBytes = 256U;
-constexpr uint32_t kMaxCombineVecTileElems = 8192U;
 constexpr uint32_t kMaxUnpermuteVecTileElems = 8192U;
 constexpr uint32_t kHalfDataBlockElems = 16U;
 constexpr uint32_t kFrontMetadataSortRunMaxElems = 6144U;
 constexpr uint32_t kFrontMetadataSortAlignElems = 32U;
-constexpr uint32_t kFrontMetadataSortOutLoopElems = 2040U;
 constexpr uint32_t kUnpermuteMetadataTokenBatchTarget = 64U;
 constexpr uint32_t kMxDataAlignmentBytes = 256U;
 constexpr uint32_t kMxScaleAlignmentBytes = 32U;
-constexpr uint32_t kReadyCountSlotBytes = 64U;
 
 uint64_t AlignUp(uint64_t value, uint64_t align);
 
-uint64_t CheckedMul(uint64_t lhs, uint64_t rhs, const char *name);
+uint64_t CheckedMul(uint64_t lhs, uint64_t rhs, const char* name);
 
-uint64_t CheckedAdd(uint64_t lhs, uint64_t rhs, const char *name);
+uint64_t CheckedAdd(uint64_t lhs, uint64_t rhs, const char* name);
 
 uint32_t Pow4Ceil(uint32_t value)
 {
@@ -97,6 +94,7 @@ constexpr A5FixedScheduleConfig kCanonicalShapeSchedules[] = {
      .dispatchGroupSize = 24U,
      .gmm1GroupSize = 22U,
      .gmm2GroupSize = 14U,
+     .fullAicGmm1WaveCount = 4U,
      .unpermuteTwoPhaseMinM = 512U,
      .unpermutePhase1Aiv0WorkerCount = 16U},
     {.epSize = 16U,
@@ -110,12 +108,12 @@ constexpr A5FixedScheduleConfig kCanonicalShapeSchedules[] = {
      .unpermutePhase1Aiv0WorkerCount = 16U},
 };
 
-constexpr bool IsDefaultSchedule(const A5FixedScheduleConfig &schedule)
+constexpr bool IsDefaultSchedule(const A5FixedScheduleConfig& schedule)
 {
     return schedule.epSize == 0U && schedule.shapeConfigM == 0U && schedule.expertPerRank == 0U;
 }
 
-bool IsCanonicalShapeFamily(const CaseConfig &cfg)
+bool IsCanonicalShapeFamily(const CaseConfig& cfg)
 {
     const bool canonicalExpertShape =
         cfg.expert_per_rank == 16U || (cfg.expert_per_rank == 4U && cfg.world_size == 8U && cfg.m == 512U);
@@ -123,7 +121,7 @@ bool IsCanonicalShapeFamily(const CaseConfig &cfg)
            (cfg.world_size == 8U || cfg.world_size == 16U);
 }
 
-bool MatchesShape(const A5FixedScheduleConfig &schedule, const CaseConfig &cfg)
+bool MatchesShape(const A5FixedScheduleConfig& schedule, const CaseConfig& cfg)
 {
     return !IsDefaultSchedule(schedule) && schedule.epSize == cfg.world_size && schedule.shapeConfigM == cfg.m &&
            schedule.expertPerRank == cfg.expert_per_rank && schedule.physicalAicNum == cfg.aic_num;
@@ -139,25 +137,13 @@ void RequireMxShape(uint32_t k, uint32_t n)
     }
 }
 
-uint64_t MxQuantDataStorageBytes(uint32_t cols)
-{
-    return AlignUp(cols, kMxDataAlignmentBytes);
-}
+uint64_t MxQuantDataStorageBytes(uint32_t cols) { return AlignUp(cols, kMxDataAlignmentBytes); }
 
-uint64_t MxQuantScaleCols(uint32_t cols)
-{
-    return cols / kMegaMoeMxGroupSize;
-}
+uint64_t MxQuantScaleCols(uint32_t cols) { return cols / kMegaMoeMxGroupSize; }
 
-uint64_t MxQuantScaleStorageBytes(uint32_t cols)
-{
-    return AlignUp(MxQuantScaleCols(cols), kMxScaleAlignmentBytes);
-}
+uint64_t MxQuantScaleStorageBytes(uint32_t cols) { return AlignUp(MxQuantScaleCols(cols), kMxScaleAlignmentBytes); }
 
-uint64_t MxPackedRowStride(uint32_t cols)
-{
-    return MxQuantDataStorageBytes(cols) + MxQuantScaleStorageBytes(cols);
-}
+uint64_t MxPackedRowStride(uint32_t cols) { return MxQuantDataStorageBytes(cols) + MxQuantScaleStorageBytes(cols); }
 
 void RequireDispatchPackedRowCapacity(uint64_t packedRowStride)
 {
@@ -177,33 +163,9 @@ void RequireFrontQuantUbCapacity(uint32_t k)
     }
 }
 
-uint64_t SwigluUbBytes(uint32_t n)
-{
-    const uint64_t outputN = n / 2U;
-    const uint64_t cBf16Bytes = AlignUp(CheckedMul(n, sizeof(uint16_t), "SwiGLU BF16 row"), UB_ALIGN);
-    const uint64_t cFp32Bytes = AlignUp(CheckedMul(n, sizeof(float), "SwiGLU FP32 row"), UB_ALIGN);
-    const uint64_t workFp32Bytes = AlignUp(CheckedMul(outputN, sizeof(float), "SwiGLU work row"), UB_ALIGN);
-    const uint64_t stageBytes =
-        CheckedAdd(CheckedAdd(cBf16Bytes, cFp32Bytes, "SwiGLU UB stage"), workFp32Bytes, "SwiGLU UB stage");
-    return CheckedMul(stageBytes, 2U, "SwiGLU ping-pong UB");
-}
-
-void RequireSwigluUbCapacity(uint32_t n)
-{
-    if (SwigluUbBytes(n) > A5_MAIN_UB_SIZE) {
-        throw std::runtime_error("SwiGLU row ping-pong buffers exceed A5 main UB budget");
-    }
-}
-
-void RequireCombineUbCapacity(uint32_t tileCols)
-{
-    if (tileCols > kMaxCombineVecTileElems) {
-        throw std::runtime_error("combine K exceeds the A5 vector tile width");
-    }
-}
-
-uint64_t UnpermuteUbBytes(uint32_t metadataTokenRows, uint32_t topk, uint32_t tileCols,
-                          uint32_t metadataBufferCount, uint32_t inputBufferCount)
+uint64_t UnpermuteUbBytes(
+    uint32_t metadataTokenRows, uint32_t topk, uint32_t tileCols, uint32_t metadataBufferCount,
+    uint32_t inputBufferCount)
 {
     uint64_t metadataBytes = 0U;
     for (uint32_t i = 0; i < metadataBufferCount; ++i) {
@@ -213,12 +175,13 @@ uint64_t UnpermuteUbBytes(uint32_t metadataTokenRows, uint32_t topk, uint32_t ti
     const uint64_t bf16SlotBytes = AlignUp(static_cast<uint64_t>(tileCols) * sizeof(uint16_t), UB_ALIGN);
     const uint64_t fp32SlotBytes = AlignUp(static_cast<uint64_t>(tileCols) * sizeof(float), UB_ALIGN);
     const uint64_t dataSlotBytes = CheckedAdd(bf16SlotBytes, fp32SlotBytes, "Unpermute data slot");
-    return CheckedAdd(metadataBytes, CheckedMul(inputBufferCount + 1U, dataSlotBytes, "Unpermute data ring"),
-                      "Unpermute UB");
+    return CheckedAdd(
+        metadataBytes, CheckedMul(inputBufferCount + 1U, dataSlotBytes, "Unpermute data ring"), "Unpermute UB");
 }
 
-void RequireUnpermuteUbCapacity(uint32_t metadataTokenRows, uint32_t topk, uint32_t tileCols,
-                                uint32_t metadataBufferCount, uint32_t inputBufferCount)
+void RequireUnpermuteUbCapacity(
+    uint32_t metadataTokenRows, uint32_t topk, uint32_t tileCols, uint32_t metadataBufferCount,
+    uint32_t inputBufferCount)
 {
     if (inputBufferCount < kMegaMoeUnpermuteMinInputBufferCount ||
         inputBufferCount > kMegaMoeUnpermuteMaxInputBufferCount ||
@@ -231,19 +194,21 @@ uint32_t ChooseUnpermuteTileCols(uint32_t k, uint32_t metadataTokenRows, uint32_
 {
     uint32_t tileCols = std::min(k, kMaxUnpermuteVecTileElems);
     tileCols = tileCols / kHalfDataBlockElems * kHalfDataBlockElems;
-    while (tileCols > kHalfDataBlockElems && UnpermuteUbBytes(metadataTokenRows, topk, tileCols, metadataBufferCount,
-                                                              kMegaMoeUnpermuteMinInputBufferCount) > A5_MAIN_UB_SIZE) {
+    while (tileCols > kHalfDataBlockElems && UnpermuteUbBytes(
+                                                 metadataTokenRows, topk, tileCols, metadataBufferCount,
+                                                 kMegaMoeUnpermuteMinInputBufferCount) > A5_MAIN_UB_SIZE) {
         tileCols -= kHalfDataBlockElems;
     }
-    if (tileCols == 0U || UnpermuteUbBytes(metadataTokenRows, topk, tileCols, metadataBufferCount,
-                                           kMegaMoeUnpermuteMinInputBufferCount) > A5_MAIN_UB_SIZE) {
+    if (tileCols == 0U ||
+        UnpermuteUbBytes(metadataTokenRows, topk, tileCols, metadataBufferCount, kMegaMoeUnpermuteMinInputBufferCount) >
+            A5_MAIN_UB_SIZE) {
         throw std::runtime_error("unable to choose unpermute tile cols within A5 main UB budget");
     }
     return tileCols;
 }
 
-uint32_t ChooseUnpermuteInputBufferCount(uint32_t metadataTokenRows, uint32_t topk, uint32_t tileCols,
-                                         uint32_t metadataBufferCount)
+uint32_t ChooseUnpermuteInputBufferCount(
+    uint32_t metadataTokenRows, uint32_t topk, uint32_t tileCols, uint32_t metadataBufferCount)
 {
     const uint32_t accumulationItemCount = metadataTokenRows * topk;
     for (uint32_t count = kMegaMoeUnpermuteMaxInputBufferCount; count >= kMegaMoeUnpermuteMinInputBufferCount;
@@ -267,7 +232,7 @@ uint64_t AlignUp(uint64_t value, uint64_t align)
     return (value + align - 1) / align * align;
 }
 
-void PopulateDispatchBufferTiling(MegaMoeDispatchTiling &dispatch, const MegaMoeFrontReorderTiling &front)
+void PopulateDispatchBufferTiling(MegaMoeDispatchTiling& dispatch, const MegaMoeFrontReorderTiling& front)
 {
     if (front.routeElems == 0U || front.packedRowStride == 0U) {
         throw std::runtime_error("dispatch requires nonzero route items and packed row stride");
@@ -302,14 +267,10 @@ void PopulateDispatchBufferTiling(MegaMoeDispatchTiling &dispatch, const MegaMoe
     }
 
     dispatch.routeItemsPerBatch = static_cast<uint32_t>(routeItemsPerBatch);
-    dispatch.routeBatchCount = static_cast<uint32_t>((front.routeElems + routeItemsPerBatch - 1U) / routeItemsPerBatch);
     dispatch.bufferCount = static_cast<uint32_t>(bufferCount);
     dispatch.copyBufferBytes = static_cast<uint32_t>(copyBufferBytes);
 
-    uint64_t ubOffset = 0U;
-    dispatch.copyBufferUbOffset = static_cast<uint32_t>(ubOffset);
-    ubOffset += bufferCount * copyBufferBytes;
-    dispatch.metaBufferUbOffset = static_cast<uint32_t>(ubOffset);
+    uint64_t ubOffset = bufferCount * copyBufferBytes;
     ubOffset += bufferCount * kDispatchMetaSlotBytes;
     dispatch.routeIndexUbOffset = static_cast<uint32_t>(ubOffset);
     ubOffset = AlignUp(ubOffset + routeItemsPerBatch * sizeof(uint32_t), UB_ALIGN);
@@ -331,9 +292,9 @@ uint64_t CeilDivU64(uint64_t value, uint64_t divisor)
     return value / divisor + (value % divisor != 0U ? 1U : 0U);
 }
 
-void PopulateWaveSchedule(MegaMoeTilingData &tiling, const A5FixedScheduleConfig &schedule, const CaseConfig &cfg)
+void PopulateWaveSchedule(MegaMoeTilingData& tiling, const A5FixedScheduleConfig& schedule, const CaseConfig& cfg)
 {
-    MegaMoeFixedGroupTiling &fixed = tiling.fixedGroupTiling;
+    MegaMoeFixedGroupTiling& fixed = tiling.fixedGroupTiling;
     MegaMoeWavePlannerInput plannerInput = {
         .inputRows = cfg.m,
         .topK = cfg.topk,
@@ -350,30 +311,31 @@ void PopulateWaveSchedule(MegaMoeTilingData &tiling, const A5FixedScheduleConfig
     plannerInput.activeAicNum = fixed.gmm1GroupSize;
     fixed.expertsPerWave = CalcExpertsPerWave(plannerInput);
     fixed.totalWaveCount = GetTotalWaveCount(
-        cfg.expert_per_rank, fixed.fullAicExpertsPerWave, fixed.expertsPerWave, kMegaMoeFullAicGmm1WaveCount);
+        cfg.expert_per_rank, fixed.fullAicExpertsPerWave, fixed.expertsPerWave, fixed.fullAicGmm1WaveCount);
 }
 
-void ValidateFixedSchedule(const MegaMoeFixedGroupTiling &fixed, const CaseConfig &cfg)
+void ValidateFixedSchedule(const MegaMoeFixedGroupTiling& fixed, const CaseConfig& cfg)
 {
     if (fixed.gmm1GroupSize + fixed.gmm2GroupSize != fixed.physicalAicNum) {
         throw std::runtime_error("fixed AIC group sizes must cover all physical AICs");
     }
     if (fixed.dispatchGroupSize == 0U || fixed.dispatchGroupSize > kMegaMoeFixedDispatchGroupSize ||
-        fixed.dispatchGroupSize > fixed.physicalAicNum || fixed.gmm1GroupSize == 0U ||
+        fixed.dispatchGroupSize + 1U >= fixed.physicalAicNum || fixed.gmm1GroupSize == 0U ||
         fixed.gmm1GroupSize > fixed.dispatchGroupSize || fixed.gmm1GroupSize > kMegaMoeFixedGmm1GroupSize ||
         fixed.gmm2GroupSize == 0U || fixed.gmm2GroupSize > kMegaMoeFixedGmm2GroupSize) {
         throw std::runtime_error("fixed Dispatch/GMM/SwiGLU groups exceed the A5 mixed-core capacities");
     }
     if (fixed.fullAicExpertsPerWave == 0U || fixed.fullAicExpertsPerWave > cfg.expert_per_rank ||
         fixed.expertsPerWave == 0U || fixed.expertsPerWave > cfg.expert_per_rank || fixed.totalWaveCount == 0U ||
+        fixed.fullAicGmm1WaveCount == 0U || fixed.fullAicGmm1WaveCount > fixed.totalWaveCount ||
         fixed.totalWaveCount !=
-            GetTotalWaveCount(cfg.expert_per_rank, fixed.fullAicExpertsPerWave,
-                                                      fixed.expertsPerWave, kMegaMoeFullAicGmm1WaveCount)) {
+            GetTotalWaveCount(
+                cfg.expert_per_rank, fixed.fullAicExpertsPerWave, fixed.expertsPerWave, fixed.fullAicGmm1WaveCount)) {
         throw std::runtime_error("invalid expert wave partition");
     }
 }
 
-uint64_t CheckedMul(uint64_t lhs, uint64_t rhs, const char *name)
+uint64_t CheckedMul(uint64_t lhs, uint64_t rhs, const char* name)
 {
     if (lhs != 0U && rhs > UINT64_MAX / lhs) {
         throw std::runtime_error(std::string(name) + " byte size overflows uint64");
@@ -381,7 +343,7 @@ uint64_t CheckedMul(uint64_t lhs, uint64_t rhs, const char *name)
     return lhs * rhs;
 }
 
-uint64_t CheckedAdd(uint64_t lhs, uint64_t rhs, const char *name)
+uint64_t CheckedAdd(uint64_t lhs, uint64_t rhs, const char* name)
 {
     if (rhs > UINT64_MAX - lhs) {
         throw std::runtime_error(std::string(name) + " end offset overflows uint64");
@@ -389,26 +351,25 @@ uint64_t CheckedAdd(uint64_t lhs, uint64_t rhs, const char *name)
     return lhs + rhs;
 }
 
-void RequireAlignedRange(const char *name, uint64_t offset, uint64_t bytes)
+void RequireAlignedRange(const char* name, uint64_t offset, uint64_t bytes)
 {
     if (offset % 512U != 0U || bytes % 512U != 0U) {
         throw std::runtime_error(std::string(name) + " must be 512-byte aligned");
     }
 }
 
-uint64_t AllocateAlignedSection(uint64_t &offset, uint64_t rawBytes, const char *name)
+uint64_t AllocateAlignedSection(uint64_t& offset, uint64_t rawBytes, const char* name)
 {
     const uint64_t begin = AlignUp(offset, 512U);
     offset = AlignUp(CheckedAdd(begin, rawBytes, name), 512U);
     return begin;
 }
 
-uint64_t PopulateFrontTiling(MegaMoeFrontReorderTiling &front, const CaseConfig &cfg,
-                             const StandaloneRankRuntime &runtime)
+uint64_t PopulateFrontTiling(
+    MegaMoeFrontReorderTiling& front, const CaseConfig& cfg, const StandaloneRankRuntime& runtime)
 {
     constexpr uint64_t kPeerAlignBytes = 512U;
     constexpr uint64_t kPeerSignalBytes = MB_SIZE;
-    constexpr uint32_t kMaskRouteItemsPerBatch = 2048U;
 
     const uint64_t expertNum = CheckedMul(cfg.world_size, cfg.expert_per_rank, "expert count");
     const uint64_t routeElems = CheckedMul(cfg.m, cfg.topk, "route count");
@@ -444,11 +405,9 @@ uint64_t PopulateFrontTiling(MegaMoeFrontReorderTiling &front, const CaseConfig 
         throw std::runtime_error("route mask slot exceeds uint32");
     }
     front.maskSlotBytes = static_cast<uint32_t>(maskSlotBytes);
-    front.maskRouteItemsPerBatch = kMaskRouteItemsPerBatch;
     front.maskLaneCapacity = static_cast<uint32_t>(maskLaneCapacity);
 
     const uint64_t sourceTokenRecordBytes = CheckedMul(cfg.m, front.packedRowStride, "source token records");
-    front.sourceTokenRecordOffset = 0U;
     front.routeMaskOffset = AlignUp(sourceTokenRecordBytes, kPeerAlignBytes);
     const uint64_t maskSlotCount = CheckedMul(cfg.expert_per_rank, cfg.world_size, "route mask slots");
     const uint64_t routeMaskBytes = CheckedMul(maskSlotCount, front.maskSlotBytes, "route mask slots");
@@ -456,24 +415,23 @@ uint64_t PopulateFrontTiling(MegaMoeFrontReorderTiling &front, const CaseConfig 
         AlignUp(CheckedAdd(front.routeMaskOffset, routeMaskBytes, "route mask slots"), kPeerAlignBytes);
     const uint64_t combineRowsAndCols = CheckedMul(routeElems, cfg.k, "combine route output");
     const uint64_t combineOutputBytes = CheckedMul(combineRowsAndCols, sizeof(uint16_t), "combine route output");
-    front.preSumBeforeRankPeerOffset = AlignUp(
-        CheckedAdd(front.combineOutputOffset, combineOutputBytes, "combine route output"), kPeerAlignBytes);
+    front.preSumBeforeRankPeerOffset =
+        AlignUp(CheckedAdd(front.combineOutputOffset, combineOutputBytes, "combine route output"), kPeerAlignBytes);
     const uint64_t preSumBeforeRankPeerBytes =
         AlignUp(CheckedMul(expertNum, sizeof(int32_t), "preSumBeforeRank peer rows"), kPeerAlignBytes);
-    const uint64_t peerDataBytes =
-        AlignUp(CheckedAdd(front.preSumBeforeRankPeerOffset, preSumBeforeRankPeerBytes, "preSumBeforeRank peer rows"),
-                kPeerAlignBytes);
+    const uint64_t peerDataBytes = AlignUp(
+        CheckedAdd(front.preSumBeforeRankPeerOffset, preSumBeforeRankPeerBytes, "preSumBeforeRank peer rows"),
+        kPeerAlignBytes);
 
     const uint64_t windowBytes = runtime.hccl.WindowBytes();
     if (windowBytes < kPeerSignalBytes) {
         throw std::runtime_error("HCCL window is smaller than the reserved signal section");
     }
     const uint64_t peerSignalOffset = windowBytes - kPeerSignalBytes;
-    front.peerSignalOffset = peerSignalOffset;
     if (peerDataBytes > peerSignalOffset) {
-        throw std::runtime_error("HCCL window is too small for Mask Pull peer layout: windowBytes=" +
-                                 std::to_string(windowBytes) + " dataBytes=" + std::to_string(peerDataBytes) +
-                                 " signalOffset=" + std::to_string(peerSignalOffset));
+        throw std::runtime_error(
+            "HCCL window is too small for Mask Pull peer layout: windowBytes=" + std::to_string(windowBytes) +
+            " dataBytes=" + std::to_string(peerDataBytes) + " signalOffset=" + std::to_string(peerSignalOffset));
     }
     RequireAlignedRange("Mask Pull peer data", 0U, peerDataBytes);
 
@@ -493,7 +451,6 @@ uint64_t PopulateFrontTiling(MegaMoeFrontReorderTiling &front, const CaseConfig 
     front.sortRunCount = Pow4Ceil(minimumRunCount);
     front.sortRunElems =
         static_cast<uint32_t>(AlignUp(CeilDivU32(front.routeElems, front.sortRunCount), kFrontMetadataSortAlignElems));
-    front.sortOutLoopElems = kFrontMetadataSortOutLoopElems;
     if (front.sortRunElems == 0U || front.sortRunElems > kFrontMetadataSortRunMaxElems ||
         static_cast<uint64_t>(front.sortRunCount - 1U) * front.sortRunElems >= front.routeElems) {
         throw std::runtime_error("invalid front metadata VBS run split");
@@ -505,14 +462,14 @@ uint64_t PopulateFrontTiling(MegaMoeFrontReorderTiling &front, const CaseConfig 
     frontWorkspaceOffset =
         AlignUp(CheckedAdd(frontWorkspaceOffset, sortedArrayBytes, "front sorted route slots"), kPeerAlignBytes);
 
-    const uint64_t sortWorkspaceBytes = AlignUp(
-        CheckedMul(alignedRouteElems, 2U * sizeof(float), "front packed sort workspace"), kPeerAlignBytes);
+    const uint64_t sortWorkspaceBytes =
+        AlignUp(CheckedMul(alignedRouteElems, 2U * sizeof(float), "front packed sort workspace"), kPeerAlignBytes);
     front.sortWorkspace0Offset = frontWorkspaceOffset;
-    frontWorkspaceOffset = AlignUp(
-        CheckedAdd(frontWorkspaceOffset, sortWorkspaceBytes, "front packed sort workspace 0"), kPeerAlignBytes);
+    frontWorkspaceOffset =
+        AlignUp(CheckedAdd(frontWorkspaceOffset, sortWorkspaceBytes, "front packed sort workspace 0"), kPeerAlignBytes);
     front.sortWorkspace1Offset = frontWorkspaceOffset;
-    frontWorkspaceOffset = AlignUp(
-        CheckedAdd(frontWorkspaceOffset, sortWorkspaceBytes, "front packed sort workspace 1"), kPeerAlignBytes);
+    frontWorkspaceOffset =
+        AlignUp(CheckedAdd(frontWorkspaceOffset, sortWorkspaceBytes, "front packed sort workspace 1"), kPeerAlignBytes);
     RequireAlignedRange("expandedRowIdx", front.expandedRowIdxOffset, expandedRowIdxBytes);
     RequireAlignedRange("sortedRouteSlot", front.sortedRouteSlotOffset, sortedArrayBytes);
     RequireAlignedRange("sortWorkspace0", front.sortWorkspace0Offset, sortWorkspaceBytes);
@@ -520,10 +477,10 @@ uint64_t PopulateFrontTiling(MegaMoeFrontReorderTiling &front, const CaseConfig 
     return frontWorkspaceOffset;
 }
 
-uint64_t AllocatePipelineWorkspace(MegaMoeTilingData &tiling, const CaseConfig &cfg, uint64_t frontWorkspaceBytes)
+uint64_t AllocatePipelineWorkspace(MegaMoeTilingData& tiling, const CaseConfig& cfg, uint64_t frontWorkspaceBytes)
 {
-    auto &dispatch = tiling.dispatchTiling;
-    auto &swiglu = tiling.swigluTiling;
+    auto& dispatch = tiling.dispatchTiling;
+    auto& swiglu = tiling.swigluTiling;
 
     const uint64_t rowCount = cfg.max_output_size;
     const uint64_t gmAElems = CheckedMul(rowCount, cfg.k, "gmA elements");
@@ -549,30 +506,27 @@ uint64_t AllocatePipelineWorkspace(MegaMoeTilingData &tiling, const CaseConfig &
     if (maxTilesPerExpert == 0U || maxTilesPerExpert > UINT32_MAX) {
         throw std::runtime_error("Dispatch ready-count tile capacity exceeds uint32");
     }
-    dispatch.readyCountSlotBytes = kReadyCountSlotBytes;
     dispatch.readyCountMaxTilesPerExpert = static_cast<uint32_t>(maxTilesPerExpert);
-    dispatch.readyCountExpertStrideBytes =
-        CheckedMul(maxTilesPerExpert, kReadyCountSlotBytes, "Dispatch ready-count expert stride");
+    const uint64_t readyCountExpertStrideBytes =
+        CheckedMul(maxTilesPerExpert, kMegaMoeReadyCountSlotBytes, "Dispatch ready-count expert stride");
     const uint64_t readyCountRawBytes =
-        CheckedMul(cfg.expert_per_rank, dispatch.readyCountExpertStrideBytes, "Dispatch ready-count workspace");
+        CheckedMul(cfg.expert_per_rank, readyCountExpertStrideBytes, "Dispatch ready-count workspace");
     dispatch.readyCountOffset =
         AllocateAlignedSection(workspaceOffset, readyCountRawBytes, "Dispatch ready-count workspace");
     const uint64_t readyCountBytes = workspaceOffset - dispatch.readyCountOffset;
-    dispatch.readyCountBytes = readyCountBytes;
     RequireAlignedRange("Dispatch ready-count workspace", dispatch.readyCountOffset, readyCountBytes);
     return workspaceOffset;
 }
 
-void AllocateGmmQueueWorkspace(MegaMoeGmmQueueTiling &queue, uint64_t normalTaskCapacity,
-                               uint64_t dependencySlotCount, uint32_t completionSlotCount, const char *stageName,
-                               uint64_t &workspaceOffset)
+void AllocateGmmQueueWorkspace(
+    MegaMoeGmmQueueTiling& queue, uint64_t normalTaskCapacity, uint64_t dependencySlotCount,
+    uint32_t completionSlotCount, const char* stageName, uint64_t& workspaceOffset)
 {
     if (normalTaskCapacity == 0U || normalTaskCapacity > UINT32_MAX || dependencySlotCount > UINT32_MAX) {
         throw std::runtime_error(std::string(stageName) + " task capacity exceeds the queue protocol");
     }
 
-    queue.controlOffset =
-        AllocateAlignedSection(workspaceOffset, sizeof(MegaMoeGmmQueueControl), "GMM queue control");
+    queue.controlOffset = AllocateAlignedSection(workspaceOffset, sizeof(MegaMoeGmmQueueControl), "GMM queue control");
     const uint64_t controlBytes = workspaceOffset - queue.controlOffset;
     queue.taskOffset = AllocateAlignedSection(
         workspaceOffset, CheckedMul(normalTaskCapacity, sizeof(MegaMoeGmmTaskDescriptor), "GMM task descriptors"),
@@ -603,30 +557,28 @@ void AllocateGmmQueueWorkspace(MegaMoeGmmQueueTiling &queue, uint64_t normalTask
     }
 }
 
-void AllocateGmmSchedulerWorkspace(MegaMoeTilingData &tiling, const CaseConfig &cfg, uint64_t &workspaceOffset)
+void AllocateGmmSchedulerWorkspace(MegaMoeTilingData& tiling, const CaseConfig& cfg, uint64_t& workspaceOffset)
 {
-    const MegaMoeFixedGroupTiling &fixed = tiling.fixedGroupTiling;
-    MegaMoeGmmSchedulerTiling &scheduler = tiling.gmmSchedulerTiling;
+    const MegaMoeFixedGroupTiling& fixed = tiling.fixedGroupTiling;
+    MegaMoeGmmSchedulerTiling& scheduler = tiling.gmmSchedulerTiling;
     const bool gmm1Mailbox = scheduler.gmm1ScheduleMode == kMegaMoeGmm1ScheduleWave0MailboxSuffix;
     const uint64_t maxMTiles = CeilDivU64(cfg.max_output_size, kMegaMoeGmmTileM);
     const uint64_t mTileCapacity = CheckedAdd(maxMTiles, cfg.expert_per_rank - 1U, "GMM M-tile capacity");
     const uint64_t gmm1NTiles = CeilDivU64(cfg.n / 2U, kMegaMoeGmmTileN);
     const uint64_t gmm2NTiles = CeilDivU64(cfg.k, kMegaMoeGmmTileN);
     if (cfg.expert_per_rank > kGmmTaskExpertMask + 1U || maxMTiles > kGmmTaskBlockMMask + 1U ||
-        gmm1NTiles > kGmmTaskBlockNMask + 1U ||
-        gmm2NTiles > kGmmTaskBlockNMask + 1U) {
+        gmm1NTiles > kGmmTaskBlockNMask + 1U || gmm2NTiles > kGmmTaskBlockNMask + 1U) {
         throw std::runtime_error("GMM task coordinates exceed the packed descriptor bit capacity");
     }
     const uint64_t gmm1NormalCapacity = CheckedMul(mTileCapacity, gmm1NTiles, "GMM1 normal task capacity");
     const uint64_t gmm2NormalCapacity = CheckedMul(mTileCapacity, gmm2NTiles, "GMM2 normal task capacity");
     const uint64_t gmm2DependencySlots = CheckedMul(cfg.expert_per_rank, maxMTiles, "GMM2 dependency counters");
 
-    scheduler.producerPhysicalBlockId = fixed.physicalAicNum - 1U;
     if (gmm1Mailbox) {
         AllocateGmmQueueWorkspace(scheduler.gmm1, gmm1NormalCapacity, 0U, 0U, "GMM1", workspaceOffset);
     }
-    AllocateGmmQueueWorkspace(scheduler.gmm2, gmm2NormalCapacity, gmm2DependencySlots, cfg.expert_per_rank,
-                              "GMM2", workspaceOffset);
+    AllocateGmmQueueWorkspace(
+        scheduler.gmm2, gmm2NormalCapacity, gmm2DependencySlots, cfg.expert_per_rank, "GMM2", workspaceOffset);
 
     const uint64_t gmm1TicketSpan = gmm1Mailbox ? gmm1NormalCapacity : 0U;
     const uint64_t gmm2TicketBase = CheckedAdd(1U, gmm1TicketSpan, "GMM2 mailbox ticket base");
@@ -635,11 +587,8 @@ void AllocateGmmSchedulerWorkspace(MegaMoeTilingData &tiling, const CaseConfig &
         throw std::runtime_error("GMM mailbox ticket namespace exceeds the control-token range");
     }
 
-    MegaMoeGmmMailboxTiling &mailbox = scheduler.mailbox;
-    mailbox.physicalAicCount = fixed.physicalAicNum;
-    mailbox.gmm1TicketBase = 1U;
+    MegaMoeGmmMailboxTiling& mailbox = scheduler.mailbox;
     mailbox.gmm2TicketBase = static_cast<uint32_t>(gmm2TicketBase);
-    mailbox.enabled = 1U;
     mailbox.p2cOffset = AllocateAlignedSection(
         workspaceOffset, GmmMailboxP2cStorageBytes(kMegaMoeFixedPhysicalAicNum), "GMM P2C mailbox");
     const uint64_t p2cBytes = workspaceOffset - mailbox.p2cOffset;
@@ -651,28 +600,18 @@ void AllocateGmmSchedulerWorkspace(MegaMoeTilingData &tiling, const CaseConfig &
     RequireAlignedRange("GMM C2P mailbox", mailbox.c2pOffset, c2pBytes);
 }
 
-void AllocateFixedGroupWorkspace(MegaMoeTilingData &tiling, const A5FixedScheduleConfig &schedule,
-                                 const CaseConfig &cfg, uint64_t &workspaceOffset)
+void AllocateFixedGroupWorkspace(
+    MegaMoeTilingData& tiling, const A5FixedScheduleConfig& schedule, const CaseConfig& cfg, uint64_t& workspaceOffset)
 {
-    MegaMoeFixedGroupTiling &fixed = tiling.fixedGroupTiling;
+    MegaMoeFixedGroupTiling& fixed = tiling.fixedGroupTiling;
     fixed.physicalAicNum = schedule.physicalAicNum;
-    fixed.physicalAivNum = schedule.PhysicalAivNum();
     fixed.dispatchGroupSize = std::max(schedule.dispatchGroupSize, cfg.world_size);
     fixed.gmm1GroupSize = schedule.gmm1GroupSize;
     fixed.gmm2GroupSize = schedule.gmm2GroupSize;
-    fixed.swigluActiveGroupSize = schedule.physicalAicNum;
-    fixed.fullAicGmm1WaveCount = kMegaMoeFullAicGmm1WaveCount;
+    fixed.fullAicGmm1WaveCount = schedule.fullAicGmm1WaveCount;
     tiling.gmmSchedulerTiling.gmm1ScheduleMode = MegaMoeResolveAutoGmm1ScheduleMode(cfg.m);
     PopulateWaveSchedule(tiling, schedule, cfg);
     ValidateFixedSchedule(fixed, cfg);
-
-    const MegaMoeDispatchTiling &dispatch = tiling.dispatchTiling;
-    const uint64_t readyCountEnd =
-        CheckedAdd(dispatch.readyCountOffset, dispatch.readyCountBytes, "Dispatch ready-count workspace");
-    if (dispatch.readyCountSlotBytes != kReadyCountSlotBytes ||
-        readyCountEnd > AlignUp(workspaceOffset, 512U)) {
-        throw std::runtime_error("Dispatch ready-count workspace overlaps fixed synchronization storage");
-    }
 
     AllocateGmmSchedulerWorkspace(tiling, cfg, workspaceOffset);
 
@@ -685,27 +624,24 @@ void AllocateFixedGroupWorkspace(MegaMoeTilingData &tiling, const A5FixedSchedul
     RequireAlignedRange("fixedGroupCompletion", fixed.completionOffset, completionBytes);
 }
 
-bool CanUseRankStreaming(const CaseConfig &cfg, uint32_t workerCount, uint32_t initialWorkerCount)
+bool CanUseRankStreaming(const CaseConfig& cfg, uint32_t workerCount, uint32_t initialWorkerCount)
 {
     if (workerCount == 0U) {
         return false;
     }
     const uint64_t tokensPerWorker = CeilDivU64(cfg.m, workerCount);
-    const uint64_t phase1TokensPerWorker =
-        initialWorkerCount == 0U ? 0U : CeilDivU64(cfg.m, initialWorkerCount);
-    return cfg.m != 0U && cfg.topk != 0U && cfg.topk <= 32U && cfg.expert_per_rank != 0U &&
-           cfg.world_size != 0U &&
+    const uint64_t phase1TokensPerWorker = initialWorkerCount == 0U ? 0U : CeilDivU64(cfg.m, initialWorkerCount);
+    return cfg.m != 0U && cfg.topk != 0U && cfg.topk <= 32U && cfg.expert_per_rank != 0U && cfg.world_size != 0U &&
            cfg.world_size <= kMegaMoeExpertProgressMaxRanks &&
            tokensPerWorker <= kMegaMoeRankStreamingMaxTokensPerWorker &&
            (initialWorkerCount == 0U || phase1TokensPerWorker <= kMegaMoeRankStreamingMaxTokensPerWorker);
 }
 
-void PopulateUnpermuteTiling(MegaMoeTilingData &tiling, const A5FixedScheduleConfig &schedule,
-                             const CaseConfig &cfg)
+void PopulateUnpermuteTiling(MegaMoeTilingData& tiling, const A5FixedScheduleConfig& schedule, const CaseConfig& cfg)
 {
-    MegaMoeUnpermuteTiling &unpermute = tiling.unpermuteTiling;
+    MegaMoeUnpermuteTiling& unpermute = tiling.unpermuteTiling;
     const uint32_t physicalAicCount = tiling.fixedGroupTiling.physicalAicNum;
-    const uint32_t physicalAivCount = tiling.fixedGroupTiling.physicalAivNum;
+    const uint32_t physicalAivCount = physicalAicCount * kMegaMoeFixedAivSubblocksPerPhysicalBlock;
     const uint32_t workerCount = physicalAivCount;
     const uint32_t availableAiv0Workers = physicalAivCount - physicalAicCount;
     const bool twoPhase = cfg.m >= schedule.unpermuteTwoPhaseMinM;
@@ -714,26 +650,13 @@ void PopulateUnpermuteTiling(MegaMoeTilingData &tiling, const A5FixedScheduleCon
     if (!CanUseRankStreaming(cfg, workerCount, initialWorkerCount)) {
         throw std::runtime_error("shape exceeds the rank-streaming Unpermute capability");
     }
-    unpermute.rankStreamingWorkerCount = workerCount;
-    unpermute.rankStreamingInitialWorkerStart = initialWorkerCount != 0U ? physicalAicCount : 0U;
     unpermute.rankStreamingInitialWorkerCount = initialWorkerCount;
-    unpermute.rankStreamingCoordinatorWorker = physicalAicCount;
     const uint32_t phase2TokenBatch = static_cast<uint32_t>(CeilDivU64(cfg.m, workerCount));
     const uint32_t phase1TokenBatch =
         initialWorkerCount == 0U ? phase2TokenBatch : static_cast<uint32_t>(CeilDivU64(cfg.m, initialWorkerCount));
     const uint32_t boundedPhase1TokenBatch = std::min(phase1TokenBatch, kUnpermuteMetadataTokenBatchTarget);
     unpermute.unpermuteTokenBatch = std::max(phase2TokenBatch, boundedPhase1TokenBatch);
-    const bool invalidPhase1Range =
-        unpermute.rankStreamingInitialWorkerStart + unpermute.rankStreamingInitialWorkerCount >
-        unpermute.rankStreamingWorkerCount;
-    const bool invalidPhase1Coordinator =
-        unpermute.rankStreamingInitialWorkerCount != 0U &&
-        (unpermute.rankStreamingCoordinatorWorker < unpermute.rankStreamingInitialWorkerStart ||
-         unpermute.rankStreamingCoordinatorWorker >=
-             unpermute.rankStreamingInitialWorkerStart + unpermute.rankStreamingInitialWorkerCount);
-    if (unpermute.rankStreamingWorkerCount != physicalAivCount ||
-        unpermute.rankStreamingCoordinatorWorker >= unpermute.rankStreamingWorkerCount || invalidPhase1Range ||
-        invalidPhase1Coordinator || unpermute.unpermuteTokenBatch == 0U ||
+    if (unpermute.unpermuteTokenBatch == 0U ||
         unpermute.unpermuteTokenBatch > kMegaMoeRankStreamingMaxTokensPerWorker) {
         throw std::runtime_error("invalid final-phase unpermute worker handoff");
     }
@@ -742,15 +665,16 @@ void PopulateUnpermuteTiling(MegaMoeTilingData &tiling, const A5FixedScheduleCon
         ChooseUnpermuteTileCols(cfg.k, unpermute.unpermuteTokenBatch, cfg.topk, metadataBufferCount);
     unpermute.unpermuteInputBufferCount = ChooseUnpermuteInputBufferCount(
         unpermute.unpermuteTokenBatch, cfg.topk, unpermute.unpermuteTileCols, metadataBufferCount);
-    RequireUnpermuteUbCapacity(unpermute.unpermuteTokenBatch, cfg.topk, unpermute.unpermuteTileCols,
-                               metadataBufferCount, unpermute.unpermuteInputBufferCount);
+    RequireUnpermuteUbCapacity(
+        unpermute.unpermuteTokenBatch, cfg.topk, unpermute.unpermuteTileCols, metadataBufferCount,
+        unpermute.unpermuteInputBufferCount);
 }
 
 } // namespace
 
-const A5FixedScheduleConfig *FindA5DefaultSchedule(uint32_t effectiveAicNum)
+const A5FixedScheduleConfig* FindA5DefaultSchedule(uint32_t effectiveAicNum)
 {
-    for (const A5FixedScheduleConfig &schedule : kCanonicalShapeSchedules) {
+    for (const A5FixedScheduleConfig& schedule : kCanonicalShapeSchedules) {
         if (IsDefaultSchedule(schedule) && schedule.physicalAicNum == effectiveAicNum) {
             return &schedule;
         }
@@ -758,13 +682,13 @@ const A5FixedScheduleConfig *FindA5DefaultSchedule(uint32_t effectiveAicNum)
     return nullptr;
 }
 
-const A5FixedScheduleConfig *SelectA5FixedSchedule(const CaseConfig &cfg)
+const A5FixedScheduleConfig* SelectA5FixedSchedule(const CaseConfig& cfg)
 {
-    const A5FixedScheduleConfig *defaultSchedule = FindA5DefaultSchedule(cfg.aic_num);
+    const A5FixedScheduleConfig* defaultSchedule = FindA5DefaultSchedule(cfg.aic_num);
     if (defaultSchedule == nullptr || !IsCanonicalShapeFamily(cfg)) {
         return defaultSchedule;
     }
-    for (const A5FixedScheduleConfig &schedule : kCanonicalShapeSchedules) {
+    for (const A5FixedScheduleConfig& schedule : kCanonicalShapeSchedules) {
         if (MatchesShape(schedule, cfg)) {
             return &schedule;
         }
@@ -772,26 +696,25 @@ const A5FixedScheduleConfig *SelectA5FixedSchedule(const CaseConfig &cfg)
     return defaultSchedule;
 }
 
-MegaMoeBuildResult BuildMegaMoeTiling(const CaseConfig &cfg, const StandaloneRankRuntime &runtime)
+MegaMoeBuildResult BuildMegaMoeTiling(const CaseConfig& cfg, const StandaloneRankRuntime& runtime)
 {
-    const A5FixedScheduleConfig *schedule = SelectA5FixedSchedule(cfg);
+    const A5FixedScheduleConfig* schedule = SelectA5FixedSchedule(cfg);
     if (schedule == nullptr) {
-        throw std::runtime_error("unsupported A5 AICore count " + std::to_string(cfg.aic_num) +
-                                 "; supported counts are 28, 32, and 36");
+        throw std::runtime_error(
+            "unsupported A5 AICore count " + std::to_string(cfg.aic_num) + "; supported counts are 28, 32, and 36");
     }
     if (cfg.aiv_num != schedule->PhysicalAivNum()) {
         throw std::runtime_error("AIV count does not match the selected A5 AICore topology");
     }
     const uint32_t maxDispatchRanks = std::min(kMegaMoeFixedDispatchGroupSize, schedule->physicalAicNum - 2U);
     if (runtime.hccl.world_size <= 0 || static_cast<uint32_t>(runtime.hccl.world_size) > maxDispatchRanks) {
-        throw std::runtime_error("fixed-group dispatch requires a positive rank size no larger than " +
-                                 std::to_string(maxDispatchRanks) + " for the selected topology");
+        throw std::runtime_error(
+            "fixed-group dispatch requires a positive rank size no larger than " + std::to_string(maxDispatchRanks) +
+            " for the selected topology");
     }
     RequireMxShape(cfg.k, cfg.n);
     RequireDispatchPackedRowCapacity(MxPackedRowStride(cfg.k));
     RequireFrontQuantUbCapacity(cfg.k);
-    RequireSwigluUbCapacity(cfg.n);
-    RequireCombineUbCapacity(cfg.k);
 
     MegaMoeBuildResult result;
     result.block_dim = cfg.aic_num;

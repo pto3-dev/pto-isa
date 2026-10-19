@@ -371,9 +371,10 @@ Event<Op::TLOAD, Op::TADD> e;
 e = TLOAD(tile, ...);
 TADD(result, tile, ..., e);
 
-// 不好：全局同步
-TLOAD(tile, ...);
-TSYNC<Op::TLOAD>();  // 等待所有 TLOAD
+// 较低效：在消费端前单独显式等待
+Event<Op::TLOAD, Op::TADD> loadEvent;
+loadEvent = TLOAD(tile, ...);
+WaitAllEvents(loadEvent);
 TADD(result, tile, ...);
 ```
 
@@ -383,7 +384,7 @@ TADD(result, tile, ...);
 for (int i = 0; i < N; i++) {
   TLOAD(tile, ...);
   TCOMPUTE(result, tile);
-  TSYNC();  // 等待所有操作完成
+  synchronize();  // 等待所有操作完成
 }
 
 // 好：只在循环外 drain
@@ -391,7 +392,7 @@ for (int i = 0; i < N; i++) {
   TLOAD(tile, ...);
   TCOMPUTE(result, tile);
 }
-TSYNC();  // 只在最后同步一次
+synchronize();  // 只在最后同步一次
 ```
 
 ### 4.5 调试优化

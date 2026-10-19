@@ -78,8 +78,8 @@ void test_tnotify()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<int32_t> golden(fileSize);
-    std::vector<int32_t> devFinal(fileSize);
+    std::vector<int32_t> golden(fileSize / sizeof(int32_t));
+    std::vector<int32_t> devFinal(fileSize / sizeof(int32_t));
     CHECK_RESULT_GTEST(ReadFile(GetGoldenDir() + "/golden.bin", fileSize, golden.data(), fileSize));
     CHECK_RESULT_GTEST(ReadFile(GetGoldenDir() + "/output.bin", fileSize, devFinal.data(), fileSize));
 

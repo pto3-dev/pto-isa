@@ -193,8 +193,8 @@ void test_gather()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(dstsize);
-    std::vector<T> devFinal(dstsize);
+    std::vector<T> golden(dstsize / sizeof(T));
+    std::vector<T> devFinal(dstsize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", dstsize, golden.data(), dstsize);
     ReadFile(GetGoldenDir() + "/output_z.bin", dstsize, devFinal.data(), dstsize);
 
@@ -431,8 +431,8 @@ void test_gather_cmp()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<float> golden(dstsize);
-    std::vector<float> devFinal(dstsize);
+    std::vector<float> golden(dstsize / sizeof(float));
+    std::vector<float> devFinal(dstsize / sizeof(float));
     ReadFile(GetGoldenDir() + "/golden.bin", dstsize, golden.data(), dstsize);
     ReadFile(GetGoldenDir() + "/output.bin", dstsize, devFinal.data(), dstsize);
 

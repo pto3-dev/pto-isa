@@ -25,6 +25,9 @@ template <
     bool highPrecision = false>
 void LaunchTDivSHalf(aclFloat16* out, aclFloat16* src, aclFloat16 scalar, void* stream);
 
+template <typename T, int tileRow, int tileCol, int validRow, int validCol>
+void LaunchTDivSInplace(T* out, T* src, T scalar, void* stream);
+
 class TDIVSTest : public testing::Test {
 public:
 protected:
@@ -94,8 +97,8 @@ void TDivSTestFramework()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(dstByteSize);
-    std::vector<T> devFinal(dstByteSize);
+    std::vector<T> golden(dstByteSize / sizeof(T));
+    std::vector<T> devFinal(dstByteSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", dstByteSize, golden.data(), dstByteSize);
     ReadFile(GetGoldenDir() + "/output.bin", dstByteSize, devFinal.data(), dstByteSize);
 
@@ -105,6 +108,55 @@ void TDivSTestFramework()
         ret = ResultCmpExact(golden, devFinal.data());
     } else {
         ret = ResultCmp<T>(golden, devFinal, resPrecision);
+    }
+    EXPECT_TRUE(ret);
+}
+
+template <typename T, int tileRow, int tileCol, int validRow, int validCol>
+void TDivSInplaceTestFramework()
+{
+    aclInit(nullptr);
+    aclrtSetDevice(0);
+
+    aclrtStream stream;
+    aclrtCreateStream(&stream);
+
+    size_t byteSize = tileRow * tileCol * sizeof(T);
+    T* dstHost;
+    T* dstDevice;
+    T scalar;
+
+    aclrtMallocHost((void**)(&dstHost), byteSize);
+    aclrtMalloc((void**)&dstDevice, byteSize, ACL_MEM_MALLOC_HUGE_FIRST);
+
+    ReadFile(GetGoldenDir() + "/input.bin", byteSize, dstHost, byteSize);
+    size_t scalarSize = sizeof(T);
+    ReadFile(GetGoldenDir() + "/divider.bin", scalarSize, &scalar, sizeof(T));
+
+    aclrtMemcpy(dstDevice, byteSize, dstHost, byteSize, ACL_MEMCPY_HOST_TO_DEVICE);
+    LaunchTDivSInplace<T, tileRow, tileCol, validRow, validCol>(dstDevice, dstDevice, scalar, stream);
+    aclrtSynchronizeStream(stream);
+    aclrtMemcpy(dstHost, byteSize, dstDevice, byteSize, ACL_MEMCPY_DEVICE_TO_HOST);
+
+    WriteFile(GetGoldenDir() + "/output.bin", dstHost, byteSize);
+
+    aclrtFree(dstDevice);
+    aclrtFreeHost(dstHost);
+
+    aclrtDestroyStream(stream);
+    aclrtResetDevice(0);
+    aclFinalize();
+
+    std::vector<T> golden(byteSize / sizeof(T));
+    std::vector<T> devFinal(byteSize / sizeof(T));
+    ReadFile(GetGoldenDir() + "/golden.bin", byteSize, golden.data(), byteSize);
+    ReadFile(GetGoldenDir() + "/output.bin", byteSize, devFinal.data(), byteSize);
+
+    bool ret;
+    if constexpr (std::is_same_v<T, int64_t> || std::is_same_v<T, uint64_t>) {
+        ret = ResultCmpExact(golden, devFinal.data());
+    } else {
+        ret = ResultCmp<T>(golden, devFinal, 0.001f);
     }
     EXPECT_TRUE(ret);
 }
@@ -123,5 +175,11 @@ TEST_F(TDIVSTest, case_int64_4x64) { TDivSTestFramework<int64_t, 4, 64, 4, 64, 4
 TEST_F(TDIVSTest, case_uint64_4x64) { TDivSTestFramework<uint64_t, 4, 64, 4, 64, 4, 64>(); }
 TEST_F(TDIVSTest, case_int64_1x16364) { TDivSTestFramework<int64_t, 1, 16364, 1, 16364, 1, 16364>(); }
 TEST_F(TDIVSTest, case_uint64_1x16364) { TDivSTestFramework<uint64_t, 1, 16364, 1, 16364, 1, 16364>(); }
+TEST_F(TDIVSTest, case_int64_1x32732) { TDivSTestFramework<int64_t, 1, 32732, 1, 32732, 1, 32732>(); }
 TEST_F(TDIVSTest, case_int64_4091x4) { TDivSTestFramework<int64_t, 4091, 4, 4091, 4, 4091, 4>(); }
 TEST_F(TDIVSTest, case_uint64_4091x4) { TDivSTestFramework<uint64_t, 4091, 4, 4091, 4, 4091, 4>(); }
+TEST_F(TDIVSTest, case_int64_4x32_inplace) { TDivSInplaceTestFramework<int64_t, 4, 32, 4, 32>(); }
+TEST_F(TDIVSTest, case_uint64_4x32_inplace) { TDivSInplaceTestFramework<uint64_t, 4, 32, 4, 32>(); }
+TEST_F(TDIVSTest, case_int64_1x1024_inplace) { TDivSInplaceTestFramework<int64_t, 1, 1024, 1, 1024>(); }
+TEST_F(TDIVSTest, case_int64_4x64_40_inplace) { TDivSInplaceTestFramework<int64_t, 4, 64, 4, 40>(); }
+TEST_F(TDIVSTest, case_int64_1x2048_2045_inplace) { TDivSInplaceTestFramework<int64_t, 1, 2048, 1, 2045>(); }

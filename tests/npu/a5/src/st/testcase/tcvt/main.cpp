@@ -117,8 +117,8 @@ void test_tcvt()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<D> golden(dstFileSize);
-    std::vector<D> devFinal(dstFileSize);
+    std::vector<D> golden(dstFileSize / sizeof(D));
+    std::vector<D> devFinal(dstFileSize / sizeof(D));
     size_t goldenFileSize = dstFileSize;
     size_t outputFileSize = dstFileSize;
     ReadFile(GetGoldenDir() + "/golden.bin", goldenFileSize, golden.data(), dstFileSize);
@@ -253,16 +253,16 @@ void test_tcvt_saturation()
     WriteFile(GetGoldenDir() + "/output_truncated.bin", dstTruncHost, dstFileSize);
     WriteFile(GetGoldenDir() + "/output_default.bin", dstDefaultHost, dstFileSize);
 
-    std::vector<D> goldenTrunc(dstFileSize);
-    std::vector<D> devTrunc(dstFileSize);
+    std::vector<D> goldenTrunc(dstFileSize / sizeof(D));
+    std::vector<D> devTrunc(dstFileSize / sizeof(D));
     ReadFile(GetGoldenDir() + "/golden_truncated.bin", dstFileSize, goldenTrunc.data(), dstFileSize);
     ReadFile(GetGoldenDir() + "/output_truncated.bin", dstFileSize, devTrunc.data(), dstFileSize);
     bool truncOk = ResultCmp<D>(goldenTrunc, devTrunc, 0.001f);
 
     std::string goldenDefaultFile = GetGoldenDir() + "/golden_truncated.bin";
 
-    std::vector<D> goldenDefault(dstFileSize);
-    std::vector<D> devDefault(dstFileSize);
+    std::vector<D> goldenDefault(dstFileSize / sizeof(D));
+    std::vector<D> devDefault(dstFileSize / sizeof(D));
     ReadFile(goldenDefaultFile, dstFileSize, goldenDefault.data(), dstFileSize);
     ReadFile(GetGoldenDir() + "/output_default.bin", dstFileSize, devDefault.data(), dstFileSize);
     bool defaultOk = ResultCmp<D>(goldenDefault, devDefault, 0.001f);

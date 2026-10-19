@@ -61,7 +61,7 @@ PTO_INST RecordEvent THISTOGRAM(TileDataDst &dst, TileDataSrc &src, TileDataIdx 
 | `dst` | output | Histogram result tile, `uint32_t`, row-major, 256 bins per row |
 | `src` | input | Source data tile, `uint16_t` or `uint32_t`, row-major |
 | `idx` | input | Cascaded filter-index tile, `uint8_t`, shape varies with `byte` and source dtype (see below) |
-| `events...` | input | Wait events (`WaitEvents`); an implicit `TSYNC` precedes the op |
+| `events...` | input | Wait events (`WaitEvents`); an implicit event synchronization precedes the op |
 
 ## Tile Sizes & Data Types
 

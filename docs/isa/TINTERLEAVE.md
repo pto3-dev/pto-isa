@@ -1,4 +1,4 @@
-﻿# TINTERLEAVE
+# TINTERLEAVE
 
 
 ## Tile Operation Diagram
@@ -28,8 +28,6 @@ $$ \mathrm{dst1}_{i, j} = \mathrm{interleaved}_{\mathrm{validCols} + j}, \quad 0
 Where `validRows = dst0.GetValidRow()` and `validCols = dst0.GetValidCol()`.
 
 ## Assembly Syntax
-
-PTO-AS form: see [PTO-AS Specification](../assembly/PTO-AS.md).
 
 Synchronous form:
 

@@ -1,4 +1,4 @@
-﻿# TFILLPAD_EXPAND
+# TFILLPAD_EXPAND
 
 
 ## Tile Operation Diagram

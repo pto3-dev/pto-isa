@@ -224,7 +224,8 @@ PTO_INTERNAL void AbsReduceMax_f32_opt(
     MaskReg preg_lower8 = pset_b32(PAT_VL8);
     static constexpr auto distValue =
         std::integral_constant<::DistVST, static_cast<::DistVST>(GetDistVst<float, DistVST::DIST_NORM>())>();
-    for (uint16_t i = 0; i < (uint16_t)vl_count / 4; ++i) {
+    uint16_t loopLimit = static_cast<uint16_t>(vl_count / 4);
+    for (uint16_t i = 0; i < loopLimit; ++i) {
         MaskReg preg_vl0 = CreatePredicate<float>(total_count);
         MaskReg preg_vl1 = CreatePredicate<float>(total_count);
         MaskReg preg_vl2 = CreatePredicate<float>(total_count);
@@ -257,7 +258,8 @@ PTO_INTERNAL void AbsReduceMax_f32_opt_largesizes(
     MaskReg preg_ALL_B32 = pset_b32(PAT_ALL);
     static constexpr auto distValue =
         std::integral_constant<::DistVST, static_cast<::DistVST>(GetDistVst<float, DistVST::DIST_NORM>())>();
-    for (uint16_t i = 0; i < (uint16_t)vl_count / 32; ++i) {
+    uint16_t loopLimit = static_cast<uint16_t>(vl_count / 32);
+    for (uint16_t i = 0; i < loopLimit; ++i) {
         for (uint16_t j = 0; j < 8; ++j) { // handling 4 VLs per loop, each VL is 256 B (64 fp32)
             MaskReg preg_vl0 = CreatePredicate<float>(total_count);
             MaskReg preg_vl1 = CreatePredicate<float>(total_count);
@@ -425,8 +427,10 @@ PTO_INTERNAL void AbsReduceMax_b16_ND_largesizes(
     static constexpr auto distValue =
         std::integral_constant<::DistVST, static_cast<::DistVST>(GetDistVst<T, DistVST::DIST_NORM>())>();
     vbr(vu16_bf16_abs_mask, kBf16AbsMask);
-    for (uint16_t i = 0; i < (uint16_t)vl_count / num_vl_per_outer_loop; ++i) {        // 32 VLs per outer loop
-        for (uint16_t j = 0; j < num_vl_per_outer_loop / num_vl_per_inner_loop; ++j) { // 2 VLs per inner loop
+    uint16_t outerLoopLimit = static_cast<uint16_t>(vl_count / num_vl_per_outer_loop);
+    constexpr uint16_t innerLoopLimit = static_cast<uint16_t>(num_vl_per_outer_loop / num_vl_per_inner_loop);
+    for (uint16_t i = 0; i < outerLoopLimit; ++i) {     // 32 VLs per outer loop
+        for (uint16_t j = 0; j < innerLoopLimit; ++j) { // 2 VLs per inner loop
             MaskReg preg_vl0 = CreatePredicate<T>(total_count);
             MaskReg preg_vl1 = CreatePredicate<T>(total_count);
             uint32_t offset = (i * num_vl_per_outer_loop + j * num_vl_per_inner_loop) * elements_per_vl;
@@ -1072,7 +1076,8 @@ PTO_INTERNAL void CalcQuantizedFP8Values_Unroll2(
     uint32_t elem_count = total_elements_count;
     MaskReg preg_ALL = pset_b32(PAT_ALL);
     MaskReg preg_ALL_b8 = pset_b8(PAT_ALL);
-    for (uint16_t i = 0; i < (uint16_t)vl_count / 2; ++i) {
+    uint16_t loopLimit = static_cast<uint16_t>(vl_count / 2);
+    for (uint16_t i = 0; i < loopLimit; ++i) {
         vlds(vb32_scaling, scalingPtr, 8 * i, E2B_B32);
         vlds(vb32_in_even, vb32_in_odd, srcPtr, 2 * i * elementsPerRepeat, DINTLV_B32);
         vmul(vb32_out_1, vb32_in_even, vb32_scaling, preg_ALL, MODE_ZEROING);
@@ -3180,9 +3185,11 @@ PTO_INTERNAL void AbsReduceMax_gp4_Strided(
     uint32_t loops_per_row = CeilDivision(validCols, num_elem_per_loop);
     vector_bf16 vb16_src_vl0, vb16_src_vl1;
     vector_bf16 vb16_max, vb16_max_dintlv_low, vb16_max_dintlv_high;
-    for (uint16_t row_idx = 0; row_idx < validRows; ++row_idx) {
+    uint16_t rowLimit = static_cast<uint16_t>(validRows);
+    uint16_t loopLimit = static_cast<uint16_t>(loops_per_row);
+    for (uint16_t row_idx = 0; row_idx < rowLimit; ++row_idx) {
         uint32_t rem_cols = validCols / 2; // assumption, validCols is divisible by 4
-        for (uint16_t loop_idx = 0; loop_idx < loops_per_row; ++loop_idx) {
+        for (uint16_t loop_idx = 0; loop_idx < loopLimit; ++loop_idx) {
             MaskReg pregDyn = CreatePredicate<bfloat16_t>(rem_cols);
             vlds(vb16_src_vl0, vb16_src_vl1, srcPtr, row_idx * srcCols + loop_idx * num_elem_per_loop, DINTLV_B32);
             vabs((vector_f16&)vb16_src_vl0, (vector_f16&)vb16_src_vl0, pregDyn, MODE_ZEROING);
@@ -3357,7 +3364,8 @@ PTO_INTERNAL void CalcExpScale_Cont(
     vbr(vb16_half, 0.5);
     vbr(vb16_one, 1);
     // Assumption: Total number of elements is divisible by 512
-    for (uint16_t loop_idx = 0; loop_idx < loop_num; ++loop_idx) {
+    uint16_t loopLimit = static_cast<uint16_t>(loop_num);
+    for (uint16_t loop_idx = 0; loop_idx < loopLimit; ++loop_idx) {
         vlds(vb16_Ea, (__ubuf__ bfloat16_t*&)eaPtr, 8, E2B_B16, POST_UPDATE);
         vlds(vb16_Mb, maxGp8Ptr, 64, US_B16, POST_UPDATE);
         vlds(vb16_Mc, maxGp4Ptr, 128, NORM, POST_UPDATE);
@@ -3427,7 +3435,8 @@ PTO_INTERNAL void ExpLayoutForCube_Cont(
     MaskReg pgAll = pset_b8(PAT_ALL);
     // VSSTB config: blockStride=2, repeatStride=0
     uint32_t cfgStride = (2u << 16u) | 0u;
-    for (uint16_t loop_idx = 0; loop_idx < loop_num; ++loop_idx) {
+    uint16_t loopLimit = static_cast<uint16_t>(loop_num);
+    for (uint16_t loop_idx = 0; loop_idx < loopLimit; ++loop_idx) {
         MaskReg pregDyn = CreatePredicate<uint8_t>(rem);
         vlds(
             vb8_Ea, eaPtr, loop_idx * 128,
@@ -3469,7 +3478,8 @@ PTO_INTERNAL void CalcFp4Values_Cont(
     vector_bf16 vb16_input, vb16_e_scale;
     vector_u8 vb8_fp4;
     MaskReg pgAll = pset_b8(PAT_ALL);
-    for (uint16_t loop_idx = 0; loop_idx < loop_count; ++loop_idx) {
+    uint16_t loopLimit = static_cast<uint16_t>(loop_count);
+    for (uint16_t loop_idx = 0; loop_idx < loopLimit; ++loop_idx) {
         vlds(vb16_input, srcPtr, 128 * loop_idx, NORM);
         vlds(vb16_e_scale, scalingPtr, 64 * loop_idx, US_B16);
         vmul(vb16_input, vb16_input, vb16_e_scale, pgAll, MODE_ZEROING);

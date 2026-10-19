@@ -133,13 +133,13 @@ __global__ AICORE void RunTMATMUL(
         TMATMUL(cMatTile, aMatTile, bTile, cfg);
     }
 
-    set_flag(PIPE_M, PIPE_MTE1, EVENT_ID0);
-    wait_flag(PIPE_M, PIPE_MTE1, EVENT_ID0);
+    set_flag(PIPE_M, PIPE_FIX, EVENT_ID0);
+    wait_flag(PIPE_M, PIPE_FIX, EVENT_ID0);
 
     TMOV(cVecTile, cMatTile);
 
-    set_flag(PIPE_MTE1, PIPE_MTE3, EVENT_ID0);
-    wait_flag(PIPE_MTE1, PIPE_MTE3, EVENT_ID0);
+    set_flag(PIPE_FIX, PIPE_MTE3, EVENT_ID0);
+    wait_flag(PIPE_FIX, PIPE_MTE3, EVENT_ID0);
 
     TSTORE(dstGlobal, cVecTile);
 

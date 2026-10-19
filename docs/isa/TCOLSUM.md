@@ -1,4 +1,4 @@
-﻿# TCOLSUM
+# TCOLSUM
 
 
 ## Tile Operation Diagram

@@ -1,4 +1,4 @@
-﻿# TIMG2COL
+# TIMG2COL
 
 ## 指令示意图
 

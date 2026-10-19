@@ -88,8 +88,8 @@ void tsort32_test(int32_t rows, int32_t cols, int32_t colsAlign)
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<dType> golden(dstByteSize);
-    std::vector<dType> devFinal(dstByteSize);
+    std::vector<dType> golden(dstByteSize / sizeof(dType));
+    std::vector<dType> devFinal(dstByteSize / sizeof(dType));
     ReadFile(GetGoldenDir() + "/golden_output.bin", dstByteSize, golden.data(), dstByteSize);
     ReadFile(GetGoldenDir() + "/output.bin", dstByteSize, devFinal.data(), dstByteSize);
 

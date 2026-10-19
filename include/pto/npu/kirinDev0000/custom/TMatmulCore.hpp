@@ -160,7 +160,7 @@ __tf__ PTO_INTERNAL void TMatmulMacro(
 
     SetMFpcFromConfig<typename TileLeft::DType, preQuant>(preRelu, cfg);
 
-    if (preRelu == MatmulPreRelu::ScalarRelu) {
+    if (preRelu == MatmulPreRelu::ScalarRelu || preRelu == MatmulPreRelu::VectorRelu) {
         SetMReluAlpha(cfg.reluScalar);
     }
     SetMQuantPre<OutType>(cfg.clipReluVal);

@@ -29,7 +29,7 @@ template <
 __global__ AICORE void RunTMATMUL(__gm__ outType* out, __gm__ AType* src0, __gm__ BType* src1, __gm__ BiasType* src2)
 {
     constexpr int blockAlign = (sizeof(AType) == 1) ? 32 : 16;
-    constexpr int M = CeilAlign<int>(validM, blockAlign);
+    constexpr int M = CeilAlign<int>(validM, 16); // L0C row fractal is 16 regardless of dtype
     constexpr int N = CeilAlign<int>(validN, blockAlign);
     constexpr int K = CeilAlign<int>(validK, blockAlign);
 

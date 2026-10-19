@@ -88,8 +88,8 @@ protected:
     bool AfterLaunch()
     {
         aclrtSynchronizeStream(this->stream);
-        std::vector<T> golden(this->dstFileSize);
-        std::vector<T> devFinal(this->dstFileSize);
+        std::vector<T> golden(this->dstFileSize / sizeof(T));
+        std::vector<T> devFinal(this->dstFileSize / sizeof(T));
         aclrtMemcpy(devFinal.data(), this->dstFileSize, this->dstDevice, this->dstFileSize, ACL_MEMCPY_DEVICE_TO_HOST);
 
         aclrtFree(this->dstDevice);

@@ -141,7 +141,6 @@ set(ALL_TESTCASES
     tgather
     tcvt
     tsub
-    tsubreluconv
     trem
     tfmod
     tprelu
@@ -156,7 +155,6 @@ set(ALL_TESTCASES
     tshr
     tshrs
     tadd
-    taddreluconv
     tpartadd
     tpartmul
     tfillpad
@@ -166,6 +164,8 @@ set(ALL_TESTCASES
     tmov
     tmov_mx
     tmul
+    tmadd
+    tmula
     tlrelu
     tdiv
     tcmps
@@ -250,15 +250,11 @@ set(ALL_TESTCASES
     tpushpop_vc
     tpushpop_vc_nosplit
     tpushpop_dir_both
+    tpushpop_subblock_dispatch
     texpands_mat
     tpushpop_subtile
     tinterleave
     tdeinterleave
-    tpairreducesum
-    tfusedmuladd
-    tmuladddst
-    tsubrelu
-    tfusedmuladdrelu
 )
 
 # Opt-in testcases: built ONLY when TEST_CASE=<name> is explicitly supplied.
@@ -282,6 +278,7 @@ if (AUTO_MODE)
     tpushpop_vc_nosplit
     tpushpop_dir_both
     tpushpop_subtile
+    tpushpop_subblock_dispatch
   # the following case wait to be fix 
     tcvt
     ttrans
@@ -299,9 +296,6 @@ if (AUTO_MODE)
     tmov_zz
     tquant_dn
     thistogram
-    tsubreluconv
-    tsubrelu
-    taddreluconv
     tcolgather
     tshrs
     tcolscatter

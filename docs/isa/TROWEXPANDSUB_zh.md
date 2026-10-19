@@ -1,4 +1,4 @@
-﻿# TROWEXPANDSUB
+# TROWEXPANDSUB
 
 ## 指令示意图
 

@@ -31,7 +31,7 @@ svg { font-family: Arial, Helvetica, sans-serif; }
 .validBox { fill: none; stroke-width: 2; stroke-dasharray: 6 4; }
 </style>
 <rect x="0" y="0" width="1200" height="720" class="frame" />
-<rect x="24" y="24" width="1152" height="672" class="panel" />
+<rect x="24" y="24" width="1152" height="672" class="panel"/>
 <text x="40" y="46" class="title">TROWEXPANDMIN</text>
 <text x="40" y="72" class="subtitle">Row-wise broadcast min with a per-row scalar vector.</text>
 <text x="40" y="92" class="meta">Template: reduce_expand</text>
@@ -117,10 +117,10 @@ svg { font-family: Arial, Helvetica, sans-serif; }
 <text x="553" y="408" class="axisText" text-anchor="end">r</text>
 <text x="600" y="140" class="subtitle" text-anchor="middle" fill="#C46A1C">dst[r,c] = min(src0[r,c], s)</text>
 <circle cx="600" cy="324" r="22" class="opCircle" stroke="#C46A1C" />
-<rect x="583" y="307" width="34" height="34" rx="6" class="opRect" stroke="#C46A1C" />
-<text x="600" y="319.0" class="opText" font-size="7px" text-anchor="middle">TROWEX</text>
-<text x="600" y="327.0" class="opText" font-size="7px" text-anchor="middle">PANDMI</text>
-<text x="600" y="335.0" class="opText" font-size="7px" text-anchor="middle">N</text>
+<rect x="583" y="307" width="34" height="34" rx="6" class="opRect" stroke="#C46A1C"/>
+<text x="600" y="319.0" class="opText" text-anchor="middle" font-size="7px">TROWEX</text>
+<text x="600" y="327.0" class="opText" text-anchor="middle" font-size="7px">PANDMI</text>
+<text x="600" y="335.0" class="opText" text-anchor="middle" font-size="7px">N</text>
 <path d="M 549 300 L 549 324 L 578 324 L 578 324" class="arrow" stroke="#C46A1C" marker-end="url(#arrow)" />
 <path d="M 695 300 L 695 324 L 622 324 L 622 324" class="arrow" stroke="#C46A1C" marker-end="url(#arrow)" />
 <path d="M 600 346 L 600 347 L 600 347 L 600 348" class="arrow" stroke="#C46A1C" marker-end="url(#arrow)" />

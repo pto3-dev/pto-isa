@@ -30,7 +30,7 @@ Its architecture-visible contract includes:
 Conforming implementations MUST preserve:
 
 - element mapping semantics in the defined valid domain
-- required ordering guarantees under event/TSYNC and memory model rules
+- required ordering guarantees under event/event synchronization and memory model rules
 - documented behavior of quantization/scaling and mode attributes where present
 
 ## 4.5 Shape and domain compatibility

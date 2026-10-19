@@ -1,4 +1,4 @@
-﻿# TSort32
+# TSort32
 
 ## 指令示意图
 
@@ -87,7 +87,7 @@ PTO_INST RecordEvent TSort32(DstTileData &dst, SrcTileData &src, IdxTileData &id
 | `validCol` 任意（4参数） | 尾块通过 `tmp` 填充至32，填充值为 $-\infty$ |
 | `repeat = validCol/32`（3参数）或 `ceil(validCol/32)`（4参数） | VBS32 repeat计数，每次调用 ≤ 255；更大的 `validCol` 拆分为多次 `vbitsort` 调用 |
 | `tmp`（4参数）≥ `tmpSize` 元素（见下方公式） | 保存填充后的行/尾块副本 |
-| 无 `WaitEvents&...` / 无内部 `TSYNC` | 如需同步须显式调用 |
+| 无 `WaitEvents&...` / 无内部 event synchronization | 如需同步须显式调用 |
 
 ### `tmp` 尺寸公式（4参数）
 

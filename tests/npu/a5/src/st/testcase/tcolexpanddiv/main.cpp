@@ -91,8 +91,8 @@ void test_tcolexpanddiv()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<float> golden(outputFileSize);
-    std::vector<float> devFinal(outputFileSize);
+    std::vector<float> golden(outputFileSize / sizeof(float));
+    std::vector<float> devFinal(outputFileSize / sizeof(float));
     ReadFile(GetGoldenDir() + "/golden.bin", outputFileSize, golden.data(), outputFileSize);
     ReadFile(GetGoldenDir() + "/output.bin", outputFileSize, devFinal.data(), outputFileSize);
     auto resPrecision = highPrecision ? 0.0000001f : 0.001f;

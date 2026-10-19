@@ -32,7 +32,7 @@ This mode is a good starting point for correctness and portability.
 PTO-Manual targets developers who need full control for performance tuning:
 
 - The developer controls memory placement and binding (for example via `TASSIGN`).
-- The developer explicitly expresses ordering (events and/or `TSYNC`).
+- The developer explicitly expresses ordering with events or low-level flags.
 - The developer controls the operation schedule.
 
 This mode enables expert tuning on critical kernels while still using the shared Tile/GlobalTensor abstractions.

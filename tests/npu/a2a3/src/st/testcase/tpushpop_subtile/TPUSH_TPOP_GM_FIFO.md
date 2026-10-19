@@ -45,7 +45,7 @@ PTO_INST RecordEvent TFREE(Pipe &pipe, GlobalData &gmTensor, WaitEvents &... eve
 
 It performs:
 
-1. `TSYNC(events...)`
+1. event waits
 2. Producer-side allocation/wait for a free FIFO slot
 3. FIFO slot address calculation
 4. Producer tile index increment
@@ -59,7 +59,7 @@ It does not write data and does not notify the consumer. After `TALLOC`, the cal
 
 It performs:
 
-1. `TSYNC(events...)`
+1. event waits
 2. Producer-side record/notify so the consumer can observe the data-ready flag
 
 Call `TPUSH` only after all writes to the FIFO slot are complete.
@@ -72,7 +72,7 @@ Call `TPUSH` only after all writes to the FIFO slot are complete.
 
 It performs:
 
-1. `TSYNC(events...)`
+1. event waits
 2. Consumer-side wait for producer data-ready
 3. FIFO slot address calculation
 4. Consumer tile index increment
@@ -86,7 +86,7 @@ It does not load data and does not free the slot. After `TPOP`, the caller can u
 
 It performs:
 
-1. `TSYNC(events...)`
+1. event waits
 2. Consumer-side free/notify so the producer can reuse the FIFO slot
 
 Call `TFREE` only after all reads from the FIFO slot are complete.

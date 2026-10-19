@@ -1,4 +1,4 @@
-﻿# TQUANT
+# TQUANT
 
 ## 指令示意图
 

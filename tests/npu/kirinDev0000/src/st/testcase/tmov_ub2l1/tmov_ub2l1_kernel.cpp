@@ -80,11 +80,11 @@ AICORE void runTmovUb2l1(__gm__ T* out, __gm__ T* src)
         TMOV(matTile, tmpTile); // ub2l1
     }
 
-    set_flag(PIPE_MTE3, PIPE_MTE1, EVENT_ID0);
-    wait_flag(PIPE_MTE3, PIPE_MTE1, EVENT_ID0);
+    set_flag(PIPE_MTE3, PIPE_FIX, EVENT_ID0);
+    wait_flag(PIPE_MTE3, PIPE_FIX, EVENT_ID0);
     TMOVMat2Vec<T, ValidRows, ValidCols>(dstTile, matTile);
-    set_flag(PIPE_MTE1, PIPE_MTE3, EVENT_ID0);
-    wait_flag(PIPE_MTE1, PIPE_MTE3, EVENT_ID0);
+    set_flag(PIPE_FIX, PIPE_MTE3, EVENT_ID0);
+    wait_flag(PIPE_FIX, PIPE_MTE3, EVENT_ID0);
 
     TSTORE(dstGlobal, dstTile); // UB -> GM : AIV
 }

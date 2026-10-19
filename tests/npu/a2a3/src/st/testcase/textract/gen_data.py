@@ -239,8 +239,8 @@ if __name__ == "__main__":
         # TMOV
         TextractParams(np.float32, np.float32, np.float32, 29, 29, 44, 0, 0, 0, 1, 1, 32, 32, 48),
         TextractParams(np.float32, np.float32, np.float32, 29, 29, 36, 0, 0, 0, 1, 1, 32, 32, 48),
-        TextractParams(np.int8, np.int8, np.int32, 65, 66, 40, 0, 0, 0, 1, 1, 96, 80, 64),
-        TextractParams(np.int8, np.int8, np.int32, 65, 82, 40, 0, 0, 0, 1, 1, 96, 96, 64),
+        TextractParams(np.int8, np.int8, np.int32, 81, 66, 40, 0, 0, 0, 1, 1, 96, 80, 64),
+        TextractParams(np.int8, np.int8, np.int32, 81, 82, 40, 0, 0, 0, 1, 1, 96, 96, 64),
         TextractParams(bfloat16, bfloat16, np.float32, 44, 39, 39, 0, 0, 0, 1, 1, 48, 48, 48),
         # TEXTRACT
         TextractParams(np.float32, np.float32, np.float32, 29, 29, 36, 16, 16, 32, 1, 1, 32, 32, 48),

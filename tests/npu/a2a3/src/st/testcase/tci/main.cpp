@@ -4,7 +4,7 @@ This program is free software, you can redistribute it and/or modify it under th
 CANN Open Software License Agreement Version 2.0 (the "License").
 Please refer to the License for details. You may not use this file except in compliance with the License.
 THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
-INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
 See LICENSE in the root of the software repository for the full text of the License.
 */
 
@@ -15,10 +15,10 @@ See LICENSE in the root of the software repository for the full text of the Lice
 using namespace std;
 using namespace PtoTestCommon;
 
-template <uint32_t GROW, uint32_t GCOL, uint32_t TROW, uint32_t TCOL, uint32_t descending, uint32_t mode>
-void launchTCI_demo_b32(int32_t* out, void* stream);
-template <uint32_t GROW, uint32_t GCOL, uint32_t TROW, uint32_t TCOL, uint32_t descending, uint32_t mode>
-void launchTCI_demo_b16(int16_t* out, void* stream);
+template <
+    typename T, uint32_t GROW, uint32_t GCOL, uint32_t TROW, uint32_t TCOL, uint32_t descending, uint32_t mode,
+    T start = 0>
+void launchTCI_demo(T* out, void* stream);
 
 class TCITest : public testing::Test {
 protected:
@@ -36,8 +36,8 @@ std::string GetGoldenDir()
     return fullPath;
 }
 
-template <typename T, uint32_t ROW, uint32_t COL, uint32_t descending, uint32_t start, uint32_t mode>
-void test_vci_b32()
+template <typename T, uint32_t ROW, uint32_t COL, uint32_t descending, uint32_t mode, T start = 0>
+void test_vci()
 {
     aclInit(nullptr);
     aclrtSetDevice(0);
@@ -46,13 +46,13 @@ void test_vci_b32()
 
     size_t FileSize = ROW * COL * sizeof(T);
 
-    int32_t* dstHost;
-    int32_t* dstDevice;
+    T* dstHost;
+    T* dstDevice;
 
     aclrtMallocHost((void**)(&dstHost), FileSize);
     aclrtMalloc((void**)&dstDevice, FileSize, ACL_MEM_MALLOC_HUGE_FIRST);
 
-    launchTCI_demo_b32<ROW, COL, ROW, COL, descending, mode>(dstDevice, stream);
+    launchTCI_demo<T, ROW, COL, ROW, COL, descending, mode, start>(dstDevice, stream);
 
     aclrtSynchronizeStream(stream);
     aclrtMemcpy(dstHost, FileSize, dstDevice, FileSize, ACL_MEMCPY_DEVICE_TO_HOST);
@@ -65,81 +65,47 @@ void test_vci_b32()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<int32_t> golden(FileSize);
-    std::vector<int32_t> devFinal(FileSize);
+    std::vector<T> golden(FileSize / sizeof(T));
+    std::vector<T> devFinal(FileSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", FileSize, golden.data(), FileSize);
     ReadFile(GetGoldenDir() + "/output.bin", FileSize, devFinal.data(), FileSize);
 
     bool ret = ResultCmp(golden, devFinal, 0.001f);
-
     EXPECT_TRUE(ret);
 }
 
-template <typename T, uint32_t ROW, uint32_t COL, uint32_t descending, uint32_t start, uint32_t mode>
-void test_vci_b16()
-{
-    aclInit(nullptr);
-    aclrtSetDevice(0);
-    aclrtStream stream;
-    aclrtCreateStream(&stream);
+TEST_F(TCITest, case1_int32) { test_vci<int32_t, 1, 128, 0, 0>(); }
 
-    size_t FileSize = ROW * COL * sizeof(T);
+TEST_F(TCITest, case2_int32) { test_vci<int32_t, 1, 600, 0, 0>(); }
 
-    int16_t* dstHost;
-    int16_t* dstDevice;
+TEST_F(TCITest, case3_int32) { test_vci<int32_t, 1, 32, 1, 0>(); }
 
-    aclrtMallocHost((void**)(&dstHost), FileSize);
-    aclrtMalloc((void**)&dstDevice, FileSize, ACL_MEM_MALLOC_HUGE_FIRST);
+TEST_F(TCITest, case4_int32) { test_vci<int32_t, 1, 2000, 1, 0>(); }
 
-    launchTCI_demo_b16<ROW, COL, ROW, COL, descending, mode>(dstDevice, stream);
+TEST_F(TCITest, case5_int16) { test_vci<int16_t, 1, 256, 0, 0>(); }
 
-    aclrtSynchronizeStream(stream);
-    aclrtMemcpy(dstHost, FileSize, dstDevice, FileSize, ACL_MEMCPY_DEVICE_TO_HOST);
+TEST_F(TCITest, case6_int16) { test_vci<int16_t, 1, 800, 1, 0>(); }
 
-    WriteFile(GetGoldenDir() + "/output.bin", dstHost, FileSize);
+TEST_F(TCITest, case7_int16) { test_vci<int16_t, 1, 64, 0, 0>(); }
 
-    aclrtFree(dstDevice);
-    aclrtFreeHost(dstHost);
-    aclrtDestroyStream(stream);
-    aclrtResetDevice(0);
-    aclFinalize();
+TEST_F(TCITest, case8_int16) { test_vci<int16_t, 1, 5120, 1, 0>(); }
 
-    std::vector<int16_t> golden(FileSize);
-    std::vector<int16_t> devFinal(FileSize);
-    ReadFile(GetGoldenDir() + "/golden.bin", FileSize, golden.data(), FileSize);
-    ReadFile(GetGoldenDir() + "/output.bin", FileSize, devFinal.data(), FileSize);
+TEST_F(TCITest, case9_int32) { test_vci<int32_t, 1, 128, 0, 1>(); }
 
-    bool ret = ResultCmp(golden, devFinal, 0.001f);
+TEST_F(TCITest, case10_int32) { test_vci<int32_t, 1, 32, 1, 1>(); }
 
-    EXPECT_TRUE(ret);
-}
+TEST_F(TCITest, case11_int16) { test_vci<int16_t, 1, 256, 0, 1>(); }
 
-TEST_F(TCITest, case1_int32) { test_vci_b32<int32_t, 1, 128, 0, 0, 0>(); }
+TEST_F(TCITest, case12_int16) { test_vci<int16_t, 1, 800, 1, 1>(); }
 
-TEST_F(TCITest, case2_int32) { test_vci_b32<int32_t, 1, 600, 0, 0, 0>(); }
+TEST_F(TCITest, case13_int16) { test_vci<int16_t, 1, 3328, 1, 1>(); }
 
-TEST_F(TCITest, case3_int32) { test_vci_b32<int32_t, 1, 32, 1, 0, 0>(); }
+TEST_F(TCITest, case14_int16) { test_vci<int16_t, 1, 64, 0, 1>(); }
 
-TEST_F(TCITest, case4_int32) { test_vci_b32<int32_t, 1, 2000, 1, 0, 0>(); }
+TEST_F(TCITest, case15_int16) { test_vci<int16_t, 1, 32, 1, 1>(); }
 
-TEST_F(TCITest, case5_int16) { test_vci_b16<int16_t, 1, 256, 0, 0, 0>(); }
+TEST_F(TCITest, case16_int32_descending_start31_simd) { test_vci<int32_t, 1, 32, 1, 1, 31>(); }
 
-TEST_F(TCITest, case6_int16) { test_vci_b16<int16_t, 1, 800, 1, 0, 0>(); }
+TEST_F(TCITest, case17_uint32_ascend_simd) { test_vci<uint32_t, 1, 32, 0, 1>(); }
 
-TEST_F(TCITest, case7_int16) { test_vci_b16<int16_t, 1, 64, 0, 0, 0>(); }
-
-TEST_F(TCITest, case8_int16) { test_vci_b16<int16_t, 1, 5120, 1, 0, 0>(); }
-
-TEST_F(TCITest, case9_int32) { test_vci_b32<int32_t, 1, 128, 0, 0, 1>(); }
-
-TEST_F(TCITest, case10_int32) { test_vci_b32<int32_t, 1, 32, 1, 0, 1>(); }
-
-TEST_F(TCITest, case11_int16) { test_vci_b16<int16_t, 1, 256, 0, 0, 1>(); }
-
-TEST_F(TCITest, case12_int16) { test_vci_b16<int16_t, 1, 800, 1, 0, 1>(); }
-
-TEST_F(TCITest, case13_int16) { test_vci_b16<int16_t, 1, 3328, 1, 0, 1>(); }
-
-TEST_F(TCITest, case14_int16) { test_vci_b16<int16_t, 1, 64, 0, 0, 1>(); }
-
-TEST_F(TCITest, case15_int16) { test_vci_b16<int16_t, 1, 32, 1, 0, 1>(); }
+TEST_F(TCITest, case18_uint16_ascend_simd) { test_vci<uint16_t, 1, 64, 0, 1>(); }

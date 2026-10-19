@@ -1,4 +1,4 @@
-﻿# TPARTMAX
+# TPARTMAX
 
 
 ## Tile Operation Diagram

@@ -116,8 +116,10 @@ template <typename T, uint32_t DstStride, uint32_t BaseStride, uint32_t ExpStrid
 PTO_INTERNAL void ProcessSpecialCaseForPowF(
     __ubuf__ T* dst, __ubuf__ T* base, __ubuf__ T* exp, __ubuf__ T* tmp, unsigned validRow, unsigned validCol)
 {
-    for (uint16_t i = 0; i < validRow; ++i) {
-        for (uint16_t j = 0; j < validCol; ++j) {
+    uint16_t rowLimit = static_cast<uint16_t>(validRow);
+    uint16_t colLimit = static_cast<uint16_t>(validCol);
+    for (uint16_t i = 0; i < rowLimit; ++i) {
+        for (uint16_t j = 0; j < colLimit; ++j) {
             SwitchPowFResult(
                 dst + i * DstStride + j, *(base + i * BaseStride + j), *(exp + i * ExpStride + j),
                 *(tmp + i * TmpStride + j));
@@ -129,8 +131,10 @@ template <typename T, uint32_t DstStride, uint32_t BaseStride, uint32_t TmpStrid
 PTO_INTERNAL void ProcessSpecialCaseForPowF(
     __ubuf__ T* dst, __ubuf__ T* base, T exp, __ubuf__ T* tmp, unsigned validRow, unsigned validCol)
 {
-    for (uint16_t i = 0; i < validRow; ++i) {
-        for (uint16_t j = 0; j < validCol; ++j) {
+    uint16_t rowLimit = static_cast<uint16_t>(validRow);
+    uint16_t colLimit = static_cast<uint16_t>(validCol);
+    for (uint16_t i = 0; i < rowLimit; ++i) {
+        for (uint16_t j = 0; j < colLimit; ++j) {
             SwitchPowFResult(dst + i * DstStride + j, *(base + i * BaseStride + j), exp, *(tmp + i * TmpStride + j));
         }
     }

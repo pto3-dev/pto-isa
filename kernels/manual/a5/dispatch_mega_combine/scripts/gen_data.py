@@ -29,8 +29,7 @@ E4M3_MAX = np.float32(448.0)
 # row amplitude changes the E8M0 code without changing the periodic structure used by
 # the large-shape golden fast path.
 WEIGHT_PATTERN = np.array(
-    [0.0, 0.125, -0.125, 0.25, -0.25, 0.375, -0.375, 0.5,
-     -0.5, 0.625, -0.625, 0.75, -0.75, 0.875, -0.875, 0.0],
+    [0.0, 0.125, -0.125, 0.25, -0.25, 0.375, -0.375, 0.5, -0.5, 0.625, -0.625, 0.75, -0.75, 0.875, -0.875, 0.0],
     dtype=np.float32,
 )
 
@@ -94,8 +93,7 @@ def decode_e4m3fn(raw: np.ndarray) -> np.ndarray:
     subnormal = exponent == 0
     values[subnormal] = sign[subnormal] * np.ldexp(mantissa[subnormal], -9)
     normal = ~subnormal
-    values[normal] = sign[normal] * np.ldexp(np.float32(1.0) + mantissa[normal] / np.float32(8.0),
-                                             exponent[normal] - 7)
+    values[normal] = sign[normal] * np.ldexp(np.float32(1.0) + mantissa[normal] / np.float32(8.0), exponent[normal] - 7)
     values[(exponent == 0x0F) & (mantissa == 7.0)] = np.nan
     return values
 
@@ -155,8 +153,9 @@ def make_expert_idx(rank: int, args: argparse.Namespace) -> np.ndarray:
     return (base % total_experts).astype(np.int32)
 
 
-def make_weight_rows(rank: int, expert: int, row_begin: int, row_count: int, reduction: int,
-                     kind: int, args: argparse.Namespace) -> np.ndarray:
+def make_weight_rows(
+    rank: int, expert: int, row_begin: int, row_count: int, reduction: int, kind: int, args: argparse.Namespace
+) -> np.ndarray:
     rows = row_begin + np.arange(row_count, dtype=np.int32)
     seed_phase = args.seed % WEIGHT_PERIOD
     phase = (rows * 3 + expert * 5 + rank * 7 + kind * 11 + seed_phase) % WEIGHT_PERIOD
@@ -191,15 +190,20 @@ def make_quantized_weight_write_chunk(
     return fp8, e8m0
 
 
-def write_weight_pair(rank: int, kind: int, args: argparse.Namespace, out_dir: Path,
-                      expected_sizes: dict[str, int], reuse_static: bool) -> None:
+def write_weight_pair(
+    rank: int, kind: int, args: argparse.Namespace, out_dir: Path, expected_sizes: dict[str, int], reuse_static: bool
+) -> None:
     weight_name = f"weight{kind}"
     scale_name = f"scale{kind}"
     weight_path = out_dir / f"rank{rank}_{weight_name}.bin"
     scale_path = out_dir / f"rank{rank}_{scale_name}.bin"
-    if (reuse_static and weight_path.exists() and scale_path.exists() and
-            weight_path.stat().st_size == expected_sizes[weight_name] and
-            scale_path.stat().st_size == expected_sizes[scale_name]):
+    if (
+        reuse_static
+        and weight_path.exists()
+        and scale_path.exists()
+        and weight_path.stat().st_size == expected_sizes[weight_name]
+        and scale_path.stat().st_size == expected_sizes[scale_name]
+    ):
         return
 
     output_dim, reduction = weight_dimensions(kind, args)
@@ -278,8 +282,7 @@ def prequantize_inputs(xs: list[np.ndarray]) -> list[np.ndarray]:
 _WEIGHT_TABLE_CACHE: dict[tuple[int, int, int, int, int], np.ndarray] = {}
 
 
-def periodic_weight_table(rank: int, expert: int, output_dim: int, kind: int,
-                          args: argparse.Namespace) -> np.ndarray:
+def periodic_weight_table(rank: int, expert: int, output_dim: int, kind: int, args: argparse.Namespace) -> np.ndarray:
     key = (rank, expert, output_dim, kind, args.seed)
     cached = _WEIGHT_TABLE_CACHE.get(key)
     if cached is not None:
@@ -295,9 +298,7 @@ def periodic_weight_table(rank: int, expert: int, output_dim: int, kind: int,
 def matmul_periodic_weight(lhs: np.ndarray, table: np.ndarray) -> np.ndarray:
     if lhs.shape[1] % WEIGHT_PERIOD != 0:
         raise ValueError("periodic golden requires reduction dimension divisible by the weight period")
-    residue_sums = lhs.reshape(lhs.shape[0], lhs.shape[1] // WEIGHT_PERIOD, WEIGHT_PERIOD).sum(
-        axis=1, dtype=np.float32
-    )
+    residue_sums = lhs.reshape(lhs.shape[0], lhs.shape[1] // WEIGHT_PERIOD, WEIGHT_PERIOD).sum(axis=1, dtype=np.float32)
     return np.asarray(residue_sums @ table, dtype=np.float32)
 
 
@@ -331,8 +332,9 @@ def swiglu_bf16_then_mx(gmm1_output: np.ndarray) -> np.ndarray:
     return mx_dequantize_rows(fp8, e8m0)
 
 
-def run_batch_chunk(ctx: BatchGoldenContext, dst_rank: int, local_expert: int,
-                    chunk: list[tuple[int, int, int]]) -> None:
+def run_batch_chunk(
+    ctx: BatchGoldenContext, dst_rank: int, local_expert: int, chunk: list[tuple[int, int, int]]
+) -> None:
     src_ranks, token_indices, x, probs = collect_batch_inputs(ctx, chunk)
     table1 = periodic_weight_table(dst_rank, local_expert, ctx.args.n, 1, ctx.args)
     gmm1_output = bf16_round(matmul_periodic_weight(x, table1))
@@ -356,7 +358,7 @@ def compute_outputs_and_workload(data: GoldenInputs, args: argparse.Namespace):
         for local_expert in range(args.experts):
             routes = route_groups[dst_rank][local_expert]
             for start in range(0, len(routes), ctx.chunk_rows):
-                chunk = routes[start:start + ctx.chunk_rows]
+                chunk = routes[start : start + ctx.chunk_rows]
                 if chunk:
                     run_batch_chunk(ctx, dst_rank, local_expert, chunk)
     return [bf16_round(output) for output in outputs], workload
@@ -452,8 +454,7 @@ def self_check_numeric_helpers() -> None:
     actual = encode_e4m3fn(values)
     if not np.array_equal(actual, expected):
         raise RuntimeError(f"E4M3 encoder self-check failed: {actual.tolist()}")
-    if not np.array_equal(fp32_to_bf16_bits(bf16_bits_to_fp32(fp32_to_bf16_bits(values))),
-                          fp32_to_bf16_bits(values)):
+    if not np.array_equal(fp32_to_bf16_bits(bf16_bits_to_fp32(fp32_to_bf16_bits(values))), fp32_to_bf16_bits(values)):
         raise RuntimeError("BF16 conversion self-check failed")
 
 

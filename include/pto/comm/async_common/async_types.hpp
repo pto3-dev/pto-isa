@@ -65,16 +65,13 @@ struct SdmaEventContext {
 
 namespace detail {
 
-constexpr uint32_t kPostStateMaxQueues = 48U;
-constexpr uint32_t kFlagPayloadDepth = 64U;
-
 struct SdmaRuntimeContext {
     uint64_t nextPostId;
-    uint64_t postDoneId[kPostStateMaxQueues];
+    uint64_t postDoneId[kSdmaMaxChannelGroups];
     // Per-slot metadata for the shared flag payload ring. Slot index is postId % flag payload depth.
-    uint8_t flagPayloadQueueCount[kFlagPayloadDepth];
-    uint32_t sqTail[kPostStateMaxQueues];
-    uint32_t sqHead[kPostStateMaxQueues];
+    uint8_t flagPayloadQueueCount[kSdmaFlagPayloadDepth];
+    uint32_t sqTail[kSdmaMaxChannelGroups];
+    uint32_t sqHead[kSdmaMaxChannelGroups];
     // Cumulative queue prefix used by this session. Every Post fences these queues.
     uint32_t usedQueueCount;
     __gm__ uint8_t* postDoneBase;
@@ -96,29 +93,6 @@ constexpr uint32_t kAutoChannelGroupIdx = UINT32_MAX;
 constexpr uint64_t kDefaultSdmaBlockBytes = 1024 * 1024;
 
 } // namespace sdma
-
-// ============================================================================
-// URMA context types for async operations (HCCP V2 Jetty, NPU_ARCH 3510 only)
-// ============================================================================
-namespace urma {
-
-struct UrmaExecContext {
-    __gm__ uint8_t* contextGm{nullptr};
-    uint32_t destRankId{0};
-    uint32_t qpIdx{0};
-};
-
-struct UrmaEventContext {
-    __gm__ uint8_t* contextGm{nullptr};
-};
-
-struct UrmaSession {
-    UrmaExecContext execCtx{};
-    UrmaEventContext eventCtx{};
-    bool valid{false};
-};
-
-} // namespace urma
 
 // ============================================================================
 // AsyncSession: engine-agnostic session for async DMA operations.

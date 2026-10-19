@@ -6,10 +6,39 @@
 
 本文档目录是 PTO ISA 的权威文档树。它将架构手册、指令集指南、家族契约和精确的指令参考分组整合在同一个位置。
 
-## PTO ISA 中的文本汇编
+- 权威来源：`include/pto/common/pto_instr.hpp`
+- 通用约定（操作数、事件、修饰符）：`docs/isa/conventions_zh.md`
+
+## 删除接口与迁移说明
+
+当前 ISA 参考不再公开以下历史指令接口：
+
+- `TADDC`
+- `TAddDeqRelu`
+- `TADDReluConv`
+- `TADDSC`
+- `TFUSEDMULADDRELU`
+- `TGET_SCALE_ADDR`
+- `TPairReduceSum`
+- `TSUBC`
+- `TSUBRELU`
+- `TSUBRELUCONV`
+- `TSUBSC`
+- `TSUBVIEW`
+- `TSYNC`
+
+迁移建议：
+
+- 生效版本：本次清理自 PTO ISA v9.2.0 起生效；这些历史 wrapper 的兼容窗口关闭，不再保留公开 wrapper。
+- 将 `TSYNC(events...)` 替换为普通 event 顺序表达：把 event 对象传给消费端 intrinsic，或在确需显式等待时调用 `WaitAllEvents(events...)`。
+- `TSUBVIEW` 不提供公开 ISA 替代接口。仓内实现可使用 `pto::detail::PtoSubTileView` 作为内部 helper；外部代码应通过受支持的 Tile 构造和公开数据搬运 API 表达数据视图。
+- 将三元/标量融合算术形式替换为对应基础算术序列，例如 `TADD`、`TSUB`、`TADDS`、`TSUBS`、`TMUL`、`TMADD` 和 `TRELU`。
+- 将历史融合乘加接口重命名：`TFUSEDMULADD` 改为 `TMADD`，`TMULADDDST` 改为 `TMULA`。
+- 将融合 add/ReLU/convert 或 add/dequant/ReLU 形式拆分为显式算术、转换/反量化和 `TRELU` 步骤。
+- 将 `TPairReduceSum` 替换为与目标 layout 匹配的现有行/列归约原语。
+- 不再调用 `TGET_SCALE_ADDR`；AUTO 模式 MX 测试可在调用 MX matmul 原语前，在测试代码中根据数据 Tile 绑定 scale Tile 地址。
 
 ## 同步
-- [TSYNC](TSYNC_zh.md) - 同步 PTO 执行（等待事件或插入每操作流水线屏障）。
 - [SYNCALL](SYNCALL_zh.md) - 跨核同步屏障（硬件 FFTS 或软件 GM 轮询）。
 
 ## 手动 / 资源绑定
@@ -27,6 +56,7 @@
 - [TOR](TOR_zh.md) - 两个 Tile 的逐元素按位或。
 - [TSUB](TSUB_zh.md) - 两个 Tile 的逐元素减法。
 - [TMUL](TMUL_zh.md) - 两个 Tile 的逐元素乘法。
+- [TMADD](TMADD_zh.md) - 三元逐元素运算：`src0 * dst + src1`。
 - [TMIN](TMIN_zh.md) - 两个 Tile 的逐元素最小值。
 - [TMAX](TMAX_zh.md) - 两个 Tile 的逐元素最大值。
 - [TCMP](TCMP_zh.md) - 比较两个 Tile 并写入一个打包的谓词掩码。
@@ -37,23 +67,18 @@
 - [TLOG](TLOG_zh.md) - Tile 的逐元素自然对数。
 - [TRECIP](TRECIP_zh.md) - Tile 的逐元素倒数。
 - [TPRELU](TPRELU_zh.md) - 带逐元素斜率 Tile 的逐元素参数化 ReLU (PReLU)。
-- [TADDC](TADDC_zh.md) - 三元逐元素加法：`src0 + src1 + src2`。
-- [TSUBC](TSUBC_zh.md) - 三元逐元素运算：`src0 - src1 + src2`。
 - [TCVT](TCVT_zh.md) - 带指定舍入模式的逐元素类型转换。
 - [TSEL](TSEL_zh.md) - 使用掩码 Tile 在两个 Tile 之间进行选择（逐元素选择）。
 - [TRSQRT](TRSQRT_zh.md) - 逐元素倒数平方根。
 - [TSQRT](TSQRT_zh.md) - 逐元素平方根。
 - [TEXP](TEXP_zh.md) - 逐元素指数运算。
+- [TPOW](TPOW_zh.md) - 逐元素幂运算。
 - [TNOT](TNOT_zh.md) - Tile 的逐元素按位取反。
 - [TRELU](TRELU_zh.md) - Tile 的逐元素 ReLU。
 - [TNEG](TNEG_zh.md) - Tile 的逐元素取负。
 - [TREM](TREM_zh.md) - 两个 Tile 的逐元素余数，余数符号与除数相同。
 - [TFMOD](TFMOD_zh.md) - 两个 Tile 的逐元素余数，余数符号与被除数相同。
-- [TPOW](TPOW_zh.md) - 两个 Tile 的逐元素幂运算。
-- [TMULADDDST](TMULADDDST.md) - 三元逐元素运算：`src0 * src1 + dst`。
-- [TSUBRELU](TSUBRELU.md) - src0和src1逐元素相减后ReLU。
-- [TFUSEDMULADD](TFUSEDMULADD.md) - 三元逐元素运算：`src0 * dst + src1`。
-- [TFUSEDMULADDRELU](TFUSEDMULADDRELU.md) - 三元逐元素运算：`ReLU(src0 * dst + src1)`。
+- [TMULA](TMULA_zh.md) - 三元逐元素运算：`src0 * src1 + dst`。
 
 ## Tile-标量 / Tile-立即数
 - [TEXPANDS](TEXPANDS_zh.md) - 将标量广播到目标 Tile 中。
@@ -74,8 +99,6 @@
 - [TSHRS](TSHRS_zh.md) - Tile 按标量逐元素右移。
 - [TXORS](TXORS_zh.md) - Tile 与标量的逐元素按位异或。
 - [TLRELU](TLRELU_zh.md) - 带标量斜率的 Leaky ReLU。
-- [TADDSC](TADDSC_zh.md) - 与标量和第二个 Tile 的融合逐元素加法：`src0 + scalar + src1`。
-- [TSUBSC](TSUBSC_zh.md) - 融合逐元素运算：`src0 - scalar + src1`。
 - [TPOWS](TPOWS_zh.md) - Tile 逐元素与标量幂运算。
 
 ## 轴归约 / 扩展
@@ -88,8 +111,8 @@
 - [TROWMIN](TROWMIN_zh.md) - 通过取列间最小值来归约每一行。
 - [TROWARGMAX](TROWARGMAX_zh.md) - 获取每行最大值对应列索引。
 - [TROWARGMIN](TROWARGMIN_zh.md) - 获取每行最小值对应列索引。
-- [TCOLARGMAX](TCOLARGMAX_zh.md) - 获取每列最大值对应行索引/获取每列最大值对应值和行索引。
-- [TCOLARGMIN](TCOLARGMIN_zh.md) - 获取每列最小值对应行索引/获取每列最大值对应值和行索引。
+- [TCOLARGMAX](TCOLARGMAX_zh.md) - 获取每列最大值对应行索引/获取每列最大值对应行值和索引。
+- [TCOLARGMIN](TCOLARGMIN_zh.md) - 获取每列最小值对应行索引/获取每列最小值对应行值和索引。
 - [TROWEXPAND](TROWEXPAND_zh.md) - 将每个源行的第一个元素广播到目标行中。
 - [TROWEXPANDDIV](TROWEXPANDDIV_zh.md) - 行广播除法：将 `src0` 的每一行除以一个每行标量向量 `src1`。
 - [TROWEXPANDMUL](TROWEXPANDMUL_zh.md) - 行广播乘法：将 `src0` 的每一行乘以一个每行标量向量 `src1`。
@@ -113,41 +136,42 @@
 - [TPREFETCH](TPREFETCH_zh.md) - 将数据从全局内存预取到 Tile 本地缓存/缓冲区（提示）。
 - [TPREFETCH_ASYNC](TPREFETCH_ASYNC_zh.md) - 通过 SDMA CMO 将 GlobalTensor 区域从 GM 异步预取到 L2 Cache。
 - [TSTORE](TSTORE_zh.md) - 将 Tile 中的数据存储到 GlobalTensor (GM)，可选使用原子写入或量化参数。
-- [TSTORE_FP](TSTORE_FP_zh.md) - 使用缩放 (`fp`) Tile 作为向量量化参数，将累加器 Tile 存储到全局内存。
+- [TSTORE_FP](TSTORE_FP_zh.md) - 历史 fp 量化存储形式的源码兼容 C++ 别名。
 - [MGATHER](MGATHER_zh.md) - 使用逐元素索引从全局内存收集加载元素到 Tile 中。
 - [MSCATTER](MSCATTER_zh.md) - 使用逐元素索引将 Tile 中的元素散播存储到全局内存。
 
-- [编程模型](programming-model/tiles-and-valid-regions_zh.md)
-- [机器模型](machine-model/execution-agents_zh.md)
-- [语法与操作数](syntax-and-operands/assembly-model_zh.md)
-- [类型系统](state-and-types/type-system_zh.md)
-- [位置意图与合法性](state-and-types/location-intent-and-legality_zh.md)
-- [内存模型](memory-model/consistency-baseline_zh.md)
+## 矩阵乘
+- [TGEMV_MX](TGEMV_MX_zh.md) - 带缩放 Tile 的 GEMV 变体，支持混合精度/量化矩阵向量计算。
+- [TMATMUL_MX](TMATMUL_MX_zh.md) - 带额外缩放 Tile 的矩阵乘法 (GEMM)，用于支持目标上的混合精度/量化矩阵乘法。
+- [TMATMUL_MX_HIF4](TMATMUL_MX_HIF4_zh.md) - 用于混合精度 TMATMUL_MX 流程的 HiFloat4 Cube 矩阵乘变体。
+- [TMATMUL](TMATMUL_zh.md) - 矩阵乘法 (GEMM)，生成累加器/输出 Tile。
+- [TMATMUL_ACC](TMATMUL_ACC_zh.md) - 带累加器输入的矩阵乘法（融合累加）。
+- [TMATMUL_BIAS](TMATMUL_BIAS_zh.md) - 带偏置加法的矩阵乘法。
+- [TGEMV](TGEMV_zh.md) - 通用矩阵-向量乘法，生成累加器/输出 Tile。
+- [TGEMV_ACC](TGEMV_ACC_zh.md) - 带显式累加器输入/输出 Tile 的 GEMV。
+- [TGEMV_BIAS](TGEMV_BIAS_zh.md) - 带偏置加法的 GEMV。
 
 ## 数据搬运 / 布局
 - [TEXTRACT](TEXTRACT_zh.md) - 从源 Tile 中提取子 Tile。
-- [TEXTRACT_FP](TEXTRACT_FP_zh.md) - 带 fp/缩放 Tile 的提取（向量量化参数）。
+- [TEXTRACT_FP](TEXTRACT_FP_zh.md) - 历史 fp 量化提取形式的源码兼容 C++ 别名。
 - [TIMG2COL](TIMG2COL_zh.md) - 用于类卷积工作负载的图像到列变换。
 - [TINSERT](TINSERT_zh.md) - 在 (indexRow, indexCol) 偏移处将子 Tile 插入到目标 Tile 中。
-- [TINSERT_FP](TINSERT_FP_zh.md) - 带 fp/缩放 Tile 的插入（向量量化参数）。
+- [TINSERT_FP](TINSERT_FP_zh.md) - 历史 fp 量化插入形式的源码兼容 C++ 别名。
 - [TFILLPAD](TFILLPAD_zh.md) - 复制 Tile 并在有效区域外使用编译时填充值进行填充。
 - [TFILLPAD_INPLACE](TFILLPAD_INPLACE_zh.md) - 原地填充/填充变体。
 - [TFILLPAD_EXPAND](TFILLPAD_EXPAND_zh.md) - 填充/填充时允许目标大于源。
 - [TMOV](TMOV_zh.md) - 在 Tile 之间移动/复制，可选应用实现定义的转换模式。
-- [TMOV_FP](TMOV_FP_zh.md) - 使用缩放 (`fp`) Tile 作为向量量化参数，将累加器 Tile 移动/转换到目标 Tile。
+- [TMOV_FP](TMOV_FP_zh.md) - 历史 fp 量化移动形式的源码兼容 C++ 别名。
 - [TRESHAPE](TRESHAPE_zh.md) - 将 Tile 重新解释为另一种 Tile 类型/形状，同时保留底层字节。
 - [TTRANS](TTRANS_zh.md) - 使用实现定义的临时 Tile 进行转置。
-- [TSUBVIEW](TSUBVIEW_zh.md) - 表达一个tile是另一个tile的subview。
-- [TGET_SCALE_ADDR](TGET_SCALE_ADDR_zh.md) - 将输出tile的片上内存值绑定为扩展后的输入tile内存的值。
 - [TCONCAT](TCONCAT_zh.md) - 将两个 Tile 沿列维度水平拼接。
-- [TInterleave](TINTERLEAVE_zh.md) - 将两个源 Tile 交织为交替的偶/奇元素流，拆分为两个目标半部分。
-- [TDeInterleave](TDEINTERLEAVE_zh.md) - 将源 Tile 反交织为偶数位置和奇数位置的元素流（TInterleave 的逆操作）。
-- [TPAIRREDUCESUM](TPairReduceSum_zh.md) - 对归约求和：将每两个相邻元素相加，结果写入目标 Tile 的下半部分。
+- [TINTERLEAVE](TINTERLEAVE_zh.md) - 将两个源 Tile 交织为交替的偶/奇元素流，拆分为两个目标半部分。
+- [TDEINTERLEAVE](TDEINTERLEAVE_zh.md) - 将源 Tile 反交织为偶数位置和奇数位置的元素流（TINTERLEAVE 的逆操作）。
 
 ## 复杂指令
 - [TPRINT](TPRINT_zh.md) - 调试/打印 Tile 中的元素（实现定义）。
 - [TMRGSORT](TMRGSORT_zh.md) - 用于多个已排序列表的归并排序（实现定义的元素格式和布局）。
-- [TSORT32](TSORT32_zh.md) - 对 `src` 的每个 32 元素块，与 `idx` 中对应的索引一起进行排序，并将排序后的值-索引对写入 `dst`。
+- [TSORT32](TSORT32_zh.md) - 对 `src` 的每个 32 元素块连同对应的 `idx` 条目一起排序，并输出排序后的 value-index 对。
 - [TGATHER](TGATHER_zh.md) - 使用索引 Tile 或编译时掩码模式来收集/选择元素。
 - [TCI](TCI_zh.md) - 生成连续整数序列到目标 Tile 中。
 - [TTRI](TTRI_zh.md) - 生成三角（下/上）掩码 Tile。
@@ -161,6 +185,8 @@
 - [TGATHERB](TGATHERB_zh.md) - 使用字节偏移量收集元素。
 - [TSCATTER](TSCATTER_zh.md) - 使用逐元素行索引将源 Tile 的行散播到目标 Tile 中。
 - [TQUANT](TQUANT_zh.md) - 量化 Tile（例如 FP32 到 FP8），生成指数/缩放/最大值输出。
+- [TQUANT_DN](TQUANT_DN_zh.md) - Axis-0 分组量化与 DN 到 ZZ 指数布局转换。
+- [TQUANT_HIF4](TQUANT_HIF4_zh.md) - BF16 到 HiFloat4 的量化算法与 CCE 映射。
 - [TDEQUANT](TDEQUANT_zh.md) - 对量化 Tile 做仿射反量化（S8/S16 -> FP32）：dst = (src - offset) * scale。
 - [THISTOGRAM](THISTOGRAM_zh.md) - 对源元素的某个字节统计直方图（256 桶），可按高位字节级联过滤；基数排序的桶计数原语。
 
@@ -168,21 +194,4 @@
 - [TALLOC](TALLOC_zh.md) - 将 TPipe FIFO 槽位分配为一个 GlobalTensor 视图。
 - [TPUSH](TPUSH_zh.md) - 将生产者 tile 推入 TPipe FIFO，用于 Cube-Vector 通信。
 - [TPOP](TPOP_zh.md) - 从 TPipe FIFO 弹出消费者 tile/globalTensor，用于 Cube-Vector 通信。
-- [TFREE](TFREE_zh.md) - 释放 TPipe 的 FIFO 空间；对于 TileData/GlobalTensor 的 TPOP 流程，该操作为空操作。
-
-## 通信
-
-## 核间通信
-
-- [TALLOC](TALLOC_zh.md) - 将 TPipe FIFO 槽位分配为一个 GlobalTensor 视图。
-- [TPUSH](TPUSH_zh.md) - 将生产者 tile 推入 TPipe FIFO，用于 Cube-Vector 通信。
-- [TPOP](TPOP_zh.md) - 从 TPipe FIFO 弹出消费者 tile/globalTensor，用于 Cube-Vector 通信。
-- [TFREE](TFREE_zh.md) - 释放 TPipe 的 FIFO 空间；对于 TileData/GlobalTensor 的 TPOP 流程，该操作为空操作。
-
-`tile/`、`vector/`、`scalar/`、`comm/` 和 `system/` 下的分组指令集树是权威的 PTO ISA 路径。
-
-- `docs/isa/tile/ops/`
-- `docs/isa/vector/ops/`
-- `docs/isa/scalar/ops/`
-- `docs/isa/comm/`
-- `docs/isa/system/ops/`
+- [TFREE](TFREE_zh.md) - 释放 TPipe 的 FIFO 空间；部分目标上对 TileData TPOP 流程为空操作。

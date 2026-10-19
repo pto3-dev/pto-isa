@@ -35,8 +35,8 @@ struct MegaMoeCoreTileBalancer {
     uint32_t cursorPhysical = 0U;
 };
 
-MEGA_MOE_WAVE_HOST_DEVICE_INLINE void SetCoreTileBalancerRange(MegaMoeCoreTileBalancer &state, uint32_t activeBase,
-                                                               uint32_t activeCount)
+MEGA_MOE_WAVE_HOST_DEVICE_INLINE void SetCoreTileBalancerRange(
+    MegaMoeCoreTileBalancer& state, uint32_t activeBase, uint32_t activeCount)
 {
     if (activeCount == 0U || activeBase >= kMegaMoeFixedPhysicalAicNum ||
         activeCount > kMegaMoeFixedPhysicalAicNum - activeBase) {
@@ -56,7 +56,7 @@ MEGA_MOE_WAVE_HOST_DEVICE_INLINE void SetCoreTileBalancerRange(MegaMoeCoreTileBa
     state.activeCount = activeCount;
 }
 
-MEGA_MOE_WAVE_HOST_DEVICE_INLINE uint32_t SelectCoreTileStart(const MegaMoeCoreTileBalancer &state, uint32_t coreLoops)
+MEGA_MOE_WAVE_HOST_DEVICE_INLINE uint32_t SelectCoreTileStart(const MegaMoeCoreTileBalancer& state, uint32_t coreLoops)
 {
     const uint32_t coreCount = state.activeCount;
     if (coreCount <= 1U) {
@@ -94,8 +94,8 @@ MEGA_MOE_WAVE_HOST_DEVICE_INLINE uint32_t SelectCoreTileStart(const MegaMoeCoreT
     return bestStart;
 }
 
-MEGA_MOE_WAVE_HOST_DEVICE_INLINE void CommitCoreTileAssignment(MegaMoeCoreTileBalancer &state, uint32_t startCore,
-                                                               uint32_t coreLoops)
+MEGA_MOE_WAVE_HOST_DEVICE_INLINE void CommitCoreTileAssignment(
+    MegaMoeCoreTileBalancer& state, uint32_t startCore, uint32_t coreLoops)
 {
     const uint32_t coreCount = state.activeCount;
     if (coreCount == 0U || coreLoops == 0U) {
@@ -133,7 +133,7 @@ MEGA_MOE_WAVE_HOST_DEVICE_INLINE uint64_t WaveCeilDiv(uint64_t value, uint64_t d
     return divisor == 0U ? 0U : value / divisor + (value % divisor != 0U ? 1U : 0U);
 }
 
-MEGA_MOE_WAVE_HOST_DEVICE_INLINE uint32_t CalcExpertsPerWave(const MegaMoeWavePlannerInput &input)
+MEGA_MOE_WAVE_HOST_DEVICE_INLINE uint32_t CalcExpertsPerWave(const MegaMoeWavePlannerInput& input)
 {
     if (input.topK == 0U || input.expertCount == 0U || input.activeAicNum == 0U || input.gmm1TileM == 0U ||
         input.gmm1TileN == 0U || input.gmm1OutputN == 0U || input.gmm2TileM == 0U || input.gmm2TileN == 0U ||
@@ -161,8 +161,8 @@ MEGA_MOE_WAVE_HOST_DEVICE_INLINE uint32_t CalcExpertsPerWave(const MegaMoeWavePl
     return static_cast<uint32_t>(clampedExperts == 0U ? 1U : clampedExperts);
 }
 
-MEGA_MOE_WAVE_HOST_DEVICE_INLINE uint32_t GetWaveExpertCount(uint32_t waveBegin, uint32_t expertCount,
-                                                             uint32_t expertsPerWave)
+MEGA_MOE_WAVE_HOST_DEVICE_INLINE uint32_t
+GetWaveExpertCount(uint32_t waveBegin, uint32_t expertCount, uint32_t expertsPerWave)
 {
     if (waveBegin >= expertCount) {
         return 0U;
@@ -176,14 +176,14 @@ MEGA_MOE_WAVE_HOST_DEVICE_INLINE uint32_t GetWaveExpertCount(uint32_t waveBegin,
     return mergeSmallTail ? remainingExperts : expertsPerWave;
 }
 
-MEGA_MOE_WAVE_HOST_DEVICE_INLINE uint32_t GetWaveCapacity(uint32_t waveIndex, uint32_t fullAicExpertsPerWave,
-                                                          uint32_t steadyExpertsPerWave, uint32_t fullAicWaveCount)
+MEGA_MOE_WAVE_HOST_DEVICE_INLINE uint32_t GetWaveCapacity(
+    uint32_t waveIndex, uint32_t fullAicExpertsPerWave, uint32_t steadyExpertsPerWave, uint32_t fullAicWaveCount)
 {
     return waveIndex < fullAicWaveCount ? fullAicExpertsPerWave : steadyExpertsPerWave;
 }
 
-MEGA_MOE_WAVE_HOST_DEVICE_INLINE uint32_t GetTotalWaveCount(uint32_t expertCount, uint32_t fullAicExpertsPerWave,
-                                                            uint32_t steadyExpertsPerWave, uint32_t fullAicWaveCount)
+MEGA_MOE_WAVE_HOST_DEVICE_INLINE uint32_t GetTotalWaveCount(
+    uint32_t expertCount, uint32_t fullAicExpertsPerWave, uint32_t steadyExpertsPerWave, uint32_t fullAicWaveCount)
 {
     uint32_t totalWaveCount = 0U;
     uint32_t waveBegin = 0U;
@@ -200,10 +200,9 @@ MEGA_MOE_WAVE_HOST_DEVICE_INLINE uint32_t GetTotalWaveCount(uint32_t expertCount
     return totalWaveCount;
 }
 
-MEGA_MOE_WAVE_HOST_DEVICE_INLINE MegaMoeExpertWaveRange GetExpertWaveRange(uint32_t waveIndex, uint32_t expertCount,
-                                                                           uint32_t fullAicExpertsPerWave,
-                                                                           uint32_t steadyExpertsPerWave,
-                                                                           uint32_t fullAicWaveCount)
+MEGA_MOE_WAVE_HOST_DEVICE_INLINE MegaMoeExpertWaveRange GetExpertWaveRange(
+    uint32_t waveIndex, uint32_t expertCount, uint32_t fullAicExpertsPerWave, uint32_t steadyExpertsPerWave,
+    uint32_t fullAicWaveCount)
 {
     MegaMoeExpertWaveRange range;
     for (uint32_t currentWave = 0U; currentWave <= waveIndex && range.begin < expertCount; ++currentWave) {

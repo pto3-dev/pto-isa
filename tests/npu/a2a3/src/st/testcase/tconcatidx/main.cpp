@@ -73,6 +73,7 @@ void test_tconcat()
     aclrtMalloc((void**)&src1Device, fileSizeSrc1, ACL_MEM_MALLOC_HUGE_FIRST);
     aclrtMalloc((void**)&src0IdxDevice, fileSizeSrc0Idx, ACL_MEM_MALLOC_HUGE_FIRST);
     aclrtMalloc((void**)&src1IdxDevice, fileSizeSrc1Idx, ACL_MEM_MALLOC_HUGE_FIRST);
+    aclrtMemset(dstDevice, fileSizeDst, 0, fileSizeDst);
 
     ReadFile(GetGoldenDir() + "/input0.bin", fileSizeSrc0, src0Host, fileSizeSrc0);
     ReadFile(GetGoldenDir() + "/input1.bin", fileSizeSrc1, src1Host, fileSizeSrc1);
@@ -113,8 +114,8 @@ void test_tconcat()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<dataType> golden(fileSizeDst);
-    std::vector<dataType> devFinal(fileSizeDst);
+    std::vector<dataType> golden(fileSizeDst / sizeof(dataType));
+    std::vector<dataType> devFinal(fileSizeDst / sizeof(dataType));
     ReadFile(GetGoldenDir() + "/golden.bin", fileSizeDst, golden.data(), fileSizeDst);
     ReadFile(GetGoldenDir() + "/output.bin", fileSizeDst, devFinal.data(), fileSizeDst);
 

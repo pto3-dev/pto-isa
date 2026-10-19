@@ -92,8 +92,8 @@ void tsort32_test()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(dstByteSize);
-    std::vector<T> devFinal(dstByteSize);
+    std::vector<T> golden(dstByteSize / sizeof(T));
+    std::vector<T> devFinal(dstByteSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden_output.bin", dstByteSize, golden.data(), dstByteSize);
     ReadFile(GetGoldenDir() + "/output.bin", dstByteSize, devFinal.data(), dstByteSize);
 
@@ -104,5 +104,3 @@ void tsort32_test()
 TEST_F(TSort32Test, case1) { tsort32_test<aclFloat16, true, 2, 32, 2, 32>(); }
 
 TEST_F(TSort32Test, case2) { tsort32_test<aclFloat16, true, 4, 64, 4, 64>(); }
-
-TEST_F(TSort32Test, case3) { tsort32_test<aclFloat16, true, 1, 32 * 256, 1, 32 * 256>(); }

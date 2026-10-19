@@ -26,9 +26,7 @@ template <typename DstT, typename SrcT>
 PTO_INLINE DstT BitCastOrCast(SrcT v)
 {
     if constexpr (sizeof(DstT) == sizeof(SrcT)) {
-        DstT out;
-        std::memcpy(&out, &v, sizeof(DstT));
-        return out;
+        return std::bit_cast<DstT>(v);
     } else {
         return static_cast<DstT>(v);
     }

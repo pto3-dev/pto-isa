@@ -117,8 +117,8 @@ void test_tconcat()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<dataType> golden(fileSizeDst);
-    std::vector<dataType> devFinal(fileSizeDst);
+    std::vector<dataType> golden(fileSizeDst / sizeof(dataType));
+    std::vector<dataType> devFinal(fileSizeDst / sizeof(dataType));
     ReadFile(GetGoldenDir() + "/golden.bin", fileSizeDst, golden.data(), fileSizeDst);
     ReadFile(GetGoldenDir() + "/output.bin", fileSizeDst, devFinal.data(), fileSizeDst);
 

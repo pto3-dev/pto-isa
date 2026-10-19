@@ -31,7 +31,7 @@ svg { font-family: Arial, Helvetica, sans-serif; }
 .validBox { fill: none; stroke-width: 2; stroke-dasharray: 6 4; }
 </style>
 <rect x="0" y="0" width="1200" height="720" class="frame" />
-<rect x="24" y="24" width="1152" height="672" class="panel" />
+<rect x="24" y="24" width="1152" height="672" class="panel"/>
 <text x="40" y="46" class="title">TLOG</text>
 <text x="40" y="72" class="subtitle">Elementwise natural logarithm of a tile.</text>
 <text x="40" y="92" class="meta">Template: elementwise</text>

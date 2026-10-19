@@ -226,7 +226,8 @@ __tf__ AICORE void TGather(
         constexpr unsigned elementsPerRepeat = CCE_VL / sizeof(T);
         uint16_t innerRepeatTimes = CeilDivision(validCol, elementsPerRepeat);
 
-        for (uint16_t i = 0; i < validRow; ++i) {
+        uint16_t rowLimit = static_cast<uint16_t>(validRow);
+        for (uint16_t i = 0; i < rowLimit; ++i) {
             uint32_t maskValue = validCol;
             for (uint16_t j = 0; j < innerRepeatTimes; ++j) {
                 loadMask = CreatePredicate<T>(maskValue);

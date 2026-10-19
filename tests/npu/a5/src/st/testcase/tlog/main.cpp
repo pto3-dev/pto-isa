@@ -77,8 +77,8 @@ void test_tlog()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(dstSize);
-    std::vector<T> devFinal(dstSize);
+    std::vector<T> golden(dstSize / sizeof(T));
+    std::vector<T> devFinal(dstSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", dstSize, golden.data(), dstSize);
     ReadFile(GetGoldenDir() + "/output.bin", dstSize, devFinal.data(), dstSize);
 

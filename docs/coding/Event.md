@@ -4,7 +4,7 @@ PTO Tile Lib supports an explicit event model for expressing dependencies betwee
 
 This document describes the C++ event types used by `include/pto/common/pto_instr.hpp` and `include/pto/common/event.hpp`.
 
-> Note: the concrete `pto::Event<SrcOp, DstOp>` type is defined only for device builds (`__CCE_AICORE__`). The CPU simulator backend treats `TSYNC` as a no-op and relies on ordinary program order within a single thread.
+> Note: the concrete `pto::Event<SrcOp, DstOp>` type is defined only for device builds (`__CCE_AICORE__`). The CPU simulator backend treats event synchronization as a no-op and relies on ordinary program order within each CPU worker. Cross-worker ordering must use a synchronization or communication operation supported by CPU_SIM.
 
 ## Key types
 
@@ -35,12 +35,12 @@ struct Event {
 
 The template parameters encode the producer/consumer opcodes and are used to select the correct pipeline pair.
 
-### `TSYNC<OpCode>()` (single-pipeline barrier)
+### single-op synchronization (single-pipeline barrier)
 
-`TSYNC<OpCode>()` is a single-op barrier implemented by `TSYNC_IMPL<OpCode>()`.
+Single-op synchronization is a single-op barrier implemented internally by the PTO runtime.
 
 - On device, the current implementation restricts the single-op form to vector pipeline ops (`PIPE_V`).
-- On the CPU simulator backend (`__CPU_SIM`), `TSYNC_IMPL` is a no-op.
+- On the CPU simulator backend (`__CPU_SIM`), this internal barrier is a no-op.
 
 ## How `WaitEvents&...` works in intrinsics
 
@@ -48,8 +48,8 @@ Most intrinsics in `include/pto/common/pto_instr.hpp` have a trailing `WaitEvent
 
 Pattern:
 
-- The intrinsic calls `TSYNC(events...)`.
-- `TSYNC(events...)` calls `WaitAllEvents(events...)`, which invokes `events.Wait()` on each event.
+- The intrinsic calls event waits.
+- event waits calls `WaitAllEvents(events...)`, which invokes `events.Wait()` on each event.
 - The instruction then executes, and the intrinsic returns a `RecordEvent`.
 
 This enables a programming style where you:

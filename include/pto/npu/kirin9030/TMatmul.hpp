@@ -19,6 +19,24 @@ inline namespace TMatmulInternal {
 constexpr const int MMAD_MAX_SUPPORT_LENGTH = 4095;
 constexpr const int TF32_MODE_BIT = 46;
 constexpr const int TF32_TRANS_MODE_BIT = 47;
+// mad has no destination-stride operand. Reject static multi-column Acc row
+// windows when mad's compact stride, ceil16(ValidRow), differs from Rows.
+// Dynamic ValidRow is not rejected here because the type cannot distinguish a
+// standalone compact buffer from a parent row window.
+template <typename TileRes>
+PTO_INTERNAL constexpr bool MadAccStrideCompatible()
+{
+    static_assert(TileRes::Loc == TileType::Acc, "MadAccStrideCompatible expects an Acc tile.");
+    if constexpr (TileRes::Compact != CompactMode::Null || TileRes::Cols <= FRACTAL_NZ_ROW) {
+        return true;
+    } else if constexpr (TileRes::ValidRow == DYNAMIC) {
+        return true;
+    } else {
+        constexpr int roundedValidRow = (TileRes::ValidRow + FRACTAL_NZ_ROW - 1) / FRACTAL_NZ_ROW * FRACTAL_NZ_ROW;
+        return roundedValidRow == TileRes::Rows;
+    }
+}
+
 } // namespace TMatmulInternal
 
 template <
@@ -65,14 +83,24 @@ __tf__ PTO_INTERNAL void TMatmulBias(
     }
 }
 
+template <int Axis>
+PTO_INTERNAL void CheckKirinMadExtent(uint16_t extent)
+{
+    bool inRange = extent >= 1 && extent <= MMAD_MAX_SUPPORT_LENGTH;
+    if constexpr (Axis == 0) {
+        PTO_ASSERT(inRange, "ERROR: The range of valid aMatrixRow is [1, 4095].");
+    } else if constexpr (Axis == 1) {
+        PTO_ASSERT(inRange, "ERROR: The range of valid aMatrixCol is [1, 4095].");
+    } else {
+        PTO_ASSERT(inRange, "ERROR: The range of valid bMatrixCol is [1, 4095].");
+    }
+}
+
 PTO_INTERNAL void CheckDynamicMmad(uint16_t aMatrixRow, uint16_t aMatrixCol, uint16_t bMatrixCol)
 {
-    PTO_ASSERT(
-        aMatrixRow >= 1 && aMatrixRow <= MMAD_MAX_SUPPORT_LENGTH, "ERROR: The range of valid aMatrixRow is [1, 4095].");
-    PTO_ASSERT(
-        aMatrixCol >= 1 && aMatrixCol <= MMAD_MAX_SUPPORT_LENGTH, "ERROR: The range of valid aMatrixCol is [1, 4095].");
-    PTO_ASSERT(
-        bMatrixCol >= 1 && bMatrixCol <= MMAD_MAX_SUPPORT_LENGTH, "ERROR: The range of valid bMatrixCol is [1, 4095].");
+    CheckKirinMadExtent<0>(aMatrixRow);
+    CheckKirinMadExtent<1>(aMatrixCol);
+    CheckKirinMadExtent<2>(bMatrixCol);
 }
 
 template <typename TileRes, typename TileLeft, typename TileRight>
@@ -94,53 +122,64 @@ PTO_INTERNAL void CheckMadValid()
     }
 
 #if defined(PTO_NPU_ARCH_KIRIN9030)
-    static_assert(
-        (TileLeft::Loc == TileType::Left) && (TileRight::Loc == TileType::Right) && (TileRes::Loc == TileType::Acc) &&
-            (!TileLeft::isRowMajor) && (TileRight::isRowMajor) && (!TileRes::isRowMajor) &&
-            (TileLeft::SFractal == SLayout::RowMajor) && (TileRight::SFractal == SLayout::ColMajor) &&
-            (TileRes::SFractal == SLayout::RowMajor),
-        "TMATMUL: Non-conforming matrix fractal.");
+    constexpr bool tileTypeValid =
+        TileLeft::Loc == TileType::Left && TileRight::Loc == TileType::Right && TileRes::Loc == TileType::Acc;
+    constexpr bool blockLayoutValid = !TileLeft::isRowMajor && TileRight::isRowMajor && !TileRes::isRowMajor;
+    constexpr bool storageLayoutValid = TileLeft::SFractal == SLayout::RowMajor &&
+                                        TileRight::SFractal == SLayout::ColMajor &&
+                                        TileRes::SFractal == SLayout::RowMajor;
+    static_assert(tileTypeValid && blockLayoutValid && storageLayoutValid, "TMATMUL: Non-conforming matrix fractal.");
 #elif defined(PTO_NPU_ARCH_KIRINX90)
     static_assert(TileLeft::Loc == TileType::Left, "TileLeft TileType must be set to TileType::Left.");
     static_assert(TileRight::Loc == TileType::Right, "TileRight TileType must be set to TileType::Right.");
     static_assert(TileRes::Loc == TileType::Acc, "TileRes TileType must be set to TileType::Acc.");
 #endif
+    constexpr bool accStrideRepresentable = MadAccStrideCompatible<TileRes>();
+    static_assert(
+        accStrideRepresentable,
+        "The Acc tile is a row window of a taller tile (ValidRow < Rows) with more than one block column, "
+        "which mad's compact write stride cannot represent. Use a full-Rows Acc tile per row window, "
+        "or window the columns instead.");
+}
+
+template <typename TileLeft, typename TileRight>
+PTO_INTERNAL void GetKirinMadShape(TileLeft& aMatrix, TileRight& bMatrix, uint16_t& m, uint16_t& k, uint16_t& n)
+{
+    m = aMatrix.GetValidRow();
+    k = aMatrix.GetValidCol();
+    n = bMatrix.GetValidCol();
+    CheckDynamicMmad(m, k, n);
+}
+
+template <bool cmatrixInitVal, AccPhase Phase, typename TileRes, typename TileLeft, typename TileRight>
+PTO_INTERNAL void RunKirinMatmul(TileRes& cMatrix, TileLeft& aMatrix, TileRight& bMatrix)
+{
+    CheckMadValid<TileRes, TileLeft, TileRight>();
+    uint16_t m;
+    uint16_t k;
+    uint16_t n;
+    GetKirinMadShape(aMatrix, bMatrix, m, k, n);
+    TMatmul<Phase, TileRes, TileLeft, TileRight, false, cmatrixInitVal>(
+        cMatrix.data(), aMatrix.data(), bMatrix.data(), m, k, n);
 }
 
 template <AccPhase Phase = AccPhase::Unspecified, typename TileRes, typename TileLeft, typename TileRight>
 PTO_INTERNAL void TMATMUL_IMPL(TileRes& cMatrix, TileLeft& aMatrix, TileRight& bMatrix)
 {
-    // cmatrixInitVal Indicates the initial matrix, 1: the number in C matrix is 0, 0：use the real number in C matrix
-    CheckMadValid<TileRes, TileLeft, TileRight>();
-
-    uint16_t m = aMatrix.GetValidRow();
-    uint16_t k = aMatrix.GetValidCol();
-    uint16_t n = bMatrix.GetValidCol();
-    CheckDynamicMmad(m, k, n);
-
-    TMatmul<Phase, TileRes, TileLeft, TileRight, false, true>(cMatrix.data(), aMatrix.data(), bMatrix.data(), m, k, n);
+    RunKirinMatmul<true, Phase>(cMatrix, aMatrix, bMatrix);
 }
 
 template <AccPhase Phase = AccPhase::Unspecified, typename TileRes, typename TileLeft, typename TileRight>
 PTO_INTERNAL void TMATMUL_ACC_IMPL(TileRes& cOutMatrix, TileRes& cInMatrix, TileLeft& aMatrix, TileRight& bMatrix)
 {
-    // cmatrixInitVal Indicates the initial matrix, 1: the number in C matrix is 0, 0：use the real number in C matrix
-    CheckMadValid<TileRes, TileLeft, TileRight>();
-
-    uint16_t m = aMatrix.GetValidRow();
-    uint16_t k = aMatrix.GetValidCol();
-    uint16_t n = bMatrix.GetValidCol();
-    CheckDynamicMmad(m, k, n);
-
-    TMatmul<Phase, TileRes, TileLeft, TileRight, false, false>(
-        cOutMatrix.data(), aMatrix.data(), bMatrix.data(), m, k, n);
+    (void)cInMatrix;
+    RunKirinMatmul<false, Phase>(cOutMatrix, aMatrix, bMatrix);
 }
 
-// Convenience overload where the accumulator tile is both the input and output.
 template <AccPhase Phase = AccPhase::Unspecified, typename TileRes, typename TileLeft, typename TileRight>
 PTO_INTERNAL void TMATMUL_ACC_IMPL(TileRes& cMatrix, TileLeft& aMatrix, TileRight& bMatrix)
 {
-    TMATMUL_ACC_IMPL<Phase>(cMatrix, cMatrix, aMatrix, bMatrix);
+    RunKirinMatmul<false, Phase>(cMatrix, aMatrix, bMatrix);
 }
 
 template <

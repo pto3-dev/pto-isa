@@ -195,6 +195,23 @@ __sdma_get_async(__gm__ T* dst, __gm__ T* src, uint64_t transfer_size, const Asy
     return event.handle;
 }
 
+template <typename T>
+PTO_INTERNAL uint64_t __sdma_put_async_notify(
+    __gm__ T* dst, __gm__ T* src, __gm__ int32_t* remoteSignal, int32_t signalValue, NotifyOp notifyOp,
+    uint64_t transferSize, const AsyncSession& session)
+{
+    if (transferSize == 0U) {
+        return 0U;
+    }
+    SdmaSession sdmaSession;
+    detail::LoadSdmaSession(session, sdmaSession);
+    const AsyncEvent event = detail::SdmaPostAsyncNotify(
+        reinterpret_cast<__gm__ uint8_t*>(dst), reinterpret_cast<__gm__ uint8_t*>(src),
+        reinterpret_cast<__gm__ uint8_t*>(remoteSignal), signalValue, notifyOp, transferSize, sdmaSession);
+    session.sdmaRuntimeCtx = sdmaSession.runtimeCtx;
+    return event.handle;
+}
+
 namespace detail {
 
 // AsyncSession overloads of the event checks used by AsyncEvent::Wait / Test.

@@ -87,6 +87,7 @@ void test_tstore_acc2gm_nz2nd()
     aclrtMalloc((void**)&dstDevice, cFileSize, ACL_MEM_MALLOC_HUGE_FIRST);
     aclrtMalloc((void**)&src0Device, aFileSize, ACL_MEM_MALLOC_HUGE_FIRST);
     aclrtMalloc((void**)&src1Device, bFileSize, ACL_MEM_MALLOC_HUGE_FIRST);
+    aclrtMemset(dstDevice, cFileSize, 0, cFileSize);
 
     ReadFile(GetGoldenDir() + "/x1_gm.bin", aFileSize, src0Host, aFileSize);
     ReadFile(GetGoldenDir() + "/x2_gm.bin", bFileSize, src1Host, bFileSize);
@@ -112,8 +113,8 @@ void test_tstore_acc2gm_nz2nd()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<dstDataType> golden(cFileSize);
-    std::vector<dstDataType> devFinal(cFileSize);
+    std::vector<dstDataType> golden(cFileSize / sizeof(dstDataType));
+    std::vector<dstDataType> devFinal(cFileSize / sizeof(dstDataType));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 
@@ -144,6 +145,7 @@ void test_tstore_acc2gm_nz2nz()
     aclrtMalloc((void**)&dstDevice, cFileSize, ACL_MEM_MALLOC_HUGE_FIRST);
     aclrtMalloc((void**)&src0Device, aFileSize, ACL_MEM_MALLOC_HUGE_FIRST);
     aclrtMalloc((void**)&src1Device, bFileSize, ACL_MEM_MALLOC_HUGE_FIRST);
+    aclrtMemset(dstDevice, cFileSize, 0, cFileSize);
 
     ReadFile(GetGoldenDir() + "/x1_gm.bin", aFileSize, src0Host, aFileSize);
     ReadFile(GetGoldenDir() + "/x2_gm.bin", bFileSize, src1Host, bFileSize);
@@ -168,8 +170,8 @@ void test_tstore_acc2gm_nz2nz()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<dstDataType> golden(cFileSize);
-    std::vector<dstDataType> devFinal(cFileSize);
+    std::vector<dstDataType> golden(cFileSize / sizeof(dstDataType));
+    std::vector<dstDataType> devFinal(cFileSize / sizeof(dstDataType));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 
@@ -230,8 +232,8 @@ void test_tstore_acc2gm_nz2ndc1hwc0()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<dstDataType> golden(cFileSize);
-    std::vector<dstDataType> devFinal(cFileSize);
+    std::vector<dstDataType> golden(cFileSize / sizeof(dstDataType));
+    std::vector<dstDataType> devFinal(cFileSize / sizeof(dstDataType));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 
@@ -292,8 +294,8 @@ void test_tstore_acc2gm_scalar_nz2ndc1hwc0(float scalarQuant)
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<dstDataType> golden(cFileSize);
-    std::vector<dstDataType> devFinal(cFileSize);
+    std::vector<dstDataType> golden(cFileSize / sizeof(dstDataType));
+    std::vector<dstDataType> devFinal(cFileSize / sizeof(dstDataType));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 
@@ -349,8 +351,8 @@ void test_tstore_acc2gm_scalar_nz2nd(float scalarQuant)
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<dstDataType> golden(cFileSize);
-    std::vector<dstDataType> devFinal(cFileSize);
+    std::vector<dstDataType> golden(cFileSize / sizeof(dstDataType));
+    std::vector<dstDataType> devFinal(cFileSize / sizeof(dstDataType));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 
@@ -425,8 +427,8 @@ void test_tstore_acc2gm_vector_nz2ndc1hwc0()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<dstDataType> golden(cFileSize);
-    std::vector<dstDataType> devFinal(cFileSize);
+    std::vector<dstDataType> golden(cFileSize / sizeof(dstDataType));
+    std::vector<dstDataType> devFinal(cFileSize / sizeof(dstDataType));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 
@@ -481,8 +483,8 @@ void test_tstore_acc2gm_scalar_nz2nz(float scalarQuant)
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<dstDataType> golden(cFileSize);
-    std::vector<dstDataType> devFinal(cFileSize);
+    std::vector<dstDataType> golden(cFileSize / sizeof(dstDataType));
+    std::vector<dstDataType> devFinal(cFileSize / sizeof(dstDataType));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 
@@ -552,8 +554,8 @@ void test_tstore_acc2gm_vector_nz2nd()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<dstDataType> golden(cFileSize);
-    std::vector<dstDataType> devFinal(cFileSize);
+    std::vector<dstDataType> golden(cFileSize / sizeof(dstDataType));
+    std::vector<dstDataType> devFinal(cFileSize / sizeof(dstDataType));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 
@@ -623,8 +625,8 @@ void test_tstore_acc2gm_vector_nz2nz()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<dstDataType> golden(cFileSize);
-    std::vector<dstDataType> devFinal(cFileSize);
+    std::vector<dstDataType> golden(cFileSize / sizeof(dstDataType));
+    std::vector<dstDataType> devFinal(cFileSize / sizeof(dstDataType));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 

@@ -17,12 +17,6 @@ See LICENSE in the root of the software repository for the full text of the Lice
 
 #include "const_args.hpp"
 
-template <uint32_t Align, class T>
-AICORE inline constexpr T ceilDiv(T value)
-{
-    return (value + static_cast<T>(Align) - 1) / static_cast<T>(Align);
-}
-
 template <class T, class U>
 AICORE inline constexpr auto ceilDiv(T lhs, U rhs)
 {
@@ -30,12 +24,6 @@ AICORE inline constexpr auto ceilDiv(T lhs, U rhs)
     Common lhsValue = static_cast<Common>(lhs);
     Common rhsValue = static_cast<Common>(rhs);
     return (lhsValue + rhsValue - 1) / rhsValue;
-}
-
-template <uint32_t Align, class T>
-AICORE inline constexpr T roundUp(T value)
-{
-    return ceilDiv<Align>(value) * static_cast<T>(Align);
 }
 
 template <class T, class U>

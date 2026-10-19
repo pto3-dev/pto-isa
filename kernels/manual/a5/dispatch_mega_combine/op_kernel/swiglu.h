@@ -35,49 +35,41 @@ constexpr uint32_t kDirectSwigluFp8Bytes = kDirectSwigluTileElems * sizeof(int8_
 constexpr uint32_t kDirectSwigluE8Bytes = kDirectSwigluScaleElems * sizeof(uint8_t);
 constexpr uint32_t kDirectSwigluMaxBytes = kDirectSwigluScaleElems * sizeof(bfloat16_t);
 constexpr uint32_t kDirectSwigluScalingBytes = kDirectSwigluScaleElems * sizeof(bfloat16_t);
-constexpr uint32_t kDirectSwigluScaleStoreRowBytes = UB_ALIGN;
-constexpr uint32_t kDirectSwigluScaleStoreBytes = kDirectSwigluTileRows * kDirectSwigluScaleStoreRowBytes;
-// Activation makes x/gate dead, so quantization reuses the x half while the BF16 result lives after the CV slot.
-constexpr uint32_t kDirectSwigluFp8Offset = 0U;
+// Activation overwrites x, then quantization scratch reuses the consumed gate region.
+constexpr uint32_t kDirectSwigluWorkOffset = kGmm1SwigluCvXOffset;
+constexpr uint32_t kDirectSwigluFp8Offset = kGmm1SwigluCvGateOffset;
 constexpr uint32_t kDirectSwigluE8Offset = kDirectSwigluFp8Offset + kDirectSwigluFp8Bytes;
 constexpr uint32_t kDirectSwigluMaxOffset = kDirectSwigluE8Offset + kDirectSwigluE8Bytes;
 constexpr uint32_t kDirectSwigluScalingOffset = kDirectSwigluMaxOffset + kDirectSwigluMaxBytes;
-constexpr uint32_t kDirectSwigluScaleStoreOffset = kDirectSwigluScalingOffset + kDirectSwigluScalingBytes;
-constexpr uint32_t kDirectSwigluScratchBytes = kDirectSwigluScaleStoreOffset + kDirectSwigluScaleStoreBytes;
-constexpr uint32_t kDirectSwigluWorkOffset = kGmm1SwigluCvBufferBytes;
-constexpr uint32_t kDirectSwigluRequiredUbBytes = kDirectSwigluWorkOffset + kDirectSwigluWorkBytes;
+constexpr uint32_t kDirectSwigluRequiredUbBytes = kDirectSwigluScalingOffset + kDirectSwigluScalingBytes;
 constexpr uint32_t kDirectSwigluStoreEvent = 0U;
 
-using DirectSwigluBf16Tile = pto::Tile<pto::TileType::Vec, bfloat16_t, kDirectSwigluTileRows, kDirectSwigluOutputCols,
-                                       pto::BLayout::RowMajor, pto::DYNAMIC, pto::DYNAMIC>;
-using DirectSwigluQuantSrcTile =
-    pto::Tile<pto::TileType::Vec, bfloat16_t, kDirectSwigluTileRows, kDirectSwigluOutputCols, pto::BLayout::RowMajor,
-              pto::DYNAMIC, pto::DYNAMIC, pto::SLayout::NoneBox, 512, pto::PadValue::Zero>;
-using DirectSwigluQuantFp8Tile =
-    pto::Tile<pto::TileType::Vec, int8_t, kDirectSwigluTileRows, kDirectSwigluOutputCols, pto::BLayout::RowMajor,
-              pto::DYNAMIC, pto::DYNAMIC, pto::SLayout::NoneBox, 512, pto::PadValue::Zero>;
-using DirectSwigluQuantE8Tile =
-    pto::Tile<pto::TileType::Vec, uint8_t, 1, kDirectSwigluScaleElems, pto::BLayout::RowMajor, pto::DYNAMIC,
-              pto::DYNAMIC, pto::SLayout::NoneBox, 512, pto::PadValue::Zero>;
-using DirectSwigluQuantScaleTile = pto::Tile<pto::TileType::Vec, bfloat16_t, 1, kDirectSwigluScaleElems,
-                                             pto::BLayout::RowMajor, pto::DYNAMIC, pto::DYNAMIC>;
-using DirectSwigluScaleStoreTile =
-    pto::Tile<pto::TileType::Vec, uint8_t, kDirectSwigluTileRows, kDirectSwigluScaleStoreRowBytes,
-              pto::BLayout::RowMajor, pto::DYNAMIC, pto::DYNAMIC>;
+using DirectSwigluBf16Tile = pto::Tile<
+    pto::TileType::Vec, bfloat16_t, kDirectSwigluTileRows, kDirectSwigluOutputCols, pto::BLayout::RowMajor,
+    pto::DYNAMIC, pto::DYNAMIC>;
+using DirectSwigluQuantSrcTile = pto::Tile<
+    pto::TileType::Vec, bfloat16_t, kDirectSwigluTileRows, kDirectSwigluOutputCols, pto::BLayout::RowMajor,
+    pto::DYNAMIC, pto::DYNAMIC, pto::SLayout::NoneBox, 512, pto::PadValue::Zero>;
+using DirectSwigluQuantFp8Tile = pto::Tile<
+    pto::TileType::Vec, int8_t, kDirectSwigluTileRows, kDirectSwigluOutputCols, pto::BLayout::RowMajor, pto::DYNAMIC,
+    pto::DYNAMIC, pto::SLayout::NoneBox, 512, pto::PadValue::Zero>;
+using DirectSwigluQuantE8Tile = pto::Tile<
+    pto::TileType::Vec, uint8_t, 1, kDirectSwigluScaleElems, pto::BLayout::RowMajor, pto::DYNAMIC, pto::DYNAMIC,
+    pto::SLayout::NoneBox, 512, pto::PadValue::Zero>;
+using DirectSwigluQuantScaleTile = pto::Tile<
+    pto::TileType::Vec, bfloat16_t, 1, kDirectSwigluScaleElems, pto::BLayout::RowMajor, pto::DYNAMIC, pto::DYNAMIC>;
 
-static_assert(kDirectSwigluScratchBytes <= kGmm1SwigluCvHalfSlotBytes);
-static_assert(kDirectSwigluWorkOffset == kGmm1SwigluCvSlotBytes);
 static_assert(kDirectSwigluRequiredUbBytes <= A5_MAIN_UB_SIZE);
+static_assert(kGmm1SwigluCvSlotBytes == AtlasA5::UB_SIZE);
 
 template <typename DstTile, typename SrcTile>
-__tf__ AICORE inline void DirectSwigluActivation(typename DstTile::TileDType __out__ dstData,
-                                                 typename SrcTile::TileDType __in__ xData,
-                                                 typename SrcTile::TileDType __in__ gateData, uint32_t rows,
-                                                 uint32_t outputCols)
+__tf__ AICORE inline void DirectSwigluActivation(
+    typename DstTile::TileDType __out__ dstData, typename SrcTile::TileDType __in__ xData,
+    typename SrcTile::TileDType __in__ gateData, uint32_t rows, uint32_t outputCols)
 {
-    __ubuf__ bfloat16_t *dst = reinterpret_cast<__ubuf__ bfloat16_t *>(__cce_get_tile_ptr(dstData));
-    __ubuf__ bfloat16_t *x = reinterpret_cast<__ubuf__ bfloat16_t *>(__cce_get_tile_ptr(xData));
-    __ubuf__ bfloat16_t *gate = reinterpret_cast<__ubuf__ bfloat16_t *>(__cce_get_tile_ptr(gateData));
+    __ubuf__ bfloat16_t* dst = reinterpret_cast<__ubuf__ bfloat16_t*>(__cce_get_tile_ptr(dstData));
+    __ubuf__ bfloat16_t* x = reinterpret_cast<__ubuf__ bfloat16_t*>(__cce_get_tile_ptr(xData));
+    __ubuf__ bfloat16_t* gate = reinterpret_cast<__ubuf__ bfloat16_t*>(__cce_get_tile_ptr(gateData));
     constexpr uint32_t kFp32VectorElems = 64U;
     const uint16_t repeatCount = static_cast<uint16_t>((outputCols + kFp32VectorElems - 1U) / kFp32VectorElems);
     __VEC_SCOPE__
@@ -116,58 +108,26 @@ __tf__ AICORE inline void DirectSwigluActivation(typename DstTile::TileDType __o
     }
 }
 
-template <typename DstTile, typename SrcTile>
-__tf__ AICORE inline void DirectSwigluPackScaleRows(typename DstTile::TileDType __out__ dstData,
-                                                    typename SrcTile::TileDType __in__ srcData, uint32_t rows)
-{
-    __ubuf__ uint8_t *dst = reinterpret_cast<__ubuf__ uint8_t *>(__cce_get_tile_ptr(dstData));
-    __ubuf__ uint8_t *src = reinterpret_cast<__ubuf__ uint8_t *>(__cce_get_tile_ptr(srcData));
-    constexpr uint32_t kScaleGroupsPerRow = kDirectSwigluOutputCols / kMegaMoeMxGroupSize;
-    __VEC_SCOPE__
-    {
-        pto::RegTensor<uint8_t> scaleData;
-        pto::UnalignReg scaleAlign;
-        uint32_t validScaleBytes = kScaleGroupsPerRow;
-        pto::MaskReg validScaleMask = pto::CreatePredicate<uint8_t>(validScaleBytes);
-        for (uint16_t row = 0U; row < static_cast<uint16_t>(rows); ++row) {
-            __ubuf__ uint8_t *srcRow = src + static_cast<uint32_t>(row) * kScaleGroupsPerRow;
-            vldas(scaleAlign, srcRow);
-            vldus(scaleData, scaleAlign, srcRow);
-            vsts(scaleData, dst, static_cast<uint32_t>(row) * kDirectSwigluScaleStoreRowBytes, NORM_B8, validScaleMask);
-        }
-    }
-}
-
 template <typename DataTile, typename ScaleTile>
-__tf__ AICORE inline void DirectSwigluStore(__gm__ int8_t *dataDst, __gm__ uint8_t *scaleDst,
-                                            typename DataTile::TileDType __in__ dataTile,
-                                            typename ScaleTile::TileDType __in__ scaleTile, uint32_t rows,
-                                            uint32_t dataCols, uint32_t dataLeadingDim, uint32_t scaleCols,
-                                            uint32_t scaleLeadingDim)
+__tf__ AICORE inline void DirectSwigluStore(
+    __gm__ int8_t* dataDst, __gm__ uint8_t* scaleDst, typename DataTile::TileDType __in__ dataTile,
+    typename ScaleTile::TileDType __in__ scaleTile, uint32_t rows, uint32_t dataCols, uint32_t dataLeadingDim,
+    uint32_t scaleCols, uint32_t scaleLeadingDim)
 {
-    __ubuf__ int8_t *dataSrc = reinterpret_cast<__ubuf__ int8_t *>(__cce_get_tile_ptr(dataTile));
-    __ubuf__ uint8_t *scaleSrc = reinterpret_cast<__ubuf__ uint8_t *>(__cce_get_tile_ptr(scaleTile));
+    __ubuf__ int8_t* dataSrc = reinterpret_cast<__ubuf__ int8_t*>(__cce_get_tile_ptr(dataTile));
+    __ubuf__ uint8_t* scaleSrc = reinterpret_cast<__ubuf__ uint8_t*>(__cce_get_tile_ptr(scaleTile));
     copy_ubuf_to_gm_align_v2(dataDst, dataSrc, 0, rows, dataCols, 0, dataLeadingDim, kDirectSwigluOutputCols);
-    copy_ubuf_to_gm_align_v2(scaleDst, scaleSrc, 0, rows, scaleCols, 0, scaleLeadingDim,
-                             kDirectSwigluScaleStoreRowBytes);
+    copy_ubuf_to_gm_align_v2(scaleDst, scaleSrc, 0, rows, scaleCols, 0, scaleLeadingDim, scaleCols);
 }
 
 template <typename InputElement>
 class Swiglu {
 public:
-    AICORE inline void Init(GM_ADDR workspaceGM, const __gm__ MegaMoeTilingData *tilingData);
+    AICORE inline void Init(GM_ADDR workspaceGM, const __gm__ MegaMoeTilingData* tilingData);
     AICORE inline void ProcessFixed(uint32_t groupLocalId, uint32_t groupSize);
 
 private:
-    AICORE inline uint32_t PairTileN() const
-    {
-        return tilingData_->gmm1Tiling.l1TileN;
-    }
-
-    AICORE inline uint32_t CoreLoops(uint32_t currentM) const
-    {
-        return GmmCommonCoreLoops(currentM, outputN_, tilingData_->gmm1Tiling.l1TileM, PairTileN());
-    }
+    AICORE inline uint32_t CoreLoops(uint32_t currentM) const { return GmmCommonCoreLoops(currentM, outputN_); }
 
     AICORE inline uint32_t StartLoopIdx(uint32_t startCoreIdx) const
     {
@@ -176,16 +136,13 @@ private:
 
     AICORE inline GmmCommonTileInfo BuildPairTileInfo(uint32_t currentM, uint32_t loopIdx) const
     {
-        return GmmCommonBuildTileInfo(currentM, outputN_, tilingData_->gmm1Tiling.l1TileM, PairTileN(), loopIdx);
+        return GmmCommonBuildTileInfo(currentM, outputN_, loopIdx);
     }
 
-    AICORE inline void ComputeDirectPayload(Gmm1SwigluCvPipe &cvPipe, uint32_t globalRow, uint32_t pairN,
-                                            uint32_t pairCol, uint32_t rows) const
+    AICORE inline void ComputeDirectPayload(
+        Gmm1SwigluCvPipe& cvPipe, uint32_t globalRow, uint32_t pairN, uint32_t pairCol, uint32_t rows) const
     {
-        const uint32_t tileIndex = cvPipe.cons.tileIndex;
-        const uint32_t slot = tileIndex % kGmm1SwigluCvFifoDepth;
-        const uint64_t slotBase = kGmm1SwigluCvBufferOffset +
-                                  static_cast<uint64_t>(slot) * kGmm1SwigluCvSlotBytes;
+        constexpr uint64_t slotBase = kGmm1SwigluCvBufferOffset;
         Gmm1SwigluConsumerWait(cvPipe);
 
         DirectSwigluBf16Tile xTile(rows, pairN);
@@ -194,50 +151,43 @@ private:
         pto::TASSIGN(xTile, slotBase + kGmm1SwigluCvXOffset);
         pto::TASSIGN(gateTile, slotBase + kGmm1SwigluCvGateOffset);
         pto::TASSIGN(srcTile, kDirectSwigluWorkOffset);
-        DirectSwigluActivation<DirectSwigluQuantSrcTile, DirectSwigluBf16Tile>(srcTile.data(), xTile.data(),
-                                                                               gateTile.data(), rows, pairN);
+        DirectSwigluActivation<DirectSwigluQuantSrcTile, DirectSwigluBf16Tile>(
+            srcTile.data(), xTile.data(), gateTile.data(), rows, pairN);
 
         const uint32_t scaleCols = pairN / kMegaMoeMxGroupSize;
         DirectSwigluQuantFp8Tile fp8Tile(rows, pairN);
         DirectSwigluQuantE8Tile e8Tile(1U, rows * kDirectSwigluOutputCols / kMegaMoeMxGroupSize);
         DirectSwigluQuantScaleTile maxTile(1U, rows * kDirectSwigluOutputCols / kMegaMoeMxGroupSize);
         DirectSwigluQuantScaleTile scalingTile(1U, rows * kDirectSwigluOutputCols / kMegaMoeMxGroupSize);
-        DirectSwigluScaleStoreTile scaleStoreTile(rows, scaleCols);
         pto::TASSIGN(fp8Tile, kDirectSwigluFp8Offset);
         pto::TASSIGN(e8Tile, kDirectSwigluE8Offset);
         pto::TASSIGN(maxTile, kDirectSwigluMaxOffset);
         pto::TASSIGN(scalingTile, kDirectSwigluScalingOffset);
-        pto::TASSIGN(scaleStoreTile, kDirectSwigluScaleStoreOffset);
-        pto::TQUANT<pto::QuantType::MXFP8, DirectSwigluQuantFp8Tile, DirectSwigluQuantSrcTile, DirectSwigluQuantE8Tile,
-                    DirectSwigluQuantScaleTile, DirectSwigluQuantScaleTile, pto::QuantScaleAlg::OCP>(
+        pto::TQUANT<
+            pto::QuantType::MXFP8, DirectSwigluQuantFp8Tile, DirectSwigluQuantSrcTile, DirectSwigluQuantE8Tile,
+            DirectSwigluQuantScaleTile, DirectSwigluQuantScaleTile, pto::QuantScaleAlg::OCP>(
             fp8Tile, srcTile, &e8Tile, &maxTile, &scalingTile);
-        DirectSwigluPackScaleRows<DirectSwigluScaleStoreTile, DirectSwigluQuantE8Tile>(scaleStoreTile.data(),
-                                                                                       e8Tile.data(), rows);
 
         set_flag(PIPE_V, PIPE_MTE3, static_cast<event_t>(kDirectSwigluStoreEvent));
         wait_flag(PIPE_V, PIPE_MTE3, static_cast<event_t>(kDirectSwigluStoreEvent));
-        __gm__ int8_t *dataDst =
-            reinterpret_cast<__gm__ int8_t *>(gmSwigluAPtr_) + static_cast<uint64_t>(globalRow) * outputN_ + pairCol;
-        __gm__ uint8_t *scaleDst = reinterpret_cast<__gm__ uint8_t *>(gmSwigluScalePtr_) +
+        __gm__ int8_t* dataDst =
+            reinterpret_cast<__gm__ int8_t*>(gmSwigluAPtr_) + static_cast<uint64_t>(globalRow) * outputN_ + pairCol;
+        __gm__ uint8_t* scaleDst = reinterpret_cast<__gm__ uint8_t*>(gmSwigluScalePtr_) +
                                    static_cast<uint64_t>(globalRow) * ScaleCols() + pairCol / kMegaMoeMxGroupSize;
-        DirectSwigluStore<DirectSwigluQuantFp8Tile, DirectSwigluScaleStoreTile>(
-            dataDst, scaleDst, fp8Tile.data(), scaleStoreTile.data(), rows, pairN, outputN_, scaleCols, ScaleCols());
+        DirectSwigluStore<DirectSwigluQuantFp8Tile, DirectSwigluQuantE8Tile>(
+            dataDst, scaleDst, fp8Tile.data(), e8Tile.data(), rows, pairN, outputN_, scaleCols, ScaleCols());
         set_flag(PIPE_MTE3, PIPE_V, static_cast<event_t>(kDirectSwigluStoreEvent));
         wait_flag(PIPE_MTE3, PIPE_V, static_cast<event_t>(kDirectSwigluStoreEvent));
         // Quant output aliases the producer slot, so it is reusable only after both GM stores complete.
         Gmm1SwigluConsumerRelease(cvPipe);
     }
 
-    AICORE inline void ConsumeDirectWave0(Gmm1SwigluCvPipe &cvPipe) const
+    AICORE inline void ConsumeDirectWave0(Gmm1SwigluCvPipe& cvPipe) const
     {
-        const __gm__ MegaMoeFixedGroupTiling &fixed = tilingData_->fixedGroupTiling;
+        const __gm__ MegaMoeFixedGroupTiling& fixed = tilingData_->fixedGroupTiling;
         const MegaMoeExpertWaveRange wave = GetExpertWaveRange(
             0U, expertPerRank_, fixed.fullAicExpertsPerWave, fixed.expertsPerWave, fixed.fullAicGmm1WaveCount);
         const uint32_t participantCount = fixed.physicalAicNum;
-        if (wave.begin >= wave.end || participantCount == 0U || coreIdx_ >= participantCount) {
-            return;
-        }
-
         uint32_t groupBase = 0U;
         MegaMoeCoreTileBalancer tileBalancer;
         SetCoreTileBalancerRange(tileBalancer, 0U, participantCount);
@@ -248,8 +198,9 @@ private:
             const uint32_t startLoopIdx = StartLoopIdx(startCoreIdx);
             for (uint32_t loopIdx = startLoopIdx; loopIdx < coreLoops; loopIdx += participantCount) {
                 const GmmCommonTileInfo tileInfo = BuildPairTileInfo(currentM, loopIdx);
-                ComputeDirectPayload(cvPipe, groupBase + tileInfo.blockRowStart, tileInfo.actualN,
-                                     tileInfo.blockColStart, tileInfo.actualM);
+                ComputeDirectPayload(
+                    cvPipe, groupBase + tileInfo.blockRowStart, tileInfo.actualN, tileInfo.blockColStart,
+                    tileInfo.actualM);
                 PublishGmm2InputExpertTileReady(expert);
             }
             groupBase += currentM;
@@ -258,15 +209,12 @@ private:
         dsb(DSB_DDR);
     }
 
-    AICORE inline uint32_t ScaleCols() const
-    {
-        return outputN_ / kMegaMoeMxGroupSize;
-    }
+    AICORE inline uint32_t ScaleCols() const { return outputN_ / kMegaMoeMxGroupSize; }
 
     AICORE inline void PublishGmm2InputExpertTileReady(uint32_t expert) const
     {
-        const __gm__ MegaMoeGmmQueueTiling &queue = tilingData_->gmmSchedulerTiling.gmm2;
-        __gm__ int32_t *slot = GmmTaskDependencySlot(
+        const __gm__ MegaMoeGmmQueueTiling& queue = tilingData_->gmmSchedulerTiling.gmm2;
+        __gm__ int32_t* slot = GmmTaskDependencySlot(
             workspaceGM_, queue, tilingData_->dispatchTiling.readyCountMaxTilesPerExpert, expert, 0U);
         // Do not let the scalar counter overtake the SwiGLU GM stores.
         pto::PtoSetWaitFlag<PIPE_MTE3, PIPE_S>();
@@ -278,10 +226,10 @@ private:
     AICORE inline void ProcessHybrid();
 
     GM_ADDR workspaceGM_ = nullptr;
-    const __gm__ MegaMoeTilingData *tilingData_ = nullptr;
-    __gm__ float8_e4m3_t *gmSwigluAPtr_ = nullptr;
-    __gm__ float8_e8m0_t *gmSwigluScalePtr_ = nullptr;
-    __gm__ int32_t *cumsumMMPtr_ = nullptr;
+    const __gm__ MegaMoeTilingData* tilingData_ = nullptr;
+    __gm__ float8_e4m3_t* gmSwigluAPtr_ = nullptr;
+    __gm__ float8_e8m0_t* gmSwigluScalePtr_ = nullptr;
+    __gm__ int32_t* cumsumMMPtr_ = nullptr;
     uint32_t outputN_ = 0U;
     uint32_t expertPerRank_ = 0U;
     uint32_t rankSize_ = 0U;
@@ -290,7 +238,7 @@ private:
 };
 
 template <typename InputElement>
-AICORE inline void Swiglu<InputElement>::Init(GM_ADDR workspaceGM, const __gm__ MegaMoeTilingData *tilingData)
+AICORE inline void Swiglu<InputElement>::Init(GM_ADDR workspaceGM, const __gm__ MegaMoeTilingData* tilingData)
 {
     static_assert(std::is_same_v<InputElement, bfloat16_t>, "MXFP8 SwiGLU requires BF16 GMM output");
     workspaceGM_ = workspaceGM;
@@ -299,10 +247,10 @@ AICORE inline void Swiglu<InputElement>::Init(GM_ADDR workspaceGM, const __gm__ 
     expertPerRank_ = tilingData_->megaMoeInfo.expertPerRank;
     rankSize_ = tilingData_->runtimeInfo.rankSize;
 
-    gmSwigluAPtr_ = reinterpret_cast<__gm__ float8_e4m3_t *>(workspaceGM_ + tilingData_->swigluTiling.gmSwigluAOffset);
+    gmSwigluAPtr_ = reinterpret_cast<__gm__ float8_e4m3_t*>(workspaceGM_ + tilingData_->swigluTiling.gmSwigluAOffset);
     gmSwigluScalePtr_ =
-        reinterpret_cast<__gm__ float8_e8m0_t *>(workspaceGM_ + tilingData_->swigluTiling.gmSwigluScaleOffset);
-    cumsumMMPtr_ = reinterpret_cast<__gm__ int32_t *>(workspaceGM_ + tilingData_->frontReorderTiling.cumsumMMOffset);
+        reinterpret_cast<__gm__ float8_e8m0_t*>(workspaceGM_ + tilingData_->swigluTiling.gmSwigluScaleOffset);
+    cumsumMMPtr_ = reinterpret_cast<__gm__ int32_t*>(workspaceGM_ + tilingData_->frontReorderTiling.cumsumMMOffset);
 }
 
 template <typename InputElement>
@@ -320,23 +268,17 @@ AICORE inline void Swiglu<InputElement>::ProcessFixed(uint32_t groupLocalId, uin
 template <typename InputElement>
 AICORE inline void Swiglu<InputElement>::ProcessFixedWave()
 {
-    if ASCEND_IS_AIC {
-        return;
-    }
-
     WaitEpochAcquire(
         FixedSyncSlot(workspaceGM_, tilingData_, kMegaMoeFixedSyncFrontMetadataReadySlot),
         kMegaMoeFixedFrontMetadataReadyMarker);
 
-    const __gm__ MegaMoeFixedGroupTiling &fixed = tilingData_->fixedGroupTiling;
-    const uint32_t minimumFullAicWaveCount =
-        fixed.fullAicGmm1WaveCount < fixed.totalWaveCount ? fixed.fullAicGmm1WaveCount : fixed.totalWaveCount;
-    bool splitForGmm2 = false;
+    const __gm__ MegaMoeFixedGroupTiling& fixed = tilingData_->fixedGroupTiling;
     Gmm1SwigluCvPipe cvPipe;
     uint32_t groupBase = 0U;
     MegaMoeCoreTileBalancer tileBalancer;
     for (uint32_t waveIdx = 0U; waveIdx < fixed.totalWaveCount; ++waveIdx) {
-        const uint32_t participantCount = splitForGmm2 ? fixed.gmm1GroupSize : fixed.physicalAicNum;
+        const uint32_t participantCount =
+            waveIdx < fixed.fullAicGmm1WaveCount ? fixed.physicalAicNum : fixed.gmm1GroupSize;
         coreNum_ = participantCount;
         if (coreIdx_ >= participantCount) {
             break;
@@ -351,8 +293,9 @@ AICORE inline void Swiglu<InputElement>::ProcessFixedWave()
             const uint32_t startLoopIdx = StartLoopIdx(startCoreIdx);
             for (uint32_t loopIdx = startLoopIdx; loopIdx < coreLoops; loopIdx += coreNum_) {
                 const GmmCommonTileInfo tileInfo = BuildPairTileInfo(currentM, loopIdx);
-                ComputeDirectPayload(cvPipe, groupBase + tileInfo.blockRowStart, tileInfo.actualN,
-                                     tileInfo.blockColStart, tileInfo.actualM);
+                ComputeDirectPayload(
+                    cvPipe, groupBase + tileInfo.blockRowStart, tileInfo.actualN, tileInfo.blockColStart,
+                    tileInfo.actualM);
                 PublishGmm2InputExpertTileReady(groupIdx);
             }
             groupBase += currentM;
@@ -361,47 +304,26 @@ AICORE inline void Swiglu<InputElement>::ProcessFixedWave()
 
         dsb(DSB_DDR);
 
-        // The SwiGLU payload is already in GM at this point. Publish GMM2
-        // readiness as soon as every participating AIV has finished its local
-        // stores; the GMM1 wave marker below is only a control-path rendezvous
-        // and must not delay the independent GMM2 AIC group.
-        const uint32_t gmm2CoordinatorLocalId = participantCount - 1U;
-        NotifyGroupConsumersMte(workspaceGM_, tilingData_, kMegaMoeFixedSyncSwigluArrivalBase,
-                                kMegaMoeFixedSyncGmm2ReadyBase, participantCount, fixed.gmm2GroupSize, coreIdx_,
-                                gmm2CoordinatorLocalId, waveIdx);
-
         // Tile consumption has already overlapped the paired AIC producer.
         // This final per-core marker is only the wave-boundary control path;
         // it also gives zero-tile participants a deterministic rendezvous.
         const uint32_t readyEpoch = waveIdx + 1U;
         (void)WaitEpochAcquire(
-            FixedSyncSlot(workspaceGM_, tilingData_,
-                                                     kMegaMoeFixedSyncGmm1ArrivalBase + coreIdx_),
+            FixedSyncSlot(workspaceGM_, tilingData_, kMegaMoeFixedSyncGmm1ArrivalBase + coreIdx_),
             static_cast<int32_t>(readyEpoch));
-
-        if (coreIdx_ == 0U) {
-            CoordinateGroupConsumersMte(workspaceGM_, tilingData_, kMegaMoeFixedSyncGmm1ArrivalBase,
-                                        kMegaMoeFixedSyncSwigluReadyBase, participantCount, participantCount, waveIdx);
-        }
-
-        const uint32_t completedWaveCount = waveIdx + 1U;
-        const bool canSplitAtBoundary =
-            completedWaveCount >= minimumFullAicWaveCount && completedWaveCount < fixed.totalWaveCount;
-        if (!splitForGmm2 && canSplitAtBoundary) {
-            const int32_t decision =
-                WaitGmm1SplitDecision(workspaceGM_, tilingData_, completedWaveCount);
-            splitForGmm2 = Gmm1SplitDecisionEnabled(decision, completedWaveCount);
-        }
+    }
+    if (fixed.fullAicGmm1WaveCount > kMegaMoeFullAicGmm1WaveCount && coreIdx_ >= fixed.gmm1GroupSize) {
+        // Only the configured multi-wave split (M2048 today) hands Group2 to
+        // GMM2 locally. Default one-wave fixed schedules arm in the outer path.
+        pipe_barrier(PIPE_ALL);
+        dsb(DSB_DDR);
+        PublishCombineConsumerArmed(workspaceGM_, tilingData_, coreIdx_);
     }
 }
 
 template <typename InputElement>
 AICORE inline void Swiglu<InputElement>::ProcessHybrid()
 {
-    if ASCEND_IS_AIC {
-        return;
-    }
-
     WaitEpochAcquire(
         FixedSyncSlot(workspaceGM_, tilingData_, kMegaMoeFixedSyncFrontMetadataReadySlot),
         kMegaMoeFixedFrontMetadataReadyMarker);
@@ -417,18 +339,17 @@ AICORE inline void Swiglu<InputElement>::ProcessHybrid()
     GmmCvTaskInferenceCache inferenceCache;
     while (true) {
         Gmm1SwigluControlConsumerWait(cvPipe);
-        const uint32_t control = ReadGmmCvTaskControl(
-            cvPipe.cons.controlIndex, kGmm1SwigluControlFifoDepth);
+        const uint32_t control = ReadGmmCvTaskControl(cvPipe.cons.controlIndex, kGmm1SwigluControlFifoDepth);
         Gmm1SwigluControlConsumerRelease(cvPipe);
         if (IsGmmStageEndControl(control)) {
             break;
         }
-        const MegaMoeGmmTask task =
-            InferGmmCvTask(control, cumsumMMPtr_, rankSize_, expertPerRank_, inferenceCache);
-        const GmmCommonTileInfo tileInfo = GmmCommonBuildTileInfoFromCoord(
-            task.currentM, outputN_, tilingData_->gmm1Tiling.l1TileM, PairTileN(), task.blockM, task.blockN);
-        ComputeDirectPayload(cvPipe, task.expertBase + tileInfo.blockRowStart, tileInfo.actualN, tileInfo.blockColStart,
-                             tileInfo.actualM);
+        const MegaMoeGmmTask task = InferGmmCvTask(control, cumsumMMPtr_, rankSize_, expertPerRank_, inferenceCache);
+        const GmmCommonTileInfo tileInfo =
+            GmmCommonBuildTileInfoFromCoord(task.currentM, outputN_, task.blockM, task.blockN);
+        ComputeDirectPayload(
+            cvPipe, task.expertBase + tileInfo.blockRowStart, tileInfo.actualN, tileInfo.blockColStart,
+            tileInfo.actualM);
         PublishGmm2InputExpertTileReady(task.expert);
     }
     dsb(DSB_DDR);

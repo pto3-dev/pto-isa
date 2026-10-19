@@ -31,12 +31,12 @@ AICORE inline void runTLoadDn2Nz(__gm__ T* out, __gm__ T* src)
     TASSIGN<0x0>(vecTile);
 
     TLOAD(matTile, srcGlobal);
-    set_flag(PIPE_MTE2, PIPE_MTE1, EVENT_ID0);
-    wait_flag(PIPE_MTE2, PIPE_MTE1, EVENT_ID0);
+    set_flag(PIPE_MTE2, PIPE_FIX, EVENT_ID0);
+    wait_flag(PIPE_MTE2, PIPE_FIX, EVENT_ID0);
 
     TMOV(vecTile, matTile);
-    set_flag(PIPE_MTE1, PIPE_MTE3, EVENT_ID0);
-    wait_flag(PIPE_MTE1, PIPE_MTE3, EVENT_ID0);
+    set_flag(PIPE_FIX, PIPE_MTE3, EVENT_ID0);
+    wait_flag(PIPE_FIX, PIPE_MTE3, EVENT_ID0);
 
     TSTORE(dstGlobal, vecTile);
     out = dstGlobal.data();

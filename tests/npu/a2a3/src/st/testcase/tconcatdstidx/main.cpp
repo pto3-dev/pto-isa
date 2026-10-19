@@ -78,6 +78,8 @@ void test_tconcat()
     aclrtMalloc((void**)&src0IdxDevice, fileSizeSrc0Idx, ACL_MEM_MALLOC_HUGE_FIRST);
     aclrtMalloc((void**)&src1IdxDevice, fileSizeSrc1Idx, ACL_MEM_MALLOC_HUGE_FIRST);
     aclrtMalloc((void**)&dstIdxDevice, fileSizeDstIdx, ACL_MEM_MALLOC_HUGE_FIRST);
+    aclrtMemset(dstDevice, fileSizeDst, 0, fileSizeDst);
+    aclrtMemset(dstIdxDevice, fileSizeDstIdx, 0, fileSizeDstIdx);
 
     ReadFile(GetGoldenDir() + "/input0.bin", fileSizeSrc0, src0Host, fileSizeSrc0);
     ReadFile(GetGoldenDir() + "/input1.bin", fileSizeSrc1, src1Host, fileSizeSrc1);
@@ -122,10 +124,10 @@ void test_tconcat()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<dataType> golden(fileSizeDst);
-    std::vector<dataType> devFinal(fileSizeDst);
-    std::vector<idxType> goldenIdx(fileSizeDstIdx);
-    std::vector<idxType> devFinalIdx(fileSizeDstIdx);
+    std::vector<dataType> golden(fileSizeDst / sizeof(dataType));
+    std::vector<dataType> devFinal(fileSizeDst / sizeof(dataType));
+    std::vector<idxType> goldenIdx(fileSizeDstIdx / sizeof(idxType));
+    std::vector<idxType> devFinalIdx(fileSizeDstIdx / sizeof(idxType));
     ReadFile(GetGoldenDir() + "/golden.bin", fileSizeDst, golden.data(), fileSizeDst);
     ReadFile(GetGoldenDir() + "/output.bin", fileSizeDst, devFinal.data(), fileSizeDst);
     ReadFile(GetGoldenDir() + "/goldenIdx.bin", fileSizeDstIdx, goldenIdx.data(), fileSizeDstIdx);

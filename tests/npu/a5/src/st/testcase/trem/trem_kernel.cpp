@@ -60,8 +60,6 @@ template void LaunchTRem<uint16_t, 64, 64, 64, 64, false, false>(
     uint16_t* out, uint16_t* src0, uint16_t* src1, void* stream);
 template void LaunchTRem<uint16_t, 64, 64, 63, 63, false, false>(
     uint16_t* out, uint16_t* src0, uint16_t* src1, void* stream);
-template void LaunchTRem<uint16_t, 1, 16384, 1, 16384, false, false>(
-    uint16_t* out, uint16_t* src0, uint16_t* src1, void* stream);
 template void LaunchTRem<uint16_t, 2048, 16, 2048, 16, false, false>(
     uint16_t* out, uint16_t* src0, uint16_t* src1, void* stream);
 template void LaunchTRem<float, 32, 32, 32, 32, false, true>(float* out, float* src0, float* src1, void* stream);
@@ -85,3 +83,51 @@ template void LaunchTRem<int64_t, 32, 32, 32, 32, false, false>(
     int64_t* out, int64_t* src0, int64_t* src1, void* stream);
 template void LaunchTRem<uint64_t, 32, 32, 32, 32, false, false>(
     uint64_t* out, uint64_t* src0, uint64_t* src1, void* stream);
+
+template <typename T, int tileH, int tileW, int vRows, int vCols>
+__global__ AICORE void runTRemInplace(__gm__ T* out, __gm__ T* src1)
+{
+    using DynShapeDim5 = Shape<1, 1, 1, vRows, vCols>;
+    using DynStridDim5 = pto::Stride<tileH * tileW, tileH * tileW, tileH * tileW, tileW, 1>;
+    using GlobalData = GlobalTensor<T, DynShapeDim5, DynStridDim5>;
+    using TileData = Tile<TileType::Vec, T, tileH, tileW, BLayout::RowMajor, -1, -1>;
+    TileData src0Tile(vRows, vCols);
+    TileData dstTile(vRows, vCols);
+    TileData src1Tile(vRows, vCols);
+    TileData tmpTile(1, vCols);
+    constexpr unsigned tileBytes = tileH * tileW * sizeof(T);
+    TASSIGN(src0Tile, 0x0);
+    TASSIGN(dstTile, 0x0);
+    TASSIGN(src1Tile, tileBytes);
+    TASSIGN(tmpTile, tileBytes * 2);
+
+    GlobalData src0Global((__gm__ T*)out);
+    GlobalData dstGlobal(out);
+    GlobalData src1Global(src1);
+
+    TLOAD(src0Tile, src0Global);
+    TLOAD(src1Tile, src1Global);
+#ifndef __PTO_AUTO__
+    set_flag(PIPE_MTE2, PIPE_V, EVENT_ID0);
+    wait_flag(PIPE_MTE2, PIPE_V, EVENT_ID0);
+#endif
+    TREM<RemAlgorithm::DEFAULT>(dstTile, src0Tile, src1Tile, tmpTile);
+#ifndef __PTO_AUTO__
+    set_flag(PIPE_V, PIPE_MTE3, EVENT_ID0);
+    wait_flag(PIPE_V, PIPE_MTE3, EVENT_ID0);
+#endif
+    TSTORE(dstGlobal, dstTile);
+    out = dstGlobal.data();
+}
+
+template <typename T, int tileH, int tileW, int vRows, int vCols>
+void LaunchTRemInplace(T* out, T* src1, void* stream)
+{
+    runTRemInplace<T, tileH, tileW, vRows, vCols><<<1, nullptr, stream>>>(out, src1);
+}
+
+template void LaunchTRemInplace<int64_t, 4, 32, 4, 32>(int64_t* out, int64_t* src1, void* stream);
+template void LaunchTRemInplace<uint64_t, 4, 32, 4, 32>(uint64_t* out, uint64_t* src1, void* stream);
+template void LaunchTRemInplace<int64_t, 1, 1024, 1, 1024>(int64_t* out, int64_t* src1, void* stream);
+template void LaunchTRemInplace<int64_t, 1, 2048, 1, 2045>(int64_t* out, int64_t* src1, void* stream);
+template void LaunchTRemInplace<int64_t, 4, 64, 4, 40>(int64_t* out, int64_t* src1, void* stream);

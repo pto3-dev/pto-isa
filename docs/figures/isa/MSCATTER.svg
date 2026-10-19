@@ -31,7 +31,7 @@ svg { font-family: Arial, Helvetica, sans-serif; }
 .validBox { fill: none; stroke-width: 2; stroke-dasharray: 6 4; }
 </style>
 <rect x="0" y="0" width="1200" height="720" class="frame" />
-<rect x="24" y="24" width="1152" height="672" class="panel" />
+<rect x="24" y="24" width="1152" height="672" class="panel"/>
 <text x="40" y="46" class="title">MSCATTER</text>
 <text x="40" y="72" class="subtitle">Scatter-store elements from a tile into global memory using per-element indices.</text>
 <text x="40" y="92" class="meta">Template: memory</text>
@@ -121,9 +121,9 @@ svg { font-family: Arial, Helvetica, sans-serif; }
 <rect x="688" y="404" width="22" height="22" class="cell cellHL" stroke="#6A47C4" />
 <rect x="710" y="404" width="22" height="22" class="cell" />
 <circle cx="600" cy="346" r="22" class="opCircle" stroke="#6A47C4" />
-<rect x="583" y="329" width="34" height="34" rx="6" class="opRect" stroke="#6A47C4" />
-<text x="600" y="344.5" class="opText" font-size="8px" text-anchor="middle">MSCATT</text>
-<text x="600" y="353.5" class="opText" font-size="8px" text-anchor="middle">ER</text>
+<rect x="583" y="329" width="34" height="34" rx="6" class="opRect" stroke="#6A47C4"/>
+<text x="600" y="344.5" class="opText" text-anchor="middle" font-size="8px">MSCATT</text>
+<text x="600" y="353.5" class="opText" text-anchor="middle" font-size="8px">ER</text>
 <path d="M 505 300 L 505 346 L 578 346 L 578 346" class="arrow" stroke="#6A47C4" marker-end="url(#arrow)" />
 <path d="M 695 300 L 695 346 L 622 346 L 622 346" class="arrow" stroke="#6A47C4" marker-end="url(#arrow)" />
 <path d="M 600 368 L 600 380 L 699 380 L 699 392" class="arrow" stroke="#6A47C4" marker-end="url(#arrow)" />

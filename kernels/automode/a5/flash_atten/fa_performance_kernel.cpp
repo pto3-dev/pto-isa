@@ -338,7 +338,7 @@ AICORE inline void compute_p(
             GlobalDataQK_Sub qkGlobalSub(qk_ptr_sub);
 
             TileDataF_Sub qkVecSub;
-            TSUBVIEW(qkVecSub, qkVecTile, 0, sub_col * Cube_S1);
+            detail::PtoSubTileView(qkVecSub, qkVecTile, 0, sub_col * Cube_S1);
             TLOAD(qkVecSub, qkGlobalSub);
         }
 
@@ -355,11 +355,11 @@ AICORE inline void compute_p(
         ReduceSliceTile l2_global_sum_slice;
         ReduceSliceTile l1_exp_max_slice;
 
-        TSUBVIEW(m1_local_max_slice, m1_local_max, row_slice * Vec_S0, 0);
-        TSUBVIEW(l1_local_sum_slice, l1_local_sum, row_slice * Vec_S0, 0);
-        TSUBVIEW(m2_global_max_slice, m2_global_max, row_slice * Vec_S0, 0);
-        TSUBVIEW(l2_global_sum_slice, l2_global_sum, row_slice * Vec_S0, 0);
-        TSUBVIEW(l1_exp_max_slice, l1_exp_max_ififo, row_slice * Vec_S0, 0);
+        detail::PtoSubTileView(m1_local_max_slice, m1_local_max, row_slice * Vec_S0, 0);
+        detail::PtoSubTileView(l1_local_sum_slice, l1_local_sum, row_slice * Vec_S0, 0);
+        detail::PtoSubTileView(m2_global_max_slice, m2_global_max, row_slice * Vec_S0, 0);
+        detail::PtoSubTileView(l2_global_sum_slice, l2_global_sum, row_slice * Vec_S0, 0);
+        detail::PtoSubTileView(l1_exp_max_slice, l1_exp_max_ififo, row_slice * Vec_S0, 0);
 
         // Extract current slice state from full-length reduce tiles
         if (initFlag) {
@@ -387,7 +387,7 @@ AICORE inline void compute_p(
             GlobalPTileHalfSub pTileHalfSub((__gm__ half*)(p_ptr_sub));
 
             TileDataH_Sub xExpSub;
-            TSUBVIEW(xExpSub, x_expT, 0, sub_col * Cube_S1);
+            detail::PtoSubTileView(xExpSub, x_expT, 0, sub_col * Cube_S1);
             TSTORE(pTileHalfSub, xExpSub);
         }
 

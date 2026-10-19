@@ -48,15 +48,21 @@ __tf__ PTO_INTERNAL OP_NAME(TXORS) OP_TYPE(element_wise) void TXorS(
     constexpr unsigned elementsPerRepeat = CCE_VL / sizeof(T);
     constexpr unsigned dstRowStride = TileDataDst::RowStride;
     constexpr unsigned src0RowStride = TileDataSrc::RowStride;
-    BinaryInstr<XorSOp<T>, TileDataDst, TileDataSrc, T, elementsPerRepeat, blockSizeElem, dstRowStride, src0RowStride>(
-        dstPtr, src0Ptr, src1, validRows, validCols, version);
+    if constexpr (std::is_same_v<T, int64_t> || std::is_same_v<T, uint64_t>) {
+        Int64Scalar<Int64Op::Xor, T, TileDataDst::Cols, TileDataSrc::Cols>(dstPtr, src0Ptr, src1, validRows, validCols);
+    } else {
+        BinaryInstr<
+            XorSOp<T>, TileDataDst, TileDataSrc, T, elementsPerRepeat, blockSizeElem, dstRowStride, src0RowStride>(
+            dstPtr, src0Ptr, src1, validRows, validCols, version);
+    }
 }
 
 template <typename TileDataDst, typename TileDataSrc, typename TileDataTmp>
 PTO_INTERNAL void TXORS_IMPL(TileDataDst& dst, TileDataSrc& src0, typename TileDataSrc::DType src1, TileDataTmp& tmp)
 {
     using T = typename TileDataDst::DType;
-    static_assert(sizeof(T) == 4 || sizeof(T) == 2 || sizeof(T) == 1, "Fix: TXORS has invalid data type.");
+    static_assert(
+        sizeof(T) == 8 || sizeof(T) == 4 || sizeof(T) == 2 || sizeof(T) == 1, "Fix: TXORS has invalid data type.");
     static_assert(TileDataDst::isRowMajor && TileDataSrc::isRowMajor, "Fix: TXORS only support row major layout.");
     static_assert(
         std::is_same_v<T, typename TileDataSrc::DType>,

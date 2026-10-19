@@ -80,8 +80,8 @@ void test_tcolexpandmin()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<float> golden(outputFileSize);
-    std::vector<float> devFinal(outputFileSize);
+    std::vector<float> golden(outputFileSize / sizeof(float));
+    std::vector<float> devFinal(outputFileSize / sizeof(float));
     ReadFile(GetGoldenDir() + "/golden.bin", outputFileSize, golden.data(), outputFileSize);
     ReadFile(GetGoldenDir() + "/output.bin", outputFileSize, devFinal.data(), outputFileSize);
     bool ret = ResultCmp(golden, devFinal, 0.001f);

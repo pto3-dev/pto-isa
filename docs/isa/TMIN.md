@@ -1,4 +1,4 @@
-﻿# TMIN
+# TMIN
 
 
 ## Tile Operation Diagram

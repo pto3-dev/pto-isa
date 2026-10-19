@@ -82,15 +82,15 @@ AICORE inline void CopyL1ToUbNoPad(__cbuf__ T* srcMatAddr, __ubuf__ T* srcUbAddr
 {
     uint16_t blockCount = 1;
     uint16_t blockLen = baseM * baseK * sizeof(T) / 32;
-    set_flag(PIPE_MTE2, PIPE_MTE1, EVENT_ID0);
-    wait_flag(PIPE_MTE2, PIPE_MTE1, EVENT_ID0);
+    set_flag(PIPE_MTE2, PIPE_FIX, EVENT_ID0);
+    wait_flag(PIPE_MTE2, PIPE_FIX, EVENT_ID0);
     uint64_t fixpNzPara =
         static_cast<uint64_t>(1) | (static_cast<uint64_t>(blockLen) << 16) | (static_cast<uint64_t>(1) << 32);
     set_fixp_nz_para(fixpNzPara);
     pto_copy_cbuf_to_ubuf((__ubuf__ void*)srcUbAddr, (__cbuf__ void*)srcMatAddr, 0, blockCount, blockLen, 0, 0);
     set_fixp_nz_para(0);
-    set_flag(PIPE_MTE1, PIPE_MTE3, EVENT_ID0);
-    wait_flag(PIPE_MTE1, PIPE_MTE3, EVENT_ID0);
+    set_flag(PIPE_FIX, PIPE_MTE3, EVENT_ID0);
+    wait_flag(PIPE_FIX, PIPE_MTE3, EVENT_ID0);
 }
 
 template <typename T, int M, int K, int baseM, int baseK>
@@ -98,16 +98,16 @@ AICORE inline void CopyL1ToUb(__cbuf__ T* srcMatAddr, __ubuf__ T* srcUbAddr)
 {
     uint16_t blockCount = 1;
     uint16_t blockLen = baseM * baseK * sizeof(T) / 32;
-    set_flag(PIPE_MTE2, PIPE_MTE1, EVENT_ID0);
-    wait_flag(PIPE_MTE2, PIPE_MTE1, EVENT_ID0);
+    set_flag(PIPE_MTE2, PIPE_FIX, EVENT_ID0);
+    wait_flag(PIPE_MTE2, PIPE_FIX, EVENT_ID0);
     uint64_t fixpNzPara =
         static_cast<uint64_t>(1) | (static_cast<uint64_t>(blockLen) << 16) | (static_cast<uint64_t>(1) << 32);
     set_fixp_nz_para(fixpNzPara);
     pto_copy_cbuf_to_ubuf((__ubuf__ void*)srcUbAddr, (__cbuf__ void*)srcMatAddr, 0, blockCount, blockLen, 0, 0);
     set_fixp_nz_para(0);
 
-    set_flag(PIPE_MTE1, PIPE_V, EVENT_ID0);
-    wait_flag(PIPE_MTE1, PIPE_V, EVENT_ID0);
+    set_flag(PIPE_FIX, PIPE_V, EVENT_ID0);
+    wait_flag(PIPE_FIX, PIPE_V, EVENT_ID0);
     ZeroUbNzPadding<T, M, K, baseM, baseK>(srcUbAddr);
     set_flag(PIPE_V, PIPE_MTE3, EVENT_ID0);
     wait_flag(PIPE_V, PIPE_MTE3, EVENT_ID0);

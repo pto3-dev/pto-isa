@@ -1,4 +1,4 @@
-﻿# TEXPANDS
+# TEXPANDS
 
 
 ## Tile Operation Diagram

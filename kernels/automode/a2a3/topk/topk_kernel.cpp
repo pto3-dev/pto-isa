@@ -75,7 +75,7 @@ PTO_INTERNAL void SortTailBlock(DstTileData& dstTile, SrcTileData& srcTile, TmpT
         SrcTileData src1Tile(1, tmpMrgArray);
         SrcTileData curDstTile(1, tmpMrgSortedLen + tmpMrgArray);
         TRESHAPE(src0Tile, srcTile);
-        TSUBVIEW(src1Tile, srcTile, 0, mrgSortedLen);
+        detail::PtoSubTileView(src1Tile, srcTile, 0, mrgSortedLen);
         TRESHAPE(curDstTile, srcTile);
         TRESHAPE(tmp1Tile, tmpTile);
         TMRGSORT<DstTileData, TmpTileData, SrcTileData, SrcTileData, 0>(
@@ -138,7 +138,7 @@ PTO_INTERNAL void SortEachGroup(DstTileData& dst, SrcTileData& src, IdxTileData&
 
     TRESHAPE(dstRowTile, dst);
     TRESHAPE(srcRowTile, src);
-    TSUBVIEW(tmpTile, inIdx, 0, kTCols_);
+    detail::PtoSubTileView(tmpTile, inIdx, 0, kTCols_);
     TSORT32(dstRowTile, srcRowTile, inIdx, tmpTile);
 }
 
@@ -148,10 +148,10 @@ PTO_INTERNAL void ExtractDataOrIndex(DstTileData& dstTile, SrcTileData& srcTile)
 {
     for (size_t i = 0; i < srcTile.GetValidRow(); ++i) {
         SrcRowTile rowTile(1, srcTile.GetValidCol());
-        TSUBVIEW(rowTile, srcTile, 0, i * SrcTileData::Cols);
+        detail::PtoSubTileView(rowTile, srcTile, 0, i * SrcTileData::Cols);
         if constexpr (isIndex == false) {
             DstRowTile rowDTile(1, dstTile.GetValidCol());
-            TSUBVIEW(rowDTile, dstTile, 0, i * DstTileData::Cols);
+            detail::PtoSubTileView(rowDTile, dstTile, 0, i * DstTileData::Cols);
             if constexpr (std::is_same_v<T, half>) {
                 TGATHER<DstRowTile, SrcRowTile, MaskPattern::P0001>(rowDTile, rowTile);
             } else {
@@ -165,7 +165,7 @@ PTO_INTERNAL void ExtractDataOrIndex(DstTileData& dstTile, SrcTileData& srcTile)
 
             using IndexRowTileData = Tile<TileType::Vec, indexT, 1, DstTileData::Cols, BLayout::RowMajor, -1, -1>;
             IndexRowTileData rowITile(1, dstTile.GetValidCol());
-            TSUBVIEW(rowITile, dstTile, 0, i * DstTileData::Cols);
+            detail::PtoSubTileView(rowITile, dstTile, 0, i * DstTileData::Cols);
 
             TGATHER<IndexRowTileData, CopySrcTileData, MaskPattern::P1010>(rowITile, copyTile);
         }
