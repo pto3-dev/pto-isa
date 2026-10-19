@@ -464,3 +464,30 @@ ulimit -n 65536
 - For NPU development: Review the test cases under `tests/npu/`
 - Check the API documentation for detailed instruction usage
 - Join the community for support and discussions
+
+## Experimental A1 architecture identification
+
+CCEC `--cce-aicore-arch=dav-m200` defines `__NPU_ARCH__=2002`. The common
+headers now identify that target as `ChipArch::A1` / `PTO_NPU_ARCH_A1`, rather
+than the permissive `UNKNOWN` profile. A1 has FP32 and INT32 accumulators;
+BF16, FP8/FP4, cross-core SyncAll/communication, quantization, histogram and MX
+layout capabilities remain disabled. Existing architecture enum values are preserved.
+
+This change supplies target identification and capability checks only. A1
+instruction implementations, compiler lowering and runtime launch are separate
+bring-up features; this does not enable an A2/A3 instruction fallback.
+
+Validate the profile on the host without executing an NPU kernel:
+
+```bash
+clang++ -std=c++20 -D__CPU_SIM -D__NPU_ARCH__=2002 -I include \
+  tests/compile/a1_architecture.cpp -o /tmp/pto-a1-architecture
+/tmp/pto-a1-architecture
+```
+
+Validate the compiler's actual target macros with an installed CANN toolkit:
+
+```bash
+ccec -c -std=c++17 -x cce --cce-aicore-only --cce-aicore-arch=dav-m200 \
+  -I include tests/compile/a1_architecture.cpp -o /tmp/pto-a1-architecture.o
+```

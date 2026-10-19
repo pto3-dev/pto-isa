@@ -23,6 +23,7 @@ enum class ChipArch : uint8_t {
     KIRIN9030 = 2,
     KIRINX90 = 3,
     A6 = 4,
+    A1 = 5,
     UNKNOWN = 255,
 };
 
@@ -80,7 +81,17 @@ struct ArchTraitsFp4Capable : ArchTraitsBase<Arch> {
 };
 #endif
 
-#if defined(PTO_NPU_ARCH_A2A3)
+#if defined(PTO_NPU_ARCH_A1)
+template <>
+struct ArchTraits<ChipArch::A1> : ArchTraitsBase<ChipArch::A1> {
+    // 310P has coupled Cube/Vector cores. Do not inherit the permissive
+    // UNKNOWN profile or the A2/A3 cross-core and low-precision features.
+    static constexpr bool AccSupportsFloat = true;
+    static constexpr bool AccSupportsInt32 = true;
+};
+using CurrArch = ArchTraits<ChipArch::A1>;
+
+#elif defined(PTO_NPU_ARCH_A2A3)
 template <>
 struct ArchTraits<ChipArch::A2A3> : ArchTraitsBase<ChipArch::A2A3> {
     static constexpr bool SupportsBf16 = true;

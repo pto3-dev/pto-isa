@@ -23,7 +23,10 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #endif
 #endif
 
-#if __NPU_ARCH__ == 2201
+#if __NPU_ARCH__ == 2002
+#define PTO_NPU_ARCH_A1
+#define PTO_COMM_NOT_SUPPORTED
+#elif __NPU_ARCH__ == 2201
 #define PTO_NPU_ARCH_A2A3
 #elif (__NPU_ARCH__ == 3101) || (__NPU_ARCH__ == 3510)
 #define PTO_NPU_ARCH_A5
