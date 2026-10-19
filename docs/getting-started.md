@@ -497,13 +497,13 @@ correctness; instruction execution remains a separate acceptance step.
 On A1, `pto/pto-inst.hpp` exposes `TASSIGN`, local `TSYNC`/`Event`, `TLOAD`,
 `TADD` and `TSTORE`. The vector instructions require FP16 or FP32, contiguous row-major
 Vec tiles with static full valid shapes, 32-byte-aligned rows and matching
-static ND tensors. GM pointers must be 32-byte aligned. Binary vector arithmetic requires complete
-256-byte repeats (128 FP16 elements or 64 FP32 elements) and splits repeats
+static ND tensors. GM pointers must be 32-byte aligned. Binary vector arithmetic uses 256-byte repeats (128 FP16 elements or
+64 FP32 elements), masks a final partial repeat and splits complete repeats
 above 255 into multiple instructions.
 The shared address-assignment helper has no A2/A3 device instructions.
 
 Automatic allocation/synchronization, other element types, dynamic or partial
-valid shapes, strided DMA, atomics, unit flags, accumulator stores and other
+valid shapes, unaligned DMA, atomics, unit flags, accumulator stores and other
 instructions are unavailable. Use `TASSIGN<Addr>(tile)` for static allocation
 checks; callers own tile lifetimes. Tile buffers must be disjoint or exactly
 alias; partial overlap is unsupported. This ISA subset requires matching compiler/runtime features for PyPTO
@@ -564,11 +564,33 @@ Tensor and tile dtypes must match. FP16 sets both 64-bit vector mask halves;
 FP32 clears the upper half. Each call sets its mask explicitly, including when
 FP16 and FP32 kernels run successively. The launcher keeps FP16 as its default.
 
-FP32-specific negative modes `PTO_A1_TEST_MIXED_ADD` and
-`PTO_A1_TEST_PARTIAL_REPEAT` check equal operand dtypes and complete repeats.
+The FP32 negative mode `PTO_A1_TEST_MIXED_ADD` checks equal operand dtypes.
+`PTO_A1_TEST_PARTIAL_REPEAT` is a positive one-row FP32 tail probe.
 
 The same static FP16/FP32 profile also exposes `TSUB` and `TMUL`. Use
 `tests/compile/a1_tsub_vector.cpp` or `tests/compile/a1_tmul_vector.cpp` in the
 CCEC command and pass `2048 fp32 sub` or `2048 fp32 mul` to the reference launcher.
 The launcher checks signed zero for multiplication. Shape, dtype, mask, event
 and repeat limits match `TADD`; unvalidated operations remain unavailable.
+
+A1 FP16/FP32 ND loads and stores support static row strides greater than the tile width when every row is 32-byte aligned. Multi-burst transfers split above 4095 rows; GM gaps above 65535 blocks use individual row copies. Stores preserve columns outside the tile.
+
+A1 `TADD`, `TSUB` and `TMUL` support a final masked vector repeat for static full tiles. DMA rows still require 32-byte alignment. The tail mask excludes adjacent tiles and is restored to the complete repeat mask after the instruction.
+
+A1 exposes a bounded narrow matrix profile with K=N=16 and full static M rows aligned to 16 from 16 through 2048. Aligned ND FP16 inputs load into ZZ or NZ Mat tiles, `TMOV` prepares NZ Left and ZN Right operands, and `TMATMUL` initializes an FP32 NZ accumulator. Explicit `TMOV<Vec, Acc, AccToVecMode::SingleModeVec0>` writes to a matching FP32 ND Vec tile before `TSTORE`. A single outer column of row fractals shares ND element order in ZZ, NZ Mat and NZ Acc layouts. This equivalence does not extend to larger K/N. Partial valid rows, fused relu, dual-worker modes and direct accumulator stores remain unsupported.
+
+`tests/compile/a1_single_fractal_gemm.cpp` preserves the original 16x16 reference and invalid dtype/layout/mode cases; `PTO_A1_TEST_MATRIX_NZ_INPUT` selects canonical NZ Mat. `tests/compile/a1_narrow_gemm_rows.cpp` validates the row extension with `PTO_A1_TEST_ROWS` set to 16, 32, 128, 1024 or 2048. These source-level profiles require corresponding frontend lowering and runtime pins.
+
+A1 `TCVT` converts static full row-major ND Vec tiles between FP16 and FP32 with `RoundMode::CAST_NONE` and `SaturationMode::OFF`. Both dtype rows must be 32-byte aligned. The hardware conversion preserves ordinary nearest-even FP32-to-FP16 narrowing, signed zero, subnormals and infinities; NaN locations are preserved without a payload guarantee. More than 255 repeats are split and the final partial repeat is masked. Buffers must be disjoint, except exact-address in-place FP32-to-FP16 narrowing. Unsupported runtime modes or overlaps trap even without debug assertions. Same-dtype casts, scratch operands and other conversion families remain unavailable. `tests/compile/a1_floating_conversion.cpp` covers CPU/native references with widening, repeat-boundary, tail and narrowing-alias variants.
+
+`TMATMUL_ACC(dst, acc, lhs, rhs)` adds to an initialized accumulator in the same narrow matrix profile. Initialize with `TMATMUL` first. `dst` and `acc` must have the same tile type and share the exact L0C address; different storage traps even in release builds. The API drains PIPE_M before each accumulating MAD to preserve the L0C dependency. AccPhase overloads remain unavailable. `tests/compile/a1_narrow_gemm_accumulation.cpp` checks three consecutive MAD contributions.
+
+A1 Mat `TLOAD` accepts static Nx16 FP16 panels with ND row strides at least 16 and aligned to 16 elements. Gaps through 65535 32-byte blocks use row bursts; wider gaps use individual row copies to avoid truncation. The destination stays a contiguous ZZ/NZ panel. `tests/compile/a1_strided_matrix_load.cpp` covers aligned nonzero column offsets and wide gaps. This load path prepares K/N panels from wider matrices; each MAD still has K=N=16.
+
+A1 `TEXP` and `TDIV` support full static ND FP16/FP32 Vec tiles with default precision. They share the arithmetic mask and 255-repeat splitting path; exact input/output aliasing is supported, partial overlap is unsupported. High-precision variants are rejected. `tests/compile/a1_exp_div_vector.cpp` checks both instructions and in-place variants. Exponential and division use native approximate arithmetic; zero division and extreme values follow target behavior rather than a portable IEEE guarantee.
+
+A1 `TEXPANDS` broadcasts an FP16/FP32 scalar into a static full ND Vec tile. It shares masked final repeats and 255-repeat splitting with elementwise arithmetic. `tests/compile/a1_scalar_broadcast.cpp` and its native pytest cover exact scalar bits, signed zero and adjacent-buffer sentinels.
+
+A1 `TROWSUM`/`TROWMAX` reduce full static row-major FP16/FP32 inputs into packed column-major Mx1 Vec results. They require disjoint full-size same-dtype row-major scratch. M must align the packed result to 32 bytes; ordinary input rows retain their alignment requirement. Contiguous Mx1 ND and DN transfers are equivalent and supported with aligned partition offsets. m200 row-max value/index pairs are packed to values with explicit vector/scalar handoffs. `TCOLSUM`/`TCOLMAX` reduce rows into a matching 1xN row-major result; column sum currently accepts only the sequential no-scratch form. Row-reduction source, output and scratch must not overlap. Column results may reuse the exact first source-row address; partial overlap is rejected. Sum arithmetic stays in the tile dtype; use FP32 inputs where FP32 accumulation is required. Native regression coverage uses finite inputs; NaN and signed-zero tie behavior is target-defined. Dynamic shapes and unaligned tails remain unsupported.
+
+A1 `TROWEXPAND` broadcasts packed column-major Mx1 FP16/FP32 values across each destination row. `TCOLEXPAND` broadcasts a row-major 1xN source across destination rows. Destinations are full static aligned row-major Vec tiles. Row expansion requires disjoint buffers; column expansion also allows exact-first-row aliasing. Partial overlaps trap. Row expansion synchronizes vector/scalar consumers with reserved event 7. Finite native values are covered; NaN payloads and signed-zero ties remain target-defined. Dynamic and unaligned shapes remain unsupported.
