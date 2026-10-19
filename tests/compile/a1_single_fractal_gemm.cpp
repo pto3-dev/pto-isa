@@ -19,7 +19,12 @@ using MatrixData = float;
 #else
 using MatrixData = half;
 #endif
-using Mat = Tile<TileType::Mat, MatrixData, 16, 16, BLayout::RowMajor, 16, 16, SLayout::RowMajor>;
+#if defined(PTO_A1_TEST_MATRIX_NZ_INPUT)
+constexpr BLayout InputBlockLayout = BLayout::ColMajor;
+#else
+constexpr BLayout InputBlockLayout = BLayout::RowMajor;
+#endif
+using Mat = Tile<TileType::Mat, MatrixData, 16, 16, InputBlockLayout, 16, 16, SLayout::RowMajor>;
 using Left = TileLeft<half, 16, 16>;
 #if defined(PTO_A1_TEST_MATRIX_SHAPE)
 using Right = TileRight<half, 16, 32>;

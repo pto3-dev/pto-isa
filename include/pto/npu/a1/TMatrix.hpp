@@ -16,21 +16,22 @@ See LICENSE in the root of the software repository for the full text of the Lice
 namespace pto {
 namespace detail {
 template <typename TileData>
-PTO_INTERNAL void CheckA1SingleFractal()
+PTO_INTERNAL void CheckA1NarrowMatrixTile()
 {
     PTO_STATIC_ASSERT(
-        (TileData::Rows == 16 && TileData::Cols == 16 && TileData::ValidRow == 16 && TileData::ValidCol == 16),
-        "A1 matrix instructions require a static full 16x16 tile.");
+        (TileData::Rows >= 16 && TileData::Rows <= 2048 && TileData::Rows % 16 == 0 && TileData::Cols == 16 &&
+         TileData::ValidRow == TileData::Rows && TileData::ValidCol == 16),
+        "A1 narrow matrix instructions require full aligned rows in [16, 2048] and 16 columns.");
 }
 
 template <typename TileData>
 PTO_INTERNAL void CheckA1MatrixInput()
 {
-    CheckA1SingleFractal<TileData>();
+    CheckA1NarrowMatrixTile<TileData>();
     PTO_STATIC_ASSERT(
         (TileData::Loc == TileType::Mat && std::is_same<typename TileData::DType, half>::value &&
-         TileData::isRowMajor && TileData::SFractal == SLayout::RowMajor && TileData::SFractalSize == 512),
-        "A1 matrix input requires an FP16 ZZ Mat tile.");
+         TileData::SFractal == SLayout::RowMajor && TileData::SFractalSize == 512),
+        "A1 matrix input requires an FP16 ZZ or NZ Mat tile.");
 }
 } // namespace detail
 
@@ -44,11 +45,23 @@ PTO_INTERNAL void TLOAD_IMPL(TileData& dst, GlobalData& src)
         PTO_STATIC_ASSERT(
             ((std::is_same<typename GlobalData::RawDType, half>::value && GlobalData::layout == Layout::ND &&
               GlobalData::staticShape[0] == 1 && GlobalData::staticShape[1] == 1 && GlobalData::staticShape[2] == 1 &&
-              GlobalData::staticShape[3] == 16 && GlobalData::staticShape[4] == 16 &&
-              GlobalData::staticStride[3] == 16 && GlobalData::staticStride[4] == 1)),
-            "A1 matrix load requires a contiguous static FP16 16x16 ND tensor.");
-        // A single 16x16 ZZ fractal has the same element order as ND.
-        copy_gm_to_cbuf(dst.data(), src.data(), 0, 1, 16, 0, 0, (pad_t)0);
+              GlobalData::staticShape[3] == TileData::Rows && GlobalData::staticShape[4] == 16 &&
+              GlobalData::staticStride[3] >= 16 && GlobalData::staticStride[3] % 16 == 0 &&
+              GlobalData::staticStride[4] == 1)),
+            "A1 matrix load requires a matching static FP16 Nx16 ND tensor with aligned rows.");
+        // One outer column of ZZ/NZ fractals has the same element order as ND.
+        constexpr uint64_t globalGap = (GlobalData::staticStride[3] - 16) / 16;
+        if constexpr (globalGap == 0) {
+            copy_gm_to_cbuf(dst.data(), src.data(), 0, 1, TileData::Rows, 0, 0, (pad_t)0);
+        } else if constexpr (globalGap <= UINT16_MAX) {
+            // At most 2048 rows fit the 12-bit burst count; each row is one 32-byte block.
+            copy_gm_to_cbuf(dst.data(), src.data(), 0, TileData::Rows, 1, globalGap, 0, (pad_t)0);
+        } else {
+            // Do not truncate wide GM gaps to the DMA instruction's 16-bit stride.
+            for (unsigned row = 0; row < TileData::Rows; ++row)
+                copy_gm_to_cbuf(
+                    dst.data() + row * 16, src.data() + row * GlobalData::staticStride[3], 0, 1, 1, 0, 0, (pad_t)0);
+        }
     }
 }
 
@@ -56,7 +69,8 @@ template <typename DstTile, typename SrcTile>
 PTO_INTERNAL void TMOV_IMPL(DstTile& dst, SrcTile& src)
 {
     detail::CheckA1MatrixInput<SrcTile>();
-    detail::CheckA1SingleFractal<DstTile>();
+    detail::CheckA1NarrowMatrixTile<DstTile>();
+    PTO_STATIC_ASSERT(DstTile::Rows == SrcTile::Rows, "A1 matrix operand moves require matching shapes.");
     PTO_STATIC_ASSERT(
         (std::is_same<typename DstTile::DType, half>::value && DstTile::SFractalSize == 512),
         "A1 matrix operand moves require FP16 512-byte fractals.");
@@ -64,21 +78,25 @@ PTO_INTERNAL void TMOV_IMPL(DstTile& dst, SrcTile& src)
         PTO_STATIC_ASSERT(
             (!DstTile::isRowMajor && DstTile::SFractal == SLayout::RowMajor),
             "A1 left operand requires an NZ Left tile.");
-        load_cbuf_to_ca(dst.data(), src.data(), 0, 1, 1, 0, 0, false, addr_cal_mode_t(0));
+        load_cbuf_to_ca(dst.data(), src.data(), 0, SrcTile::Rows / 16, 1, 0, 0, false, addr_cal_mode_t(0));
     } else {
         PTO_STATIC_ASSERT(
-            (DstTile::Loc == TileType::Right && DstTile::isRowMajor && DstTile::SFractal == SLayout::ColMajor),
+            (DstTile::Loc == TileType::Right && DstTile::Rows == 16 && DstTile::isRowMajor &&
+             DstTile::SFractal == SLayout::ColMajor),
             "A1 right operand requires a ZN Right tile.");
         load_cbuf_to_cb(dst.data(), src.data(), 0, 1, 1, 0, 0, true, addr_cal_mode_t(0));
     }
 }
 
-template <typename AccTile, typename LeftTile, typename RightTile>
-PTO_INTERNAL void TMATMUL_IMPL(AccTile& dst, LeftTile& lhs, RightTile& rhs)
+template <bool Initialize, typename AccTile, typename LeftTile, typename RightTile>
+PTO_INTERNAL void A1MatrixMultiply(AccTile& dst, LeftTile& lhs, RightTile& rhs)
 {
-    detail::CheckA1SingleFractal<AccTile>();
-    detail::CheckA1SingleFractal<LeftTile>();
-    detail::CheckA1SingleFractal<RightTile>();
+    detail::CheckA1NarrowMatrixTile<AccTile>();
+    detail::CheckA1NarrowMatrixTile<LeftTile>();
+    detail::CheckA1NarrowMatrixTile<RightTile>();
+    PTO_STATIC_ASSERT(
+        AccTile::Rows == LeftTile::Rows && RightTile::Rows == 16,
+        "A1 narrow GEMM requires matching M rows with K=N=16.");
     PTO_STATIC_ASSERT(
         (AccTile::Loc == TileType::Acc && std::is_same<typename AccTile::DType, float>::value && !AccTile::isRowMajor &&
          AccTile::SFractal == SLayout::RowMajor && AccTile::SFractalSize == 1024),
@@ -89,22 +107,43 @@ PTO_INTERNAL void TMATMUL_IMPL(AccTile& dst, LeftTile& lhs, RightTile& rhs)
          !LeftTile::isRowMajor && LeftTile::SFractal == SLayout::RowMajor && LeftTile::SFractalSize == 512 &&
          RightTile::isRowMajor && RightTile::SFractal == SLayout::ColMajor && RightTile::SFractalSize == 512),
         "A1 matrix multiplication requires FP16 NZ Left and ZN Right operands.");
-    mad(dst.data(), lhs.data(), rhs.data(), 16, 16, 16, true);
+    mad(dst.data(), lhs.data(), rhs.data(), AccTile::Rows, 16, 16, Initialize);
+}
+
+template <typename AccTile, typename LeftTile, typename RightTile>
+PTO_INTERNAL void TMATMUL_IMPL(AccTile& dst, LeftTile& lhs, RightTile& rhs)
+{
+    A1MatrixMultiply<true>(dst, lhs, rhs);
+}
+
+template <typename AccTile, typename LeftTile, typename RightTile>
+PTO_INTERNAL void TMATMUL_ACC_IMPL(AccTile& dst, AccTile& acc, LeftTile& lhs, RightTile& rhs)
+{
+    // DAV-M200 MAD accumulates in its destination; it cannot read a separate L0C buffer.
+    // Keep this contract active in release builds, where PTO_ASSERT is disabled.
+    if (dst.data() != acc.data()) {
+        trap();
+        return;
+    }
+    // Consecutive MADs need the previous L0C write to complete before reading it.
+    pipe_barrier(PIPE_M);
+    A1MatrixMultiply<false>(dst, lhs, rhs);
 }
 
 template <typename DstTile, typename SrcTile>
 PTO_INTERNAL void A1AccumulatorToVector(DstTile& dst, SrcTile& src)
 {
-    detail::CheckA1SingleFractal<SrcTile>();
-    detail::CheckA1SingleFractal<DstTile>();
+    detail::CheckA1NarrowMatrixTile<SrcTile>();
+    detail::CheckA1NarrowMatrixTile<DstTile>();
     detail::CheckA1VectorTile<DstTile>();
+    PTO_STATIC_ASSERT(SrcTile::Rows == DstTile::Rows, "A1 matrix writeback requires matching shapes.");
     PTO_STATIC_ASSERT(
         (SrcTile::Loc == TileType::Acc && std::is_same<typename SrcTile::DType, float>::value && !SrcTile::isRowMajor &&
          SrcTile::SFractal == SLayout::RowMajor && SrcTile::SFractalSize == 1024 &&
          std::is_same<typename DstTile::DType, float>::value),
         "A1 accumulator writeback requires FP32 NZ Acc and FP32 ND Vec tiles.");
-    // Only a single NZ fractal has the same order as the ND destination.
-    copy_matrix_cc_to_ubuf(dst.data(), src.data(), 0, 1, 1, 0, 0, CRMODE_NONE);
+    // The single outer column of NZ fractals matches the Nx16 ND destination.
+    copy_matrix_cc_to_ubuf(dst.data(), src.data(), 0, 1, SrcTile::Rows / 16, 0, 0, CRMODE_NONE);
 }
 } // namespace pto
 #endif // PTO_NPU_A1_TMATRIX_HPP
