@@ -491,3 +491,22 @@ Validate the compiler's actual target macros with an installed CANN toolkit:
 ccec -c -std=c++17 -x cce --cce-aicore-only --cce-aicore-arch=dav-m200 \
   -I include tests/compile/a1_architecture.cpp -o /tmp/pto-a1-architecture.o
 ```
+
+### A1 tile allocation budgets
+
+The A1 bring-up profile limits UB allocations to 128 KiB and L1 allocations to
+512 KiB. These are conservative budgets, not physical-size claims: the CANN
+310P3 platform profile reports 256 KiB UB and 1 MiB L1. L0A/L0B use 64 KiB each
+and L0C uses 256 KiB. Bias, scaling and scale-tile allocation budgets remain
+zero until those paths have been validated. A1 helpers that use the legacy
+184 KiB UB scratch offset remain unavailable even though user allocations are
+kept below that region.
+
+`tests/compile/a1_tile_buffers.cpp` checks these defaults and constructs a
+16 x 128 FP16 vector tile. Build it with the same host/CCEC commands above,
+substituting that source filename. This checks tile metadata and allocation
+limits only; it does not launch an instruction or perform a numerical test.
+
+The device compiler also checks the actual TASSIGN boundary: a 4 KiB tile at
+124 KiB fits the budget. Compiling this test with `-DPTO_A1_TEST_OVERFLOW`
+moves the allocation forward by 32 bytes and must fail with `SA-0353`.

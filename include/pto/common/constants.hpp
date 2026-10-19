@@ -14,6 +14,7 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #include <bit>
 #include "pto/cpu/MXTypes.hpp"
 #endif
+#include <pto/common/arch_macro.hpp>
 #include <pto/common/type.hpp>
 #include <pto/common/memory.hpp>
 
@@ -202,12 +203,14 @@ AICORE constexpr PadValue PadValueCustom(half value)
         static_cast<uint64_t>(PadValue::CustomBase) | static_cast<uint64_t>(__builtin_bit_cast(uint16_t, value)));
 }
 
-// NPU aicore compiler has bfloat16_t as built-in type
+#if !defined(PTO_NPU_ARCH_A1)
+// Supported NPU targets expose bfloat16_t as a built-in type; A1 does not.
 AICORE constexpr PadValue PadValueCustom(bfloat16_t value)
 {
     return static_cast<PadValue>(
         static_cast<uint64_t>(PadValue::CustomBase) | static_cast<uint64_t>(__builtin_bit_cast(uint16_t, value)));
 }
+#endif
 #endif
 
 #if defined(__CPU_SIM) || defined(__COSTMODEL)
@@ -366,7 +369,8 @@ struct PadValueMap<uint32_t, PadValue::Max> {
     static constexpr auto value = uint32_t(0xffffffffUL);
 };
 
-#if (!defined(__CPU_SIM)) && (!defined(__COSTMODEL)) && (!defined(PTO_NPU_ARCH_KIRIN9030))
+#if (!defined(__CPU_SIM)) && (!defined(__COSTMODEL)) && (!defined(PTO_NPU_ARCH_KIRIN9030)) && \
+    (!defined(PTO_NPU_ARCH_A1))
 template <>
 struct PadValueMap<bfloat16_t, PadValue::Null> {
     static constexpr auto value = uint16_t(0);
