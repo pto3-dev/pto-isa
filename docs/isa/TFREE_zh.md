@@ -8,6 +8,8 @@
 
 对于 `GlobalData` 流程，`TFREE(Pipe&, GlobalData&)` 会释放由 `TPOP(Pipe&, GlobalData&)` 返回的FIFO槽位视图。
 
+CPU_SIM 中，TileData 形式会在 pipe 的 free-status 策略要求释放时参与主机侧 FIFO 释放协议，因此 CPU TileData 形式不是 A2A3 路径中的空操作。每次调用释放该消费者最早的未释放pop，因此同时持有多个pop的消费者会按pop顺序释放。CPU_SIM 当前不支持 GlobalData 重载。
+
 ## 操作语义
 
 对于TileData流程：
@@ -29,6 +31,9 @@
 
 ```cpp
 template <typename Pipe, TileSplitAxis Split, typename... WaitEvents>
+PTO_INST RecordEvent TFREE(Pipe &pipe, WaitEvents &... events);
+
+template <typename Pipe, typename... WaitEvents>
 PTO_INST RecordEvent TFREE(Pipe &pipe, WaitEvents &... events);
 
 template <typename Pipe, typename GlobalData, TileSplitAxis Split,
@@ -53,7 +58,7 @@ PTO_INTERNAL void TFREE_IMPL(Pipe &pipe)
     - 搭配使用TPUSH/TPOP/TFREE实现核间同步和数据传输，数据传输时推入的tileshape和弹出的tileshape的大小比例关系是1:1或者1:2。
 
 - **GlobalData流程**：
-    - 当弹出的FIFO槽位中的数据不再需要时，使用 `TFREE(Pipe&)`。
+    - 当弹出的FIFO槽位中的数据不再需要时，使用 `TFREE(Pipe&, GlobalData&)`。
     - `gmTensor` 只用于选择重载；实现不会读取或写入tensor内容。
     - 空闲空间通知是稀疏的，并由 `Pipe::SyncPeriod` 控制。
 
@@ -116,5 +121,3 @@ AICORE void example_globaldata(__gm__ void *fifoMem)
 ## ASM形式示例
 
 当前公开的汇编参考尚未为 `TFREE` 定义稳定的PTO-AS写法。手写CV FIFO程序时请使用C++ intrinsic形式。
-
-```text

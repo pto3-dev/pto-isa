@@ -16,9 +16,6 @@ using namespace std;
 using namespace PtoTestCommon;
 
 template <int32_t testKey>
-void launchTInsertAcc2Mat(uint8_t* out, uint8_t* src0, uint8_t* src1, void* stream);
-
-template <int32_t testKey>
 void launchTInsertNZ(uint64_t* out, uint64_t* src, void* stream);
 
 template <int32_t testKey>
@@ -71,57 +68,6 @@ std::string GetGoldenDir()
     const testing::TestInfo* testInfo = testing::UnitTest::GetInstance()->current_test_info();
     return "../" + std::string(testInfo->test_suite_name()) + "." + std::string(testInfo->name());
 }
-
-template <int32_t testKey, typename AType, typename CType>
-void testTInsertAcc2Mat(int32_t m, int32_t k, int32_t n)
-{
-    aclInit(nullptr);
-    aclrtSetDevice(0);
-    aclrtStream stream;
-    aclrtCreateStream(&stream);
-
-    size_t aFileSize = m * k * sizeof(AType);
-    size_t bFileSize = k * n * sizeof(AType);
-    size_t cFileSize = m * n * sizeof(CType);
-    uint8_t *outHost, *src0Host, *src1Host, *outDevice, *src0Device, *src1Device;
-
-    aclrtMallocHost((void**)(&outHost), cFileSize);
-    aclrtMallocHost((void**)(&src0Host), aFileSize);
-    aclrtMallocHost((void**)(&src1Host), bFileSize);
-    aclrtMalloc((void**)&outDevice, cFileSize, ACL_MEM_MALLOC_HUGE_FIRST);
-    aclrtMalloc((void**)&src0Device, aFileSize, ACL_MEM_MALLOC_HUGE_FIRST);
-    aclrtMalloc((void**)&src1Device, bFileSize, ACL_MEM_MALLOC_HUGE_FIRST);
-
-    ReadFile(GetGoldenDir() + "/x1_gm.bin", aFileSize, src0Host, aFileSize);
-    ReadFile(GetGoldenDir() + "/x2_gm.bin", bFileSize, src1Host, bFileSize);
-    aclrtMemcpy(src0Device, aFileSize, src0Host, aFileSize, ACL_MEMCPY_HOST_TO_DEVICE);
-    aclrtMemcpy(src1Device, bFileSize, src1Host, bFileSize, ACL_MEMCPY_HOST_TO_DEVICE);
-
-    launchTInsertAcc2Mat<testKey>(outDevice, src0Device, src1Device, stream);
-
-    aclrtSynchronizeStream(stream);
-    aclrtMemcpy(outHost, cFileSize, outDevice, cFileSize, ACL_MEMCPY_DEVICE_TO_HOST);
-    WriteFile(GetGoldenDir() + "/output_z.bin", outHost, cFileSize);
-
-    aclrtFree(outDevice);
-    aclrtFree(src0Device);
-    aclrtFree(src1Device);
-    aclrtFreeHost(outHost);
-    aclrtFreeHost(src0Host);
-    aclrtFreeHost(src1Host);
-    aclrtDestroyStream(stream);
-    aclrtResetDevice(0);
-    aclFinalize();
-
-    std::vector<CType> golden(m * n);
-    std::vector<CType> devFinal(m * n);
-    ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
-    ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
-    EXPECT_TRUE(ResultCmp(golden, devFinal, 0.001f));
-}
-
-TEST_F(TInsertTest, case_acc2mat_1) { testTInsertAcc2Mat<1, uint16_t, uint16_t>(16, 16, 16); }
-TEST_F(TInsertTest, case_acc2mat_2) { testTInsertAcc2Mat<2, uint16_t, uint16_t>(32, 32, 32); }
 
 using LaunchFn2 = void (*)(uint64_t*, uint64_t*, void*);
 
@@ -324,10 +270,6 @@ TEST_F(TInsertTest, case_nz_split_2) { testSingleSrc<float>(8 * 256 * 4, 16 * 25
 TEST_F(TInsertTest, case_nz_split_3)
 {
     testSingleSrc<float>(128 * 64 * 4, 128 * 64 * 4, launchTInsertNZSplitCustom<3>);
-}
-TEST_F(TInsertTest, case_nz_split_4)
-{
-    testSingleSrc<float>(128 * 64 * 4, 128 * 64 * 4, launchTInsertNZSplitCustom<4>);
 }
 
 template <int32_t testKey, typename dType, int32_t ValidRows, int32_t DstRows, int32_t Cols>

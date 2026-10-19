@@ -36,6 +36,10 @@ struct TPipe;
 
 ## Constraints
 
+- **CPU_SIM limitation**:
+    - `TALLOC(Pipe&, GlobalData&)` is not currently implemented by CPU_SIM.
+    - The host FIFO model supports the TileData push/pop/free flow, and `TPUSH<Pipe, TileData, TConfig>(pipe, tile)` also has a
+      CPU fixpipe path. The GlobalData slot-view flow requires an NPU backend.
 - **A2A3 GlobalData producer**:
     - `GlobalData` must satisfy `is_global_data_v<GlobalData>`.
     - `Direction::DIR_C2V`: the producer sees the whole FIFO slot.
@@ -122,4 +126,3 @@ AICORE void example_v2c_split(__gm__ void *fifoMem)
 ## ASM Form Examples
 
 The current public assembly reference does not define a stable PTO-AS spelling for `TALLOC`. Use the C++ intrinsic form for manual CV FIFO programming.
-```

@@ -178,10 +178,13 @@ struct AsyncSession;
 struct AsyncEvent {
     uint64_t handle{0};
     DmaEngine engine{DmaEngine::SDMA};
+    uint32_t urmaTargetCqe{0};
 
     AICORE constexpr AsyncEvent() = default;
-    AICORE constexpr AsyncEvent(uint64_t h, DmaEngine e) : handle(h), engine(e) {}
-    AICORE constexpr bool valid() const { return handle != 0; }
+    AICORE constexpr AsyncEvent(uint64_t h, DmaEngine e, uint32_t targetCqe = 0U)
+        : handle(h), engine(e), urmaTargetCqe(targetCqe)
+    {}
+    AICORE constexpr bool valid() const { return handle != 0U; }
 
     PTO_INTERNAL bool Wait(const AsyncSession& session) const;
     PTO_INTERNAL bool Test(const AsyncSession& session) const;

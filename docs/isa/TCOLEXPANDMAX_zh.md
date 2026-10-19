@@ -1,4 +1,4 @@
-﻿# TCOLEXPANDMAX
+# TCOLEXPANDMAX
 
 ## 指令示意图
 

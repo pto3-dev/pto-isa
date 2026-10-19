@@ -1,4 +1,4 @@
-﻿# TSQRT
+# TSQRT
 
 
 ## Tile Operation Diagram

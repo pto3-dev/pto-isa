@@ -1,4 +1,4 @@
-﻿# TROWEXPAND
+# TROWEXPAND
 
 
 ## Tile Operation Diagram

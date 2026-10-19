@@ -9,7 +9,7 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # --------------------------------------------------------------------------------
 """
-Validate test case names in run_st.sh and run_pipeline.sh against main.cpp definitions.
+Validate test case names in run_st.sh against main.cpp definitions.
 
 This script ensures that test case names referenced in shell scripts actually exist
 in the corresponding main.cpp files. It handles C preprocessor macros including:
@@ -45,7 +45,7 @@ VERSION_PATHS: Dict[str, str] = {
 }
 
 # Scripts to validate
-SCRIPTS_TO_CHECK: List[str] = ["tests/run_st.sh", "tests/run_pipeline.sh"]
+SCRIPTS_TO_CHECK: List[str] = ["tests/run_st.sh"]
 
 
 # =============================================================================
@@ -521,7 +521,7 @@ def main() -> int:
     Main entry point for the validation script.
 
     Without arguments: statically validate that every `-g Suite.Case` reference
-    in run_st.sh / run_pipeline.sh exists in the corresponding main.cpp.
+    in run_st.sh exists in the corresponding main.cpp.
     With `--check-run <log>`: parse a captured gtest log and fail if any
     `--gtest_filter` ran 0 tests (catches silent skips that gtest reports as
     PASSED).

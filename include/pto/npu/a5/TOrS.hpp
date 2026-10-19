@@ -48,15 +48,21 @@ __tf__ PTO_INTERNAL OP_NAME(TORS) OP_TYPE(element_wise) void TOrS(
     constexpr unsigned elementsPerRepeat = CCE_VL / sizeof(T);
     constexpr unsigned dstRowStride = TileDataDst::RowStride;
     constexpr unsigned src0RowStride = TileDataSrc::RowStride;
-    BinaryInstr<OrSOp<T>, TileDataDst, TileDataSrc, T, elementsPerRepeat, blockSizeElem, dstRowStride, src0RowStride>(
-        dstPtr, src0Ptr, src1, validRows, validCols, version);
+    if constexpr (std::is_same_v<T, int64_t> || std::is_same_v<T, uint64_t>) {
+        Int64Scalar<Int64Op::Or, T, TileDataDst::Cols, TileDataSrc::Cols>(dstPtr, src0Ptr, src1, validRows, validCols);
+    } else {
+        BinaryInstr<
+            OrSOp<T>, TileDataDst, TileDataSrc, T, elementsPerRepeat, blockSizeElem, dstRowStride, src0RowStride>(
+            dstPtr, src0Ptr, src1, validRows, validCols, version);
+    }
 }
 
 template <typename TileDataDst, typename TileDataSrc>
 PTO_INTERNAL void TORS_IMPL(TileDataDst& dst, TileDataSrc& src0, typename TileDataSrc::DType src1)
 {
     using T = typename TileDataDst::DType;
-    static_assert(sizeof(T) == 4 || sizeof(T) == 2 || sizeof(T) == 1, "Fix: TORS has invalid data type.");
+    static_assert(
+        sizeof(T) == 8 || sizeof(T) == 4 || sizeof(T) == 2 || sizeof(T) == 1, "Fix: TORS has invalid data type.");
     static_assert(TileDataDst::isRowMajor && TileDataSrc::isRowMajor, "Fix: TORS only support row major layout.");
     static_assert(
         std::is_same_v<T, typename TileDataSrc::DType>,

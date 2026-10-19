@@ -43,7 +43,7 @@ Unless a specific instruction states otherwise:
 
 ### 6.5.1 Synchronization and resource binding
 
-Includes `TSYNC`, `TASSIGN`, mode/config instructions.
+Includes event synchronization, `TASSIGN`, mode/config instructions.
 These operations define ordering or state-configuration effects and MUST preserve architecture ordering semantics.
 
 ### 6.5.2 Elementwise and scalar variants

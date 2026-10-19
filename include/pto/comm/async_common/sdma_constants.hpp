@@ -18,10 +18,15 @@ namespace comm {
 namespace sdma {
 
 constexpr uint32_t kSdmaContextWorkspaceBytes = 16U * 1024U;
-constexpr uint32_t kSdmaFlagPayloadBytesPerGroup = 512U;
 constexpr uint32_t kSdmaMaxChannelGroups = 48U;
+constexpr uint32_t kSdmaFlagPayloadDepth = 64U;
+constexpr uint32_t kSdmaPostIdFlagBytes = sizeof(uint64_t);
+constexpr uint32_t kSdmaFlagPayloadBytesPerGroup = kSdmaFlagPayloadDepth * kSdmaPostIdFlagBytes;
+constexpr uint32_t kSdmaSignalValueBytes = sizeof(int32_t);
+constexpr uint32_t kSdmaSignalValueSlotsBytesPerGroup = kSdmaFlagPayloadDepth * kSdmaSignalValueBytes;
+constexpr uint32_t kSdmaSignalValueSlotsBytes = kSdmaMaxChannelGroups * kSdmaSignalValueSlotsBytesPerGroup;
 constexpr uint32_t kSdmaWorkspaceBytes =
-    kSdmaContextWorkspaceBytes + kSdmaMaxChannelGroups * kSdmaFlagPayloadBytesPerGroup;
+    kSdmaContextWorkspaceBytes + kSdmaMaxChannelGroups * kSdmaFlagPayloadBytesPerGroup + kSdmaSignalValueSlotsBytes;
 
 } // namespace sdma
 } // namespace comm

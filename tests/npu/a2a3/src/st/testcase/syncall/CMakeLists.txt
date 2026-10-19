@@ -62,6 +62,7 @@ function(pto_syncall_mix_kernel TARGET SOURCE RATIO_DEF)
                 -DMEMORY_BASE -std=c++17 ${RATIO_DEF} -DSYNCALL_MIX_BUILD_AIC
                 -DSYNCALL_MIX_REGISTER_OBJECT_PATH=\"${REGISTER_ELF}\"
                 -I${PROJECT_SOURCE_DIR}/../../../../../include
+                -I${PROJECT_SOURCE_DIR}/../../../../../pkg_inc
                 -I${ASCEND_HOME_PATH}/include
                 -I${ASCEND_DRIVER_PATH}/kernel/inc
                 -I${ASCEND_HOME_PATH}/pkg_inc/
@@ -79,6 +80,7 @@ function(pto_syncall_mix_kernel TARGET SOURCE RATIO_DEF)
                 -DMEMORY_BASE -std=c++17 ${RATIO_DEF} -DSYNCALL_MIX_BUILD_AIV
                 -DSYNCALL_MIX_REGISTER_OBJECT_PATH=\"${REGISTER_ELF}\"
                 -I${PROJECT_SOURCE_DIR}/../../../../../include
+                -I${PROJECT_SOURCE_DIR}/../../../../../pkg_inc
                 -I${ASCEND_HOME_PATH}/include
                 -I${ASCEND_DRIVER_PATH}/kernel/inc
                 -I${ASCEND_HOME_PATH}/pkg_inc/
@@ -96,6 +98,7 @@ function(pto_syncall_mix_kernel TARGET SOURCE RATIO_DEF)
         COMMAND ${CMAKE_CXX_COMPILER} ${SYNCALL_MIX_CCE_OPTIONS} --cce-aicore-arch=dav-c220-cube
                 -DMEMORY_BASE -std=c++17 ${RATIO_DEF} -DSYNCALL_MIX_BUILD_AIC -DSYNCALL_MIX_REGISTER_BUILD
                 -I${PROJECT_SOURCE_DIR}/../../../../../include
+                -I${PROJECT_SOURCE_DIR}/../../../../../pkg_inc
                 -I${ASCEND_HOME_PATH}/include
                 -I${ASCEND_DRIVER_PATH}/kernel/inc
                 -I${ASCEND_HOME_PATH}/pkg_inc/
@@ -106,6 +109,7 @@ function(pto_syncall_mix_kernel TARGET SOURCE RATIO_DEF)
         COMMAND ${CMAKE_CXX_COMPILER} ${SYNCALL_MIX_CCE_OPTIONS} --cce-aicore-arch=dav-c220-vec
                 -DMEMORY_BASE -std=c++17 ${RATIO_DEF} -DSYNCALL_MIX_BUILD_AIV -DSYNCALL_MIX_REGISTER_BUILD
                 -I${PROJECT_SOURCE_DIR}/../../../../../include
+                -I${PROJECT_SOURCE_DIR}/../../../../../pkg_inc
                 -I${ASCEND_HOME_PATH}/include
                 -I${ASCEND_DRIVER_PATH}/kernel/inc
                 -I${ASCEND_HOME_PATH}/pkg_inc/
@@ -150,6 +154,7 @@ function(pto_syncall_mix11_soft_kernel TARGET SOURCE)
     )
     set(MIX11_INCLUDES
         -I${PROJECT_SOURCE_DIR}/../../../../../include
+        -I${PROJECT_SOURCE_DIR}/../../../../../pkg_inc
         -I${ASCEND_HOME_PATH}/include
         -I${ASCEND_DRIVER_PATH}/kernel/inc
         -I${ASCEND_HOME_PATH}/pkg_inc/

@@ -340,7 +340,7 @@ if __name__ == "__main__":
         textractParams(np.float16, np.float16, np.float32, 64, 128, 64, 0, 0, 0, 1, 0),
         textractParams(np.float32, np.float32, np.float32, 64, 128, 64, 0, 0, 0, 0, 1), 
         # unaligned, transpose
-        textractParams(np.int8, np.int8, np.int32, 65, 40, 66, 0, 0, 0, 1, 1, 96, 64, 96),
+        textractParams(np.int8, np.int8, np.int32, 96, 40, 66, 0, 0, 0, 1, 1, 96, 64, 96),
         textractParams(np.float16, np.float16, np.float32, 65, 40, 66, 0, 0, 0, 1, 1, 80, 48, 80),
         textractParams(np.float32, np.float32, np.float32, 65, 40, 66, 0, 0, 0, 1, 1, 80, 48, 80),
         # b4

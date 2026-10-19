@@ -1,4 +1,4 @@
-﻿# TPARTMIN
+# TPARTMIN
 
 
 ## Tile Operation Diagram

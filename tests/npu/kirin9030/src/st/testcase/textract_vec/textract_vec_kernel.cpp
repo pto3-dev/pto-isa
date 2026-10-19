@@ -57,7 +57,7 @@ __global__ AICORE void RunTExtractNDVec(__gm__ T* out, __gm__ T* srcIn, __gm__ T
     if constexpr (isFullValid) {
         TEXTRACT(dstFull, srcTile, static_cast<uint16_t>(IdxRow), static_cast<uint16_t>(IdxCol));
     } else {
-        TSUBVIEW(dstExtract, dstFull, 0, 0);
+        detail::PtoSubTileView(dstExtract, dstFull, 0, 0);
         TEXTRACT(dstExtract, srcTile, static_cast<uint16_t>(IdxRow), static_cast<uint16_t>(IdxCol));
     }
 
@@ -103,7 +103,7 @@ __global__ AICORE void RunTExtractNDVecScalar(__gm__ T* out, __gm__ T* srcIn, __
     set_flag(PIPE_MTE2, PIPE_V, EVENT_ID0);
     wait_flag(PIPE_MTE2, PIPE_V, EVENT_ID0);
 
-    TSUBVIEW(dstExtract, dstFull, 0, 0);
+    detail::PtoSubTileView(dstExtract, dstFull, 0, 0);
     TEXTRACT(dstExtract, srcTile, static_cast<uint16_t>(IdxRow), static_cast<uint16_t>(IdxCol));
 
     set_flag(PIPE_V, PIPE_MTE3, EVENT_ID0);
@@ -163,7 +163,7 @@ __global__ AICORE void RunTExtractNZVec(__gm__ T* out, __gm__ T* srcIn, __gm__ T
     if constexpr (isFullValid) {
         TEXTRACT(dstFullTile, srcNZTile, static_cast<uint16_t>(IdxRow), static_cast<uint16_t>(IdxCol));
     } else {
-        TSUBVIEW(dstExtractTile, dstFullTile, 0, 0);
+        detail::PtoSubTileView(dstExtractTile, dstFullTile, 0, 0);
         TEXTRACT(dstExtractTile, srcNZTile, static_cast<uint16_t>(IdxRow), static_cast<uint16_t>(IdxCol));
     }
 
@@ -228,12 +228,12 @@ __global__ AICORE void RunTExtractNZVecByteAlias(__gm__ uint8_t* out, __gm__ uin
     wait_flag(PIPE_MTE2, PIPE_V, EVENT_ID0);
 
     TMOV(srcNZTile, srcNDTile);
-    TSUBVIEW(srcExtractTile, srcNZTile, 0, 0);
+    detail::PtoSubTileView(srcExtractTile, srcNZTile, 0, 0);
     if constexpr (isFullValid) {
-        TSUBVIEW(dstFullExtractTile, dstFullTile, 0, 0);
+        detail::PtoSubTileView(dstFullExtractTile, dstFullTile, 0, 0);
         TEXTRACT(dstFullExtractTile, srcExtractTile, static_cast<uint16_t>(IdxRow), static_cast<uint16_t>(IdxCol));
     } else {
-        TSUBVIEW(dstExtractTile, dstFullTile, 0, 0);
+        detail::PtoSubTileView(dstExtractTile, dstFullTile, 0, 0);
         TEXTRACT(dstExtractTile, srcExtractTile, static_cast<uint16_t>(IdxRow), static_cast<uint16_t>(IdxCol));
     }
 
@@ -286,7 +286,7 @@ __global__ AICORE void RunTExtractNZVecScalar(__gm__ T* out, __gm__ T* srcIn, __
     wait_flag(PIPE_MTE2, PIPE_V, EVENT_ID0);
 
     TMOV(srcNZTile, srcNDTile);
-    TSUBVIEW(dstScalarTile, dstFullTile, 0, 0);
+    detail::PtoSubTileView(dstScalarTile, dstFullTile, 0, 0);
     TEXTRACT(dstScalarTile, srcNZTile, static_cast<uint16_t>(IdxRow), static_cast<uint16_t>(IdxCol));
 
     set_flag(PIPE_V, PIPE_MTE3, EVENT_ID0);

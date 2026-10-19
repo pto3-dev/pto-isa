@@ -62,7 +62,7 @@ PTO_INST RecordEvent THISTOGRAM(TileDataDst &dst, TileDataSrc &src, TileDataIdx 
 | `dst` | 输出 | 直方图结果Tile，`uint32_t`，行主序，每行256桶 |
 | `src` | 输入 | 源数据Tile，`uint16_t` 或 `uint32_t`，行主序 |
 | `idx` | 输入 | 级联过滤索引Tile，`uint8_t`，形状随 `byte` 与源dtype变化（见下） |
-| `events...` | 输入 | 等待事件（`WaitEvents`），指令前隐式 `TSYNC` |
+| `events...` | 输入 | 等待事件（`WaitEvents`），指令前隐式 event synchronization |
 
 ## Tile尺寸与数据类型
 

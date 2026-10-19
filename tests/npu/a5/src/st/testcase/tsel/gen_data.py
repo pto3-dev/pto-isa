@@ -12,6 +12,14 @@
 
 import os
 import numpy as np
+
+try:
+    import ml_dtypes
+
+    bfloat16 = ml_dtypes.bfloat16
+except ModuleNotFoundError:
+    bfloat16 = np.float16
+
 np.random.seed(19)
 
 
@@ -29,6 +37,10 @@ def gen_golden_data_tsel(param):
     elif dtype == np.uint64:
         input0 = np.arange(row * col, dtype=dtype) + 100
         input1 = np.arange(row * col, dtype=dtype) + 1000
+    elif np.issubdtype(dtype, np.integer):
+        info = np.iinfo(dtype)
+        input0 = np.random.randint(info.min, info.max, size=row * col, dtype=dtype)
+        input1 = np.random.randint(info.min, info.max, size=row * col, dtype=dtype)
     else:
         input0 = np.random.rand(row * col).astype(dtype)
         input1 = np.random.rand(row * col).astype(dtype)
@@ -56,7 +68,7 @@ def gen_golden_data_tsel(param):
             else:
                 golden[idx] = input1[idx]
         j += 1
-    
+
     input0.tofile("input0.bin")
     input1.tofile("input1.bin")
     mask.tofile("mask.bin")
@@ -74,6 +86,7 @@ class TSelParams:
         self.valid_rows = valid_rows
         self.valid_cols = valid_cols
 
+
 if __name__ == "__main__":
     case_params_list = [
         TSelParams("TSELTest.case1", np.float32, 2, 128, 2, 128),
@@ -88,10 +101,25 @@ if __name__ == "__main__":
         TSelParams("TSELTest.case10", np.float32, 2, 512, 2, 512),
         TSelParams("TSELTest.case_int64_4x16", np.int64, 4, 16, 4, 16),
         TSelParams("TSELTest.case_uint64_4x16", np.uint64, 4, 16, 4, 16),
+        TSelParams("TSELTest.case_int64_49x160", np.int64, 49, 160, 49, 160),
+        TSelParams("TSELTest.case_uint64_49x160", np.uint64, 49, 160, 49, 160),
         TSelParams("TSELTest.case_int64_1x16364", np.int64, 1, 16364, 1, 16364),
         TSelParams("TSELTest.case_uint64_1x16364", np.uint64, 1, 16364, 1, 16364),
         TSelParams("TSELTest.case_int64_1x16368", np.int64, 1, 16368, 1, 16368),
         TSelParams("TSELTest.case_uint64_1x16368", np.uint64, 1, 16368, 1, 16368),
+        TSelParams("TSELTest.case_int64_4x32_inplace", np.int64, 4, 32, 4, 32),
+        TSelParams("TSELTest.case_uint64_4x32_inplace", np.uint64, 4, 32, 4, 32),
+        TSelParams("TSELTest.case_int64_1x1024_inplace", np.int64, 1, 1024, 1, 1024),
+        TSelParams("TSELTest.case_int64_4x64_4x40_inplace", np.int64, 4, 64, 4, 40),
+        TSelParams("TSELTest.case_int64_1x2048_1x2045_inplace", np.int64, 1, 2048, 1, 2045),
+        TSelParams("TSELTest.case_int8_1x1024", np.int8, 1, 1024, 1, 1024),
+        TSelParams("TSELTest.case_int8_2x512", np.int8, 2, 512, 2, 512),
+        TSelParams("TSELTest.case_int16_2x128", np.int16, 2, 128, 2, 128),
+        TSelParams("TSELTest.case_int16_2x160", np.int16, 2, 160, 2, 160),
+        TSelParams("TSELTest.case_int32_2x128", np.int32, 2, 128, 2, 128),
+        TSelParams("TSELTest.case_int32_2x160", np.int32, 2, 160, 2, 160),
+        TSelParams("TSELTest.case_bf16_2x128", bfloat16, 2, 128, 2, 128),
+        TSelParams("TSELTest.case_bf16_2x160", bfloat16, 2, 160, 2, 160),
     ]
 
     for param in case_params_list:

@@ -66,6 +66,71 @@ void launchTCVT(D* dst, S* src, void* stream)
     }
 }
 
+template <
+    typename T, typename S, int kGRows_, int kGCols_, int kTRows_, int kTCols_, pto::SaturationMode saturation,
+    bool explicitSaturation>
+__global__ AICORE void runTCVTWithTmp(__gm__ T* out, __gm__ S* src)
+{
+    using DynShapeDim4 = pto::Shape<1, 1, 1, kGRows_, kGCols_>;
+    using DynStridDim4 = pto::Stride<1, 1, 1, kGCols_, 1>;
+    using GlobalDataSrc = GlobalTensor<S, DynShapeDim4, DynStridDim4>;
+    using GlobalDataDst = GlobalTensor<T, DynShapeDim4, DynStridDim4>;
+    using TileDataSrc = Tile<TileType::Vec, S, kTRows_, kTCols_, BLayout::RowMajor>;
+    using TileDataDst = Tile<TileType::Vec, T, kTRows_, kTCols_, BLayout::RowMajor>;
+    using TmpTileData = Tile<TileType::Vec, int32_t, 1, 64, BLayout::RowMajor>;
+
+    TileDataSrc srcTile;
+    TileDataDst dstTile;
+    TmpTileData tmpTile;
+
+    constexpr uint32_t srcBytes = kTRows_ * kTCols_ * sizeof(S);
+    constexpr uint32_t dstBytes = kTRows_ * kTCols_ * sizeof(T);
+    TASSIGN(srcTile, 0);
+    TASSIGN(dstTile, srcBytes);
+    TASSIGN(tmpTile, srcBytes + dstBytes);
+
+    GlobalDataSrc srcGlobal(src);
+    GlobalDataDst dstGlobal(out);
+    TLOAD(srcTile, srcGlobal);
+
+    set_flag(PIPE_MTE2, PIPE_V, EVENT_ID0);
+    wait_flag(PIPE_MTE2, PIPE_V, EVENT_ID0);
+
+    if constexpr (explicitSaturation) {
+        TCVT(dstTile, srcTile, tmpTile, RoundMode::CAST_RINT, saturation);
+    } else {
+        TCVT(dstTile, srcTile, tmpTile, RoundMode::CAST_RINT);
+    }
+
+    set_flag(PIPE_V, PIPE_MTE3, EVENT_ID0);
+    wait_flag(PIPE_V, PIPE_MTE3, EVENT_ID0);
+    TSTORE(dstGlobal, dstTile);
+}
+
+template <typename D, typename S, int kGRows_, int kGCols_, int kTRows_, int kTCols_, pto::SaturationMode saturation>
+void launchTCVTWithTmp(D* dst, S* src, void* stream)
+{
+    if constexpr (std::is_same_v<D, aclFloat16>) {
+        runTCVTWithTmp<half, S, kGRows_, kGCols_, kTRows_, kTCols_, saturation, true>((half*)dst, src);
+    } else if constexpr (std::is_same_v<S, aclFloat16>) {
+        runTCVTWithTmp<D, half, kGRows_, kGCols_, kTRows_, kTCols_, saturation, true>(dst, (half*)src);
+    } else {
+        runTCVTWithTmp<D, S, kGRows_, kGCols_, kTRows_, kTCols_, saturation, true>(dst, src);
+    }
+}
+
+template <typename D, typename S, int kGRows_, int kGCols_, int kTRows_, int kTCols_>
+void launchTCVTWithTmpDefault(D* dst, S* src, void* stream)
+{
+    if constexpr (std::is_same_v<D, aclFloat16>) {
+        runTCVTWithTmp<half, S, kGRows_, kGCols_, kTRows_, kTCols_, SaturationMode::OFF, false>((half*)dst, src);
+    } else if constexpr (std::is_same_v<S, aclFloat16>) {
+        runTCVTWithTmp<D, half, kGRows_, kGCols_, kTRows_, kTCols_, SaturationMode::OFF, false>(dst, (half*)src);
+    } else {
+        runTCVTWithTmp<D, S, kGRows_, kGCols_, kTRows_, kTCols_, SaturationMode::OFF, false>(dst, src);
+    }
+}
+
 template void launchTCVT<int32_t, float, 128, 128, 128, 128, pto::SaturationMode::OFF>(
     int32_t* dst, float* src, void* stream);
 template void launchTCVT<float, int32_t, 256, 64, 256, 64, pto::SaturationMode::OFF>(
@@ -124,3 +189,7 @@ template void launchTCVT<float, float4_e1m2x2_t, 64, 64, 64, 64, pto::Saturation
     float* dst, float4_e1m2x2_t* src, void* stream);
 template void launchTCVT<float, float4_e1m2x2_t, 64, 64, 64, 64, pto::SaturationMode::ON>(
     float* dst, float4_e1m2x2_t* src, void* stream);
+template void launchTCVTWithTmp<int8_t, aclFloat16, 32, 32, 32, 32, pto::SaturationMode::ON>(
+    int8_t* dst, aclFloat16* src, void* stream);
+template void launchTCVTWithTmpDefault<uint8_t, aclFloat16, 64, 64, 64, 64>(
+    uint8_t* dst, aclFloat16* src, void* stream);

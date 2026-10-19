@@ -1,4 +1,4 @@
-﻿# TNOTIFY
+# TNOTIFY
 
 ## Introduction
 

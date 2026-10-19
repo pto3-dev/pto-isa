@@ -1,4 +1,4 @@
-﻿# TCOLMAX
+# TCOLMAX
 
 ## 指令示意图
 

@@ -53,8 +53,8 @@ protected:
     template <typename T>
     bool CompareGolden(size_t dstByteSize, bool printAllEn = false)
     {
-        std::vector<T> golden(dstByteSize);
-        std::vector<T> result(dstByteSize);
+        std::vector<T> golden(dstByteSize / sizeof(T));
+        std::vector<T> result(dstByteSize / sizeof(T));
         float eps = sizeof(T) == 4 ? 0.001f : 0.005f;
         ReadFile(GetGoldenDir() + "/golden.bin", dstByteSize, golden.data(), dstByteSize);
         ReadFile(GetGoldenDir() + "/output.bin", dstByteSize, result.data(), dstByteSize);
@@ -276,3 +276,14 @@ TEST_F(TROWMAXTest, case_int64_4x64) { EXPECT_TRUE((TRowMaxTestFramework<31, int
 TEST_F(TROWMAXTest, case_uint64_4x64) { EXPECT_TRUE((TRowMaxTestFramework<32, uint64_t, 4, 4, 64, 64, 1>())); }
 TEST_F(TROWMAXTest, case_int64_32x32) { EXPECT_TRUE((TRowMaxTestFramework<33, int64_t, 32, 32, 32, 32, 1>())); }
 TEST_F(TROWMAXTest, case_int64_1x10912) { EXPECT_TRUE((TRowMaxTestFramework<34, int64_t, 1, 1, 10912, 10912, 1>())); }
+
+TEST_F(TROWMAXTest, case_int64_32x32_dndst) { EXPECT_TRUE((TRowMaxTestFramework<35, int64_t, 32, 32, 32, 32, 1>())); }
+TEST_F(TROWMAXTest, case_uint64_32x32_dndst) { EXPECT_TRUE((TRowMaxTestFramework<36, uint64_t, 32, 32, 32, 32, 1>())); }
+TEST_F(TROWMAXTest, case_int64_32x145_dndst)
+{
+    EXPECT_TRUE((TRowMaxTestFramework<37, int64_t, 32, 32, 145, 145, 1>()));
+}
+TEST_F(TROWMAXTest, case_uint64_32x145_dndst)
+{
+    EXPECT_TRUE((TRowMaxTestFramework<38, uint64_t, 32, 32, 145, 145, 1>()));
+}

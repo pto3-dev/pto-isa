@@ -20,9 +20,17 @@ template <
     int vRows, int vCols>
 void LaunchTSels(T* out, TMask* mask, T* src, T scalar, void* stream);
 template <
+    typename T, typename TMask, int dstTileH, int dstTileW, int maskTileH, int maskTileW, int srcTileH, int srcTileW,
+    int vRows, int vCols>
+void LaunchTSelsInplace(T* out, TMask* mask, T scalar, void* stream);
+template <
     typename TMask, int dstTileH, int dstTileW, int maskTileH, int maskTileW, int srcTileH, int srcTileW, int vRows,
     int vCols>
 void LaunchTSelsHalf(aclFloat16* out, TMask* mask, aclFloat16* src, aclFloat16 scalar, void* stream);
+template <
+    typename TMask, int dstTileH, int dstTileW, int maskTileH, int maskTileW, int srcTileH, int srcTileW, int vRows,
+    int vCols>
+void LaunchTSelsBf16(aclFloat16* out, TMask* mask, aclFloat16* src, aclFloat16 scalar, void* stream);
 
 class TSELSTest : public testing::Test {
 private:
@@ -88,8 +96,8 @@ protected:
     bool AfterLaunch()
     {
         aclrtSynchronizeStream(this->stream);
-        std::vector<T> golden(this->dstFileSize);
-        std::vector<T> devFinal(this->dstFileSize);
+        std::vector<T> golden(this->dstFileSize / sizeof(T));
+        std::vector<T> devFinal(this->dstFileSize / sizeof(T));
         aclrtMemcpy(devFinal.data(), this->dstFileSize, this->dstDevice, this->dstFileSize, ACL_MEMCPY_DEVICE_TO_HOST);
 
         aclrtFree(this->dstDevice);
@@ -114,18 +122,35 @@ protected:
 
     template <
         typename T, typename TMask, int dstTileH, int dstTileW, int maskTileH, int maskTileW, int srcTileH,
-        int srcTileW, int vRows, int vCols, bool isHalf = false>
+        int srcTileW, int vRows, int vCols, bool isHalf = false, bool isBf16 = false>
     void Launch()
     {
         T scalar;
         this->BeforeLaunch<T, TMask, dstTileH, dstTileW, maskTileH, maskTileW, srcTileH, srcTileW>(scalar);
-        if constexpr (isHalf) {
+        if constexpr (isBf16) {
+            LaunchTSelsBf16<TMask, dstTileH, dstTileW, maskTileH, maskTileW, srcTileH, srcTileW, vRows, vCols>(
+                (T*)this->dstDevice, (TMask*)this->maskDevice, (T*)this->srcDevice, scalar, this->stream);
+        } else if constexpr (isHalf) {
             LaunchTSelsHalf<TMask, dstTileH, dstTileW, maskTileH, maskTileW, srcTileH, srcTileW, vRows, vCols>(
                 (T*)this->dstDevice, (TMask*)this->maskDevice, (T*)this->srcDevice, scalar, this->stream);
         } else {
             LaunchTSels<T, TMask, dstTileH, dstTileW, maskTileH, maskTileW, srcTileH, srcTileW, vRows, vCols>(
                 (T*)this->dstDevice, (TMask*)this->maskDevice, (T*)this->srcDevice, scalar, this->stream);
         }
+        bool res = this->AfterLaunch<T>();
+        EXPECT_TRUE(res);
+    }
+
+    template <
+        typename T, typename TMask, int dstTileH, int dstTileW, int maskTileH, int maskTileW, int srcTileH,
+        int srcTileW, int vRows, int vCols>
+    void LaunchInplace()
+    {
+        T scalar;
+        this->BeforeLaunch<T, TMask, dstTileH, dstTileW, maskTileH, maskTileW, srcTileH, srcTileW>(scalar);
+        aclrtMemcpy(this->dstDevice, this->dstFileSize, this->srcHost, this->srcFileSize, ACL_MEMCPY_HOST_TO_DEVICE);
+        LaunchTSelsInplace<T, TMask, dstTileH, dstTileW, maskTileH, maskTileW, srcTileH, srcTileW, vRows, vCols>(
+            (T*)this->dstDevice, (TMask*)this->maskDevice, scalar, this->stream);
         bool res = this->AfterLaunch<T>();
         EXPECT_TRUE(res);
     }
@@ -170,6 +195,18 @@ TEST_F(TSELSTest, case_half_uint32_2x16_2x8_2x16_2x16)
 {
     this->Launch<aclFloat16, uint32_t, 2, 16, 2, 8, 2, 16, 2, 16, true>();
 }
+TEST_F(TSELSTest, case_bf16_uint8_2x16_2x32_2x16_2x16)
+{
+    this->Launch<aclFloat16, uint8_t, 2, 16, 2, 32, 2, 16, 2, 16, false, true>();
+}
+TEST_F(TSELSTest, case_bf16_uint16_2x16_2x16_2x16_2x16)
+{
+    this->Launch<aclFloat16, uint16_t, 2, 16, 2, 16, 2, 16, 2, 16, false, true>();
+}
+TEST_F(TSELSTest, case_bf16_uint32_2x16_2x8_2x16_2x16)
+{
+    this->Launch<aclFloat16, uint32_t, 2, 16, 2, 8, 2, 16, 2, 16, false, true>();
+}
 TEST_F(TSELSTest, case_float_uint8_2x8_2x32_2x8_2x8) { this->Launch<float, uint8_t, 2, 8, 2, 32, 2, 8, 2, 8>(); }
 TEST_F(TSELSTest, case_float_uint16_2x8_2x16_2x8_2x8) { this->Launch<float, uint16_t, 2, 8, 2, 16, 2, 8, 2, 8>(); }
 TEST_F(TSELSTest, case_float_uint32_2x8_2x8_2x8_2x8) { this->Launch<float, uint32_t, 2, 8, 2, 8, 2, 8, 2, 8>(); }
@@ -209,6 +246,14 @@ TEST_F(TSELSTest, case_uint64_uint8_4x16_4x32_4x16_4x16)
 {
     this->Launch<uint64_t, uint8_t, 4, 16, 4, 32, 4, 16, 4, 16>();
 }
+TEST_F(TSELSTest, case_int64_uint8_49x160_49x32_49x160_49x160)
+{
+    this->Launch<int64_t, uint8_t, 49, 160, 49, 32, 49, 160, 49, 160>();
+}
+TEST_F(TSELSTest, case_uint64_uint8_49x160_49x32_49x160_49x160)
+{
+    this->Launch<uint64_t, uint8_t, 49, 160, 49, 32, 49, 160, 49, 160>();
+}
 TEST_F(TSELSTest, case_int64_uint8_1x16364_1x2048_1x16364_1x16364)
 {
     this->Launch<int64_t, uint8_t, 1, 16364, 1, 2048, 1, 16364, 1, 16364>();
@@ -224,4 +269,26 @@ TEST_F(TSELSTest, case_int64_uint8_1x16368_1x2046_1x16368_1x16368)
 TEST_F(TSELSTest, case_uint64_uint8_1x16368_1x2046_1x16368_1x16368)
 {
     this->Launch<uint64_t, uint8_t, 1, 16368, 1, 2046, 1, 16368, 1, 16368>();
+}
+TEST_F(TSELSTest, case_int64_uint8_4x32_4x32_4x32_4x32_inplace)
+{
+    this->LaunchInplace<int64_t, uint8_t, 4, 32, 4, 32, 4, 32, 4, 32>();
+}
+TEST_F(TSELSTest, case_uint64_uint8_4x32_4x32_4x32_4x32_inplace)
+{
+    this->LaunchInplace<uint64_t, uint8_t, 4, 32, 4, 32, 4, 32, 4, 32>();
+}
+
+TEST_F(TSELSTest, case_int64_uint8_1x1024_1x128_1x1024_1x1024_inplace)
+{
+    this->LaunchInplace<int64_t, uint8_t, 1, 1024, 1, 128, 1, 1024, 1, 1024>();
+}
+TEST_F(TSELSTest, case_int64_uint8_4x40_4x5_4x40_4x40_inplace)
+{
+    this->LaunchInplace<int64_t, uint8_t, 4, 40, 4, 5, 4, 40, 4, 40>();
+}
+
+TEST_F(TSELSTest, case_int64_uint8_1x2048_1x256_1x2048_1x2045_inplace)
+{
+    this->LaunchInplace<int64_t, uint8_t, 1, 2048, 1, 256, 1, 2048, 1, 2045>();
 }

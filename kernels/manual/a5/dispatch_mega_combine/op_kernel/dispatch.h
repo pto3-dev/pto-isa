@@ -33,14 +33,15 @@ static_assert(kDispatchGatherPackedTileCols % sizeof(uint32_t) == 0);
 static_assert(kDispatchGatherPackedWordTileCols <= 4095U);
 static_assert(kDispatchMaxBufferCount <= 6U);
 
-__tf__ AICORE void CompressDispatchRouteMask(uint32_t routeIndexUbOffset, uint32_t maskUbOffset, uint32_t routeBegin,
-                                             uint32_t validRouteCount, uint32_t routeCountUbOffset)
+__tf__ AICORE void CompressDispatchRouteMask(
+    uint32_t routeIndexUbOffset, uint32_t maskUbOffset, uint32_t routeBegin, uint32_t validRouteCount,
+    uint32_t routeCountUbOffset)
 {
     constexpr uint32_t kRoutesPerRepeat = 64U;
-    __ubuf__ uint8_t *ubBase = (__ubuf__ uint8_t *)0;
-    __ubuf__ uint32_t *routeIndexPtr = (__ubuf__ uint32_t *)(ubBase + routeIndexUbOffset);
-    __ubuf__ uint32_t *maskPtr = (__ubuf__ uint32_t *)(ubBase + maskUbOffset);
-    __ubuf__ uint32_t *routeCountPtr = (__ubuf__ uint32_t *)(ubBase + routeCountUbOffset);
+    __ubuf__ uint8_t* ubBase = (__ubuf__ uint8_t*)0;
+    __ubuf__ uint32_t* routeIndexPtr = (__ubuf__ uint32_t*)(ubBase + routeIndexUbOffset);
+    __ubuf__ uint32_t* maskPtr = (__ubuf__ uint32_t*)(ubBase + maskUbOffset);
+    __ubuf__ uint32_t* routeCountPtr = (__ubuf__ uint32_t*)(ubBase + routeCountUbOffset);
     const uint16_t repeatTimes = static_cast<uint16_t>((validRouteCount + kRoutesPerRepeat - 1U) / kRoutesPerRepeat);
 
     __VEC_SCOPE__
@@ -58,7 +59,7 @@ __tf__ AICORE void CompressDispatchRouteMask(uint32_t routeIndexUbOffset, uint32
         sprclr(SPR_AR);
         for (uint16_t repeat = 0U; repeat < repeatTimes; ++repeat) {
             vci(routeIndex, routeBegin + static_cast<uint32_t>(repeat) * kRoutesPerRepeat, INC_ORDER);
-            __ubuf__ uint32_t *currentMask = maskPtr + static_cast<uint32_t>(repeat) * 2U;
+            __ubuf__ uint32_t* currentMask = maskPtr + static_cast<uint32_t>(repeat) * 2U;
             vldas(maskAlign, currentMask);
             vldus(packedMask, maskAlign, currentMask);
             movvp(routeMask, packedMask, 0);
@@ -74,58 +75,50 @@ __tf__ AICORE void CompressDispatchRouteMask(uint32_t routeIndexUbOffset, uint32
 
 class DispatchGather {
 public:
-    AICORE inline void Init(GM_ADDR workspaceGM, const __gm__ MegaMoeTilingData *tilingData)
+    AICORE inline void Init(GM_ADDR workspaceGM, const __gm__ MegaMoeTilingData* tilingData)
     {
         workspaceGM_ = workspaceGM;
         tilingData_ = tilingData;
 
-        const auto &info = tilingData_->megaMoeInfo;
+        const auto& info = tilingData_->megaMoeInfo;
         problemK_ = info.K;
         topK_ = info.topK;
         expertPerRank_ = info.expertPerRank;
         routeElems_ = tilingData_->frontReorderTiling.routeElems;
         rankSize_ = tilingData_->runtimeInfo.rankSize;
 
-        gmAPtr_ = reinterpret_cast<__gm__ int8_t *>(workspaceGM + tilingData_->dispatchTiling.gmAOffset);
-        gmAScalePtr_ = reinterpret_cast<__gm__ uint8_t *>(workspaceGM + tilingData_->dispatchTiling.gmAScaleOffset);
-        routeMetaPtr_ = reinterpret_cast<__gm__ int32_t *>(workspaceGM + tilingData_->dispatchTiling.routeMetaOffset);
-        cumsumMMPtr_ = reinterpret_cast<__gm__ int32_t *>(workspaceGM + tilingData_->frontReorderTiling.cumsumMMOffset);
+        gmAPtr_ = reinterpret_cast<__gm__ int8_t*>(workspaceGM + tilingData_->dispatchTiling.gmAOffset);
+        gmAScalePtr_ = reinterpret_cast<__gm__ uint8_t*>(workspaceGM + tilingData_->dispatchTiling.gmAScaleOffset);
+        routeMetaPtr_ = reinterpret_cast<__gm__ int32_t*>(workspaceGM + tilingData_->dispatchTiling.routeMetaOffset);
+        cumsumMMPtr_ = reinterpret_cast<__gm__ int32_t*>(workspaceGM + tilingData_->frontReorderTiling.cumsumMMOffset);
 
         remoteWindow_.Init(reinterpret_cast<GM_ADDR>(tilingData_->runtimeInfo.remoteWindowContext));
         peerMemoryLayout_.Init(tilingData_->frontReorderTiling);
         localRouteMaskSlots_ =
-            reinterpret_cast<__gm__ uint8_t *>(remoteWindow_.LocalBase() + peerMemoryLayout_.routeMaskSlots);
+            reinterpret_cast<__gm__ uint8_t*>(remoteWindow_.LocalBase() + peerMemoryLayout_.routeMaskSlots);
     }
 
     AICORE inline void ProcessFixed(uint32_t groupLocalId, uint32_t groupSize)
     {
         coreIdx_ = groupLocalId;
         coreNum_ = groupSize;
-        if ASCEND_IS_AIV {
-            ProcessRankSplitCopy();
-        }
+        ProcessRankSplitCopy();
     }
 
 private:
-    AICORE inline uint32_t PackedRowStride() const
-    {
-        return tilingData_->frontReorderTiling.packedRowStride;
-    }
+    AICORE inline uint32_t PackedRowStride() const { return tilingData_->frontReorderTiling.packedRowStride; }
 
     AICORE inline uint64_t DispatchGatherPackedUbOffset(uint32_t bufferId) const
     {
-        return tilingData_->dispatchTiling.copyBufferUbOffset +
-               static_cast<uint64_t>(bufferId) * tilingData_->dispatchTiling.copyBufferBytes;
+        return static_cast<uint64_t>(bufferId) * tilingData_->dispatchTiling.copyBufferBytes;
     }
 
-    AICORE inline event_t DispatchGatherBufferEvent(uint32_t bufferId) const
-    {
-        return static_cast<event_t>(bufferId);
-    }
+    AICORE inline event_t DispatchGatherBufferEvent(uint32_t bufferId) const { return static_cast<event_t>(bufferId); }
 
     AICORE inline uint64_t DispatchGatherMetaUbOffset(uint32_t bufferId) const
     {
-        return tilingData_->dispatchTiling.metaBufferUbOffset +
+        return static_cast<uint64_t>(tilingData_->dispatchTiling.bufferCount) *
+                   tilingData_->dispatchTiling.copyBufferBytes +
                static_cast<uint64_t>(bufferId) * kDispatchMetaSlotBytes;
     }
 
@@ -138,25 +131,26 @@ private:
 
     AICORE inline uint32_t DispatchShardRowBegin(uint32_t rows, uint32_t shardIdx, uint32_t shardCount) const
     {
-        return shardCount == 0U ? 0U : static_cast<uint32_t>((static_cast<uint64_t>(rows) * shardIdx) / shardCount);
+        return static_cast<uint32_t>((static_cast<uint64_t>(rows) * shardIdx) / shardCount);
     }
 
-    AICORE inline __gm__ int32_t *ReadyCountSlot(uint32_t groupIdx, uint32_t tileIdx) const
+    AICORE inline __gm__ int32_t* ReadyCountSlot(uint32_t groupIdx, uint32_t tileIdx) const
     {
-        const __gm__ MegaMoeDispatchTiling &dispatch = tilingData_->dispatchTiling;
-        const uint64_t byteOffset = dispatch.readyCountOffset +
-                                    static_cast<uint64_t>(groupIdx) * dispatch.readyCountExpertStrideBytes +
-                                    static_cast<uint64_t>(tileIdx) * dispatch.readyCountSlotBytes;
-        return reinterpret_cast<__gm__ int32_t *>(workspaceGM_ + byteOffset);
+        const __gm__ MegaMoeDispatchTiling& dispatch = tilingData_->dispatchTiling;
+        const uint64_t byteOffset =
+            dispatch.readyCountOffset +
+            static_cast<uint64_t>(groupIdx) * dispatch.readyCountMaxTilesPerExpert * kMegaMoeReadyCountSlotBytes +
+            static_cast<uint64_t>(tileIdx) * kMegaMoeReadyCountSlotBytes;
+        return reinterpret_cast<__gm__ int32_t*>(workspaceGM_ + byteOffset);
     }
 
-    AICORE inline void PublishDispatchReadyRange(uint32_t groupIdx, uint32_t expertRowBegin,
-                                                 uint32_t expertRowEnd) const
+    AICORE inline void PublishDispatchReadyRange(
+        uint32_t groupIdx, uint32_t expertRowBegin, uint32_t expertRowEnd) const
     {
         if (expertRowBegin >= expertRowEnd) {
             return;
         }
-        const uint32_t tileM = tilingData_->gmm1Tiling.l1TileM;
+        constexpr uint32_t tileM = kMegaMoeGmmTileM;
         const uint32_t firstTile = expertRowBegin / tileM;
         const uint32_t lastTile = (expertRowEnd - 1U) / tileM;
         const uint64_t scratchUbOffset = tilingData_->dispatchTiling.routeCountUbOffset;
@@ -186,14 +180,14 @@ private:
         using ShapeDyn = pto::Shape<pto::DYNAMIC, pto::DYNAMIC, pto::DYNAMIC, pto::DYNAMIC, pto::DYNAMIC>;
         using StrideDyn = pto::Stride<pto::DYNAMIC, pto::DYNAMIC, pto::DYNAMIC, pto::DYNAMIC, pto::DYNAMIC>;
         using PayloadWordGlobal = pto::GlobalTensor<uint32_t, ShapeDyn, StrideDyn, pto::Layout::ND>;
-        using PayloadWordTile = pto::Tile<pto::TileType::Vec, uint32_t, 1, kDispatchGatherPackedWordTileCols,
-                                          pto::BLayout::RowMajor, -1, -1>;
+        using PayloadWordTile = pto::Tile<
+            pto::TileType::Vec, uint32_t, 1, kDispatchGatherPackedWordTileCols, pto::BLayout::RowMajor, -1, -1>;
 
         const uint32_t wordCols = problemK_ / sizeof(uint32_t);
         ShapeDyn payloadShape(1, 1, 1, 1, wordCols);
         StrideDyn payloadStride(wordCols, wordCols, wordCols, wordCols, 1);
         PayloadWordGlobal payloadDst(
-            reinterpret_cast<__gm__ uint32_t *>(gmAPtr_ + static_cast<uint64_t>(dstRow) * problemK_), payloadShape,
+            reinterpret_cast<__gm__ uint32_t*>(gmAPtr_ + static_cast<uint64_t>(dstRow) * problemK_), payloadShape,
             payloadStride);
         PayloadWordTile payloadTile(1, wordCols);
         pto::TASSIGN(payloadTile, ubOffsetBytes);
@@ -205,15 +199,15 @@ private:
         using ShapeDyn = pto::Shape<pto::DYNAMIC, pto::DYNAMIC, pto::DYNAMIC, pto::DYNAMIC, pto::DYNAMIC>;
         using StrideDyn = pto::Stride<pto::DYNAMIC, pto::DYNAMIC, pto::DYNAMIC, pto::DYNAMIC, pto::DYNAMIC>;
         using ScaleWordGlobal = pto::GlobalTensor<uint32_t, ShapeDyn, StrideDyn, pto::Layout::ND>;
-        using ScaleWordTile = pto::Tile<pto::TileType::Vec, uint32_t, 1, kDispatchGatherPackedWordTileCols,
-                                        pto::BLayout::RowMajor, -1, -1>;
+        using ScaleWordTile = pto::Tile<
+            pto::TileType::Vec, uint32_t, 1, kDispatchGatherPackedWordTileCols, pto::BLayout::RowMajor, -1, -1>;
 
         const uint32_t scaleCols = tilingData_->frontReorderTiling.quantScaleCols;
         const uint32_t scaleWordCols = scaleCols / sizeof(uint32_t);
         ShapeDyn scaleShape(1, 1, 1, 1, scaleWordCols);
         StrideDyn scaleStride(scaleWordCols, scaleWordCols, scaleWordCols, scaleWordCols, 1);
         ScaleWordGlobal scaleDst(
-            reinterpret_cast<__gm__ uint32_t *>(gmAScalePtr_ + static_cast<uint64_t>(dstRow) * scaleCols), scaleShape,
+            reinterpret_cast<__gm__ uint32_t*>(gmAScalePtr_ + static_cast<uint64_t>(dstRow) * scaleCols), scaleShape,
             scaleStride);
         ScaleWordTile scaleTile(1, scaleWordCols);
         pto::TASSIGN(scaleTile, ubOffsetBytes + tilingData_->frontReorderTiling.quantDataStorageBytes);
@@ -229,15 +223,16 @@ private:
         StoreDispatchPayload(ubOffsetBytes, dstRow);
         StoreDispatchScale(ubOffsetBytes, dstRow);
         wait_flag(PIPE_S, PIPE_MTE3, event);
-        PtoStoreVector<int32_t, 8U>(routeMetaPtr_ + static_cast<uint64_t>(dstRow) * kMegaMoeRouteMetaFields,
-                                    metaUbOffsetBytes, kMegaMoeRouteMetaFields);
+        PtoStoreVector<int32_t, 8U>(
+            routeMetaPtr_ + static_cast<uint64_t>(dstRow) * kMegaMoeRouteMetaFields, metaUbOffsetBytes,
+            kMegaMoeRouteMetaFields);
         set_flag(PIPE_MTE3, PIPE_MTE2, event);
         set_flag(PIPE_MTE3, PIPE_S, event);
     }
 
     template <bool IsBufferReuse>
-    AICORE inline void IssueRemoteRouteToken(__gm__ int8_t *remoteRecords, uint32_t srcRank, uint32_t routeSlot,
-                                             uint32_t bufferId) const
+    AICORE inline void IssueRemoteRouteToken(
+        __gm__ int8_t* remoteRecords, uint32_t srcRank, uint32_t routeSlot, uint32_t bufferId) const
     {
         const uint32_t packedStride = PackedRowStride();
         const event_t event = DispatchGatherBufferEvent(bufferId);
@@ -263,13 +258,13 @@ private:
         set_flag(PIPE_S, PIPE_MTE3, event);
     }
 
-    AICORE inline void CopyRemoteRouteRange(uint32_t srcRank, uint32_t dstRowBegin, uint32_t routeIndexBegin,
-                                            uint32_t routeCount) const
+    AICORE inline void CopyRemoteRouteRange(
+        uint32_t srcRank, uint32_t dstRowBegin, uint32_t routeIndexBegin, uint32_t routeCount) const
     {
         const uint32_t bufferCount = tilingData_->dispatchTiling.bufferCount;
         const uint64_t routeIndexUbOffset = tilingData_->dispatchTiling.routeIndexUbOffset;
-        __gm__ int8_t *remoteRecords = reinterpret_cast<__gm__ int8_t *>(
-            remoteWindow_.RemoteBase(peerMemoryLayout_.sourceTokenRecords, static_cast<int32_t>(srcRank)));
+        __gm__ int8_t* remoteRecords =
+            reinterpret_cast<__gm__ int8_t*>(remoteWindow_.RemoteBase(0, static_cast<int32_t>(srcRank)));
 
         const uint32_t firstRouteSlot = PtoGetValue<uint32_t>(routeIndexUbOffset, routeIndexBegin);
         IssueRemoteRouteToken<false>(remoteRecords, srcRank, firstRouteSlot, 0U);
@@ -295,24 +290,24 @@ private:
         }
     }
 
-    AICORE inline __gm__ uint8_t *LocalMaskSlot(uint32_t groupIdx, uint32_t srcRank) const
+    AICORE inline __gm__ uint8_t* LocalMaskSlot(uint32_t groupIdx, uint32_t srcRank) const
     {
         const uint64_t slot = static_cast<uint64_t>(groupIdx) * rankSize_ + srcRank;
         return localRouteMaskSlots_ + slot * tilingData_->frontReorderTiling.maskSlotBytes;
     }
 
-    AICORE inline void FetchRankGroupRows(uint32_t srcRank, uint32_t groupIdx, uint32_t dstRowBase,
-                                          uint32_t rowBegin, uint32_t rowEnd) const
+    AICORE inline void FetchRankGroupRows(
+        uint32_t srcRank, uint32_t groupIdx, uint32_t dstRowBase, uint32_t rowBegin, uint32_t rowEnd) const
     {
-        if (rowBegin == rowEnd || topK_ == 0U) {
+        if (rowBegin == rowEnd) {
             return;
         }
 
-        const __gm__ MegaMoeDispatchTiling &dispatch = tilingData_->dispatchTiling;
+        const __gm__ MegaMoeDispatchTiling& dispatch = tilingData_->dispatchTiling;
         const uint32_t batchRoutes = dispatch.routeItemsPerBatch;
-        const uint32_t routeBatchCount = dispatch.routeBatchCount;
+        const uint32_t routeBatchCount = (routeElems_ + batchRoutes - 1U) / batchRoutes;
 
-        __gm__ uint8_t *maskSlot = LocalMaskSlot(groupIdx, srcRank);
+        __gm__ uint8_t* maskSlot = LocalMaskSlot(groupIdx, srcRank);
         uint32_t matchedOrdinal = 0U;
         for (uint32_t batchIdx = 0U; batchIdx < routeBatchCount && matchedOrdinal < rowEnd; ++batchIdx) {
             const uint32_t batchStart = batchIdx * batchRoutes;
@@ -321,8 +316,9 @@ private:
             const uint32_t maskBytes = (validRoutes + 7U) / 8U;
             PtoLoadVector<uint8_t>(dispatch.maskBufferUbOffset, maskSlot + batchStart / 8U, maskBytes);
             pto::PtoSetWaitFlag<PIPE_MTE2, PIPE_V>(kDispatchMaskLoadEvent, kDispatchMaskLoadEvent);
-            CompressDispatchRouteMask(dispatch.routeIndexUbOffset, dispatch.maskBufferUbOffset, batchStart, validRoutes,
-                                      dispatch.routeCountUbOffset);
+            CompressDispatchRouteMask(
+                dispatch.routeIndexUbOffset, dispatch.maskBufferUbOffset, batchStart, validRoutes,
+                dispatch.routeCountUbOffset);
             pto::PtoSetWaitFlag<PIPE_V, PIPE_S>(kDispatchMaskVectorEvent, kDispatchMaskVectorEvent);
 
             const uint32_t batchMatchedRouteCount =
@@ -335,8 +331,8 @@ private:
             if (dispatchMatchOrdinalEnd > dispatchMatchOrdinalBegin) {
                 const uint32_t batchLocalMatchBegin = dispatchMatchOrdinalBegin - batchMatchOrdinalBegin;
                 const uint32_t dispatchRowCount = dispatchMatchOrdinalEnd - dispatchMatchOrdinalBegin;
-                CopyRemoteRouteRange(srcRank, dstRowBase + dispatchMatchOrdinalBegin, batchLocalMatchBegin,
-                                     dispatchRowCount);
+                CopyRemoteRouteRange(
+                    srcRank, dstRowBase + dispatchMatchOrdinalBegin, batchLocalMatchBegin, dispatchRowCount);
             }
             matchedOrdinal = batchMatchOrdinalEnd;
         }
@@ -344,34 +340,30 @@ private:
 
     AICORE inline void ProcessRankSplitCopy() const
     {
-        const uint32_t lanesPerRank = rankSize_ == 0U ? 0U : coreNum_ / rankSize_;
-        const uint32_t activeWorkerCount = rankSize_ * lanesPerRank;
-        const bool activeCopyCore = lanesPerRank != 0U && coreIdx_ < activeWorkerCount;
-        const uint32_t srcRank = activeCopyCore ? coreIdx_ / lanesPerRank : 0U;
-        const uint32_t shardIdx = activeCopyCore ? coreIdx_ % lanesPerRank : 0U;
+        const uint32_t lanesPerRank = coreNum_ / rankSize_;
+        const uint32_t srcRank = coreIdx_ / lanesPerRank;
+        const uint32_t shardIdx = coreIdx_ % lanesPerRank;
         uint32_t prevGroupSum = 0U;
         for (uint32_t groupIdx = 0U; groupIdx < expertPerRank_; ++groupIdx) {
             const uint32_t currentM =
                 static_cast<uint32_t>(cumsumMMPtr_[static_cast<uint64_t>(rankSize_ - 1U) * expertPerRank_ + groupIdx]);
-            if (activeCopyCore) {
-                const uint32_t rawRows = RawRowsForLocalGroup(srcRank, groupIdx);
-                const uint32_t shardRowBegin = DispatchShardRowBegin(rawRows, shardIdx, lanesPerRank);
-                const uint32_t shardRowEnd = DispatchShardRowBegin(rawRows, shardIdx + 1U, lanesPerRank);
-                const uint32_t sourceRowBase = CopyCumsumBeforeSource(srcRank, groupIdx);
-                FetchRankGroupRows(srcRank, groupIdx, prevGroupSum + sourceRowBase, shardRowBegin, shardRowEnd);
-                PublishDispatchReadyRange(groupIdx, sourceRowBase + shardRowBegin, sourceRowBase + shardRowEnd);
-                prevGroupSum += currentM;
-            }
+            const uint32_t rawRows = RawRowsForLocalGroup(srcRank, groupIdx);
+            const uint32_t shardRowBegin = DispatchShardRowBegin(rawRows, shardIdx, lanesPerRank);
+            const uint32_t shardRowEnd = DispatchShardRowBegin(rawRows, shardIdx + 1U, lanesPerRank);
+            const uint32_t sourceRowBase = CopyCumsumBeforeSource(srcRank, groupIdx);
+            FetchRankGroupRows(srcRank, groupIdx, prevGroupSum + sourceRowBase, shardRowBegin, shardRowEnd);
+            PublishDispatchReadyRange(groupIdx, sourceRowBase + shardRowBegin, sourceRowBase + shardRowEnd);
+            prevGroupSum += currentM;
         }
     }
 
     GM_ADDR workspaceGM_ = nullptr;
-    const __gm__ MegaMoeTilingData *tilingData_ = nullptr;
-    __gm__ int8_t *gmAPtr_ = nullptr;
-    __gm__ uint8_t *gmAScalePtr_ = nullptr;
-    __gm__ int32_t *routeMetaPtr_ = nullptr;
-    __gm__ uint8_t *localRouteMaskSlots_ = nullptr;
-    __gm__ int32_t *cumsumMMPtr_ = nullptr;
+    const __gm__ MegaMoeTilingData* tilingData_ = nullptr;
+    __gm__ int8_t* gmAPtr_ = nullptr;
+    __gm__ uint8_t* gmAScalePtr_ = nullptr;
+    __gm__ int32_t* routeMetaPtr_ = nullptr;
+    __gm__ uint8_t* localRouteMaskSlots_ = nullptr;
+    __gm__ int32_t* cumsumMMPtr_ = nullptr;
 
     PtoRemoteWindow remoteWindow_;
     MegaMoePeerMemoryLayout peerMemoryLayout_;

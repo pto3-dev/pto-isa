@@ -1,4 +1,4 @@
-﻿# TDEINTERLEAVE
+# TDEINTERLEAVE
 
 
 ## Tile Operation Diagram
@@ -42,8 +42,6 @@ Where `halfValidCols = src.GetValidCol() / 2`.
 > **Note**: For the single-source form, the source tile width must be at least `2 × ElementsPerRepeat` (where `ElementsPerRepeat = 256 / sizeof(T)`) so that two adjacent register-sized chunks can be loaded from the same row without crossing row boundaries.
 
 ## Assembly Syntax
-
-PTO-AS form: see [PTO-AS Specification](../assembly/PTO-AS.md).
 
 Synchronous form (two-source):
 

@@ -1,4 +1,4 @@
-﻿# TMAX
+# TMAX
 
 
 ## Tile Operation Diagram

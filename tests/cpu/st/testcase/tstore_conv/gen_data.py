@@ -22,8 +22,6 @@ BLOCK_SIZE_BYTES = 32
 def get_c0_size(data_type):
     """Calculates C0 dimension size based on hardware alignment."""
     elem_size = np.dtype(data_type).itemsize
-    if np.dtype(data_type).kind == 'i' and elem_size == 4:
-        return 16
     return BLOCK_SIZE_BYTES // elem_size
 
 

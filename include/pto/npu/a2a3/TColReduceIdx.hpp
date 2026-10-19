@@ -158,7 +158,8 @@ PTO_INTERNAL void ProcessSingleBlock(
     }
     pipe_barrier(PIPE_V);
 
-    for (uint16_t rowIdx = 1; rowIdx < srcValidRow; ++rowIdx) {
+    uint16_t rowLimit = static_cast<uint16_t>(srcValidRow);
+    for (uint16_t rowIdx = 1; rowIdx < rowLimit; ++rowIdx) {
         vadds(reinterpret_cast<__ubuf__ TIdx*>(tmp), reinterpret_cast<__ubuf__ TIdx*>(tmp), 1, 1, 1, 1, 0, 0);
 
         __ubuf__ TIN* currentSrc = src + rowIdx * srcRowStride + blockIndex * elemPerRpt;

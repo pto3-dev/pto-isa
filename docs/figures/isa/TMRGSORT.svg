@@ -31,7 +31,7 @@ svg { font-family: Arial, Helvetica, sans-serif; }
 .validBox { fill: none; stroke-width: 2; stroke-dasharray: 6 4; }
 </style>
 <rect x="0" y="0" width="1200" height="720" class="frame" />
-<rect x="24" y="24" width="1152" height="672" class="panel" />
+<rect x="24" y="24" width="1152" height="672" class="panel"/>
 <text x="40" y="46" class="title">TMRGSORT</text>
 <text x="40" y="72" class="subtitle">Merge sort for multiple sorted lists (implementation-defined element format and layout).</text>
 <text x="40" y="92" class="meta">Template: complex</text>
@@ -141,9 +141,9 @@ svg { font-family: Arial, Helvetica, sans-serif; }
 <text x="593" y="374" class="axisText">c</text>
 <text x="553" y="408" class="axisText" text-anchor="end">r</text>
 <circle cx="600" cy="324" r="22" class="opCircle" stroke="#C53A79" />
-<rect x="583" y="307" width="34" height="34" rx="6" class="opRect" stroke="#C53A79" />
-<text x="600" y="322.5" class="opText" font-size="8px" text-anchor="middle">TMRGSO</text>
-<text x="600" y="331.5" class="opText" font-size="8px" text-anchor="middle">RT</text>
+<rect x="583" y="307" width="34" height="34" rx="6" class="opRect" stroke="#C53A79"/>
+<text x="600" y="322.5" class="opText" text-anchor="middle" font-size="8px">TMRGSO</text>
+<text x="600" y="331.5" class="opText" text-anchor="middle" font-size="8px">RT</text>
 <path d="M 485 300 L 485 324 L 578 324 L 578 324" class="arrow" stroke="#C53A79" marker-end="url(#arrow)" />
 <path d="M 715 300 L 715 324 L 622 324 L 622 324" class="arrow" stroke="#C53A79" marker-end="url(#arrow)" />
 <path d="M 600 346 L 600 347 L 600 347 L 600 348" class="arrow" stroke="#C53A79" marker-end="url(#arrow)" />

@@ -113,7 +113,7 @@ AICORE inline void runTMOV_UNALIGN(__gm__ T* out, __gm__ U* src0, __gm__ S* src1
         isBtranspose, Tile<TileType::Mat, S, baseK, baseN, BLayout::RowMajor, baseK, baseN, SLayout::ColMajor, 512>,
         Tile<TileType::Mat, S, baseK, baseN, BLayout::ColMajor, baseK, baseN, SLayout::RowMajor, 512>>;
 
-    using LeftTile = TileLeft<U, baseM, baseK, baseM, K>;
+    using LeftTile = TileLeft<U, baseM, baseK, M, K>;
     using RightTile = TileRight<S, baseK, baseN, K, baseN>;
     using AccTile = TileAcc<T, baseM, baseN, M, N>;
 
@@ -721,7 +721,7 @@ extern "C" __global__ AICORE void launchTMOV_32(__gm__ uint8_t* out, __gm__ uint
 
 extern "C" __global__ AICORE void launchTMOV_33(__gm__ uint8_t* out, __gm__ uint8_t* src0, __gm__ uint8_t* src1)
 {
-    constexpr uint32_t M = 65;
+    constexpr uint32_t M = 81;
     constexpr uint32_t N = 66;
     constexpr uint32_t K = 40;
 
@@ -739,7 +739,7 @@ extern "C" __global__ AICORE void launchTMOV_33(__gm__ uint8_t* out, __gm__ uint
 
 extern "C" __global__ AICORE void launchTMOV_34(__gm__ uint8_t* out, __gm__ uint8_t* src0, __gm__ uint8_t* src1)
 {
-    constexpr uint32_t M = 65;
+    constexpr uint32_t M = 81;
     constexpr uint32_t N = 82;
     constexpr uint32_t K = 40;
 

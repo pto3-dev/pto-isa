@@ -57,7 +57,7 @@ __global__ AICORE void RunTInsertNDVec(__gm__ T* out, __gm__ T* srcIn, __gm__ T*
     if constexpr (isFullValid) {
         TINSERT(dstFull, srcFull, static_cast<uint16_t>(IdxRow), static_cast<uint16_t>(IdxCol));
     } else {
-        TSUBVIEW(srcInsert, srcFull, 0, 0);
+        detail::PtoSubTileView(srcInsert, srcFull, 0, 0);
         TINSERT(dstFull, srcInsert, static_cast<uint16_t>(IdxRow), static_cast<uint16_t>(IdxCol));
     }
 
@@ -103,7 +103,7 @@ __global__ AICORE void RunTInsertNDVecScalar(__gm__ T* out, __gm__ T* srcIn, __g
     set_flag(PIPE_MTE2, PIPE_V, EVENT_ID0);
     wait_flag(PIPE_MTE2, PIPE_V, EVENT_ID0);
 
-    TSUBVIEW(srcInsert, srcFull, 0, 0);
+    detail::PtoSubTileView(srcInsert, srcFull, 0, 0);
     TINSERT(dstFull, srcInsert, static_cast<uint16_t>(IdxRow), static_cast<uint16_t>(IdxCol));
 
     set_flag(PIPE_V, PIPE_MTE3, EVENT_ID0);
@@ -159,7 +159,7 @@ __global__ AICORE void RunTInsertNZVec(__gm__ T* out, __gm__ T* srcIn, __gm__ T*
     if constexpr (isFullValid) {
         TINSERT(dstFull, srcFull, static_cast<uint16_t>(IdxRow), static_cast<uint16_t>(IdxCol));
     } else {
-        TSUBVIEW(srcInsert, srcFull, 0, 0);
+        detail::PtoSubTileView(srcInsert, srcFull, 0, 0);
         TINSERT(dstFull, srcInsert, static_cast<uint16_t>(IdxRow), static_cast<uint16_t>(IdxCol));
     }
 
@@ -211,7 +211,7 @@ __global__ AICORE void RunTInsertNZVecScalar(__gm__ T* out, __gm__ T* srcIn, __g
     set_flag(PIPE_MTE2, PIPE_V, EVENT_ID0);
     wait_flag(PIPE_MTE2, PIPE_V, EVENT_ID0);
 
-    TSUBVIEW(srcInsert, srcFull, 0, 0);
+    detail::PtoSubTileView(srcInsert, srcFull, 0, 0);
     TINSERT(dstFull, srcInsert, static_cast<uint16_t>(IdxRow), static_cast<uint16_t>(IdxCol));
 
     set_flag(PIPE_V, PIPE_MTE3, EVENT_ID0);

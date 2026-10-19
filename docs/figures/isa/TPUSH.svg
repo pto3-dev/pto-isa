@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" role="img" aria-label="TPUSH tile operation diagram">
 <defs>
-  <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0,0 L0,12 L12,6 z" fill="#C53A79"/></marker>
+  <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0,0 L0,12 L12,6 z" fill="#8A4B12"/></marker>
   <marker id="axisArrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L0,10 L10,5 z" fill="#64748b"/></marker>
 </defs>
 <style>
@@ -9,7 +9,7 @@ svg { font-family: Arial, Helvetica, sans-serif; }
 .subtitle { font-size: 14px; fill: #334155; }
 .meta { font-size: 12px; fill: #64748b; }
 .frame { fill: white; }
-.panel { fill: #FDF0F6; stroke: #e2e8f0; stroke-width: 1.5; rx: 14; }
+.panel { fill: #FFF3E7; stroke: #e2e8f0; stroke-width: 1.5; rx: 14; }
 .tileLabel { font-size: 14px; font-weight: 700; fill: #0f172a; }
 .tileBorder { fill: none; stroke: #475569; stroke-width: 1.5; }
 .cell { fill: #ffffff; stroke: #94a3b8; stroke-width: 1; }
@@ -31,16 +31,69 @@ svg { font-family: Arial, Helvetica, sans-serif; }
 .validBox { fill: none; stroke-width: 2; stroke-dasharray: 6 4; }
 </style>
 <rect x="0" y="0" width="1200" height="720" class="frame" />
-<rect x="24" y="24" width="1152" height="672" class="panel" />
+<rect x="24" y="24" width="1152" height="672" class="panel"/>
 <text x="40" y="46" class="title">TPUSH</text>
-<text x="40" y="72" class="subtitle">Push a tile into a pipe or FIFO producer endpoint.</text>
-<text x="40" y="92" class="meta">Template: complex</text>
+<text x="40" y="72" class="subtitle">Push a producer tile into a TPipe FIFO for Cube-Vector communication.</text>
+<text x="40" y="92" class="meta">Template: comm</text>
 <text x="1160" y="92" class="meta" text-anchor="end">Legend: outline=example; dashed=valid rows/cols (Rv,Cv); shaded=masked; r down / c right; ortho arrows=dataflow</text>
 <line x1="36" y1="104" x2="1164" y2="104" stroke="#e2e8f0" stroke-width="1.5" />
+<text x="169" y="168" class="tileLabel" text-anchor="middle">producer tile</text>
+<rect x="114" y="178" width="110" height="110" class="tileBorder" />
+<rect x="114" y="178" width="22" height="22" class="cell" />
+<rect x="136" y="178" width="22" height="22" class="cell" />
+<rect x="158" y="178" width="22" height="22" class="cell" />
+<rect x="180" y="178" width="22" height="22" class="cell" />
+<rect x="202" y="178" width="22" height="22" class="cell cellMasked" />
+<rect x="114" y="200" width="22" height="22" class="cell" />
+<rect x="136" y="200" width="22" height="22" class="cell" />
+<rect x="158" y="200" width="22" height="22" class="cell cellHL" stroke="#8A4B12" />
+<rect x="180" y="200" width="22" height="22" class="cell" />
+<rect x="202" y="200" width="22" height="22" class="cell cellMasked" />
+<rect x="114" y="222" width="22" height="22" class="cell" />
+<rect x="136" y="222" width="22" height="22" class="cell" />
+<rect x="158" y="222" width="22" height="22" class="cell" />
+<rect x="180" y="222" width="22" height="22" class="cell" />
+<rect x="202" y="222" width="22" height="22" class="cell cellMasked" />
+<rect x="114" y="244" width="22" height="22" class="cell" />
+<rect x="136" y="244" width="22" height="22" class="cell" />
+<rect x="158" y="244" width="22" height="22" class="cell" />
+<rect x="180" y="244" width="22" height="22" class="cell" />
+<rect x="202" y="244" width="22" height="22" class="cell cellMasked" />
+<rect x="114" y="266" width="22" height="22" class="cell cellMasked" />
+<rect x="136" y="266" width="22" height="22" class="cell cellMasked" />
+<rect x="158" y="266" width="22" height="22" class="cell cellMasked" />
+<rect x="180" y="266" width="22" height="22" class="cell cellMasked" />
+<rect x="202" y="266" width="22" height="22" class="cell cellMasked" />
+<rect x="114" y="178" width="88" height="88" class="validBox" stroke="#8A4B12" />
+<text x="118" y="262" class="axisText">Rv</text>
+<text x="198" y="190" class="axisText" text-anchor="end">Cv</text>
+<path d="M 124 188 L 158 188" class="axisLine" marker-end="url(#axisArrow)" />
+<path d="M 124 188 L 124 222" class="axisLine" marker-end="url(#axisArrow)" />
+<text x="162" y="192" class="axisText">c</text>
+<text x="122" y="226" class="axisText" text-anchor="end">r</text>
+<rect x="470" y="198" width="260" height="92" rx="14" fill="#ffffff" stroke="#8A4B12" stroke-width="2"/>
+<text x="600" y="232" class="tileLabel" text-anchor="middle">TPipe FIFO slot</text>
+<text x="600" y="256" class="smallLabel" text-anchor="middle">GM / V2C / C2V storage</text>
+<path d="M 169 300 L 169 326 L 470 326 L 470 244" class="arrow" stroke="#8A4B12" marker-end="url(#arrow)" />
+<text x="600" y="140" class="subtitle" text-anchor="middle" fill="#8A4B12">producer tile -&gt; FIFO slot; record token when required</text>
+<rect x="249" y="394" width="150" height="58" rx="12" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+<text x="324" y="429" class="tileLabel" text-anchor="middle">allocate</text>
+<rect x="433" y="394" width="150" height="58" rx="12" fill="#ffffff" stroke="#8A4B12" stroke-width="2"/>
+<text x="508" y="429" class="tileLabel" text-anchor="middle">push</text>
+<path d="M 399 423 L 399 423 L 433 423 L 433 423" class="arrow" stroke="#8A4B12" marker-end="url(#arrow)" />
+<rect x="617" y="394" width="150" height="58" rx="12" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+<text x="692" y="429" class="tileLabel" text-anchor="middle">pop</text>
+<path d="M 583 423 L 583 423 L 617 423 L 617 423" class="arrow" stroke="#8A4B12" marker-end="url(#arrow)" />
+<rect x="801" y="394" width="150" height="58" rx="12" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+<text x="876" y="429" class="tileLabel" text-anchor="middle">free</text>
+<path d="M 767 423 L 767 423 L 801 423 L 801 423" class="arrow" stroke="#8A4B12" marker-end="url(#arrow)" />
 <rect x="40" y="502" width="1120" height="194" class="procBox" />
 <text x="56" y="528" class="procTitle">Procedure (conceptual)</text>
 <text x="56" y="554" class="procText" xml:space="preserve">
-  <tspan x="56" dy="0">(implementation-defined)</tspan>
+  <tspan x="56" dy="0">if producer allocateStatus is set: allocate slot</tspan>
+  <tspan x="56" dy="16">copy tile into GM slot, V2C buffer, or C2V shared slot</tspan>
+  <tspan x="56" dy="16">for split mode, use subblock-dependent row/col offset</tspan>
+  <tspan x="56" dy="16">if producer recordStatus is set: record&lt;Split&gt;() publishes token</tspan>
 </text>
 <text x="56" y="680" class="meta">Note: semantics apply to the valid region unless stated otherwise.</text>
 </svg>

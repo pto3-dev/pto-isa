@@ -8,7 +8,7 @@ It is **not** a full instruction encyclopedia. For detailed instruction semantic
 
 After reading this document, you should be able to:
 
-1. Recognize the key concepts in PTO code: `GlobalTensor`, `Tile`, `TileType::Vec`, events, and `TSYNC`.
+1. Recognize the key concepts in PTO code: `GlobalTensor`, `Tile`, `TileType::Vec`, and events.
 2. Write a simple **PTO-Auto** style kernel: `TLOAD → compute → TSTORE`.
 3. Write a **PTO-Manual** style kernel: explicit tile buffer binding (`TASSIGN`) and explicit ordering (events/flags).
 4. Understand the typical shape of “bigger” kernels like row-softmax and GEMM at a high level.

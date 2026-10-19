@@ -1,4 +1,4 @@
-﻿# TROWEXPANDMUL
+# TROWEXPANDMUL
 
 
 ## Tile Operation Diagram

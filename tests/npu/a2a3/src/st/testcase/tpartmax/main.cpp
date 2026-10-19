@@ -91,8 +91,8 @@ bool TPartMaxTest()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<float> golden(dstByteSize);
-    std::vector<float> devFinal(dstByteSize);
+    std::vector<float> golden(dstByteSize / sizeof(float));
+    std::vector<float> devFinal(dstByteSize / sizeof(float));
     ReadFile(GetGoldenDir() + "/golden.bin", dstByteSize, golden.data(), dstByteSize);
     ReadFile(GetGoldenDir() + "/output.bin", dstByteSize, devFinal.data(), dstByteSize);
     return ResultCmp(golden, devFinal, 0.001f);

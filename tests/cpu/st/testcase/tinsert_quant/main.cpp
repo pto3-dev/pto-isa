@@ -219,8 +219,8 @@ void test_insert()
     size_t outputSize = srcElemCount * sizeof(DT);
     WriteFile(GetGoldenDir() + "/output.bin", tile, outputSize);
 
-    std::vector<DT> golden(outputSize);
-    std::vector<DT> devFinal(outputSize);
+    std::vector<DT> golden(outputSize / sizeof(DT));
+    std::vector<DT> devFinal(outputSize / sizeof(DT));
     CHECK_RESULT_GTEST(ReadFile(GetGoldenDir() + "/golden.bin", outputSize, golden.data(), outputSize));
     CHECK_RESULT_GTEST(ReadFile(GetGoldenDir() + "/output.bin", outputSize, devFinal.data(), outputSize));
 

@@ -318,9 +318,13 @@ def gen_golden(case_name, param):
                         if srctype in np_to_torch:
                             torch_input = torch_input.to(np_to_torch[srctype])
 
-                    # Generate truncated mode using PyTorch (default PyTorch behavior)
-                    # PyTorch always uses TRUNC mode, so we only generate truncated golden data
-                    torch_output = torch_input.to(np_to_torch[dsttype])
+                    # Match the explicit-tmp A2A3 NonSatTorch pipeline. Host PyTorch converts
+                    # fp16 directly to int16 with saturation, while this path first converts
+                    # to int32 and then performs a non-saturating int16 narrow.
+                    if is_nonsattorch_test and srctype == np.float16 and dsttype == np.int16:
+                        torch_output = torch_input.to(torch.int32).to(torch.int16)
+                    else:
+                        torch_output = torch_input.to(np_to_torch[dsttype])
                     truncated = torch_output.numpy().astype(dsttype)
 
                     # Handle GPU vs CPU behavior for infinity

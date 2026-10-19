@@ -37,9 +37,7 @@ This table tracks per-instruction backend availability:
 | [`MSCATTER`](../docs/isa/MSCATTER.md) | Yes | TODO | TODO | TODO | Yes | TODO |
 | [`TABS`](../docs/isa/TABS.md) | Yes | Yes | Yes | Yes | Yes | Yes |
 | [`TADD`](../docs/isa/TADD.md) | Yes | Yes | Yes | Yes | Yes | Yes |
-| [`TADDC`](../docs/isa/TADDC.md) | Yes | TODO | TODO | TODO | TODO | TODO |
 | [`TADDS`](../docs/isa/TADDS.md) | Yes | Yes | Yes | Yes | Yes | Yes |
-| [`TADDSC`](../docs/isa/TADDSC.md) | Yes | TODO | TODO | TODO | TODO | TODO |
 | [`TAND`](../docs/isa/TAND.md) | Yes | TODO | Yes | Yes | Yes | Yes |
 | [`TANDS`](../docs/isa/TANDS.md) | Yes | TODO | Yes | Yes | Yes | Yes |
 | [`TASSIGN`](../docs/isa/TASSIGN.md) | Yes | TODO | Yes | Yes | Yes | Yes |
@@ -70,7 +68,7 @@ This table tracks per-instruction backend availability:
 | [`TEXP`](../docs/isa/TEXP.md) | Yes | Yes | Yes | Yes | Yes | Yes |
 | [`TEXPANDS`](../docs/isa/TEXPANDS.md) | Yes | TODO | Yes | Yes | Yes | Yes |
 | [`TEXTRACT`](../docs/isa/TEXTRACT.md) | Yes | Yes | Yes | Yes | Yes | Yes |
-| [`TEXTRACT_FP`](../docs/isa/TEXTRACT_FP.md) | TODO | TODO | Yes | Yes | Yes | Yes |
+| [`TEXTRACT_FP`](../docs/isa/TEXTRACT_FP.md) | Yes | Yes | Yes | Yes | Yes | Yes |
 | [`TFILLPAD`](../docs/isa/TFILLPAD.md) | Yes | TODO | Yes | Yes | Yes | Yes |
 | [`TFILLPAD_EXPAND`](../docs/isa/TFILLPAD_EXPAND.md) | TODO | TODO | Yes | Yes | Yes | Yes |
 | [`TFILLPAD_INPLACE`](../docs/isa/TFILLPAD_INPLACE.md) | TODO | TODO | Yes | Yes | Yes | Yes |
@@ -84,14 +82,14 @@ This table tracks per-instruction backend availability:
 | [`TGEMV_MX`](../docs/isa/TGEMV_MX.md) | TODO | TODO | TODO | TODO | Yes | TODO |
 | [`TGET`](../docs/isa/comm/TGET.md) | Yes | TODO | Yes | Yes | Yes | TODO |
 | [`TGET_ASYNC`](../docs/isa/comm/TGET_ASYNC.md) | Yes | TODO | Yes | Yes | Yes | TODO |
-| [`TGET_SCALE_ADDR`](../docs/isa/TGET_SCALE_ADDR.md) | TODO | TODO | TODO | TODO | Yes | TODO |
 | [`THISTOGRAM`](../docs/isa/THISTOGRAM.md) | Yes | TODO | No | No | Yes | Yes |
 | [`TIMG2COL`](../docs/isa/TIMG2COL.md) | TODO | TODO | Yes | Yes | Yes | TODO |
 | [`TINSERT`](../docs/isa/TINSERT.md) | TODO | TODO | TODO | TODO | Yes | TODO |
-| [`TINSERT_FP`](../docs/isa/TINSERT_FP.md) | TODO | TODO | Yes | Yes | Yes | Yes |
+| [`TINSERT_FP`](../docs/isa/TINSERT_FP.md) | Yes | Yes | Yes | Yes | Yes | Yes |
 | [`TLOAD`](../docs/isa/TLOAD.md) | Yes | Yes | Yes | Yes | Yes | Yes |
 | [`TLOG`](../docs/isa/TLOG.md) | Yes | TODO | Yes | Yes | Yes | Yes |
 | [`TLRELU`](../docs/isa/TLRELU.md) | Yes | TODO | Yes | Yes | Yes | Yes |
+| [`TMADD`](../docs/isa/TMADD.md) | TODO | TODO | Yes | Yes | Yes | TODO |
 | [`TMATMUL`](../docs/isa/TMATMUL.md) | Yes | Yes | Yes | Yes | Yes | Yes |
 | [`TMATMUL_ACC`](../docs/isa/TMATMUL_ACC.md) | Yes | TODO | Yes | Yes | Yes | Yes |
 | [`TMATMUL_BIAS`](../docs/isa/TMATMUL_BIAS.md) | Yes | TODO | Yes | Yes | Yes | Yes |
@@ -101,7 +99,7 @@ This table tracks per-instruction backend availability:
 | [`TMIN`](../docs/isa/TMIN.md) | Yes | Yes | Yes | Yes | Yes | Yes |
 | [`TMINS`](../docs/isa/TMINS.md) | Yes | Yes | Yes | Yes | Yes | Yes |
 | [`TMOV`](../docs/isa/TMOV.md) | Yes | Yes | Yes | Yes | Yes | Yes |
-| [`TMOV_FP`](../docs/isa/TMOV_FP.md) | Yes | TODO | Yes | Yes | Yes | Yes |
+| [`TMOV_FP`](../docs/isa/TMOV_FP.md) | Yes | Yes | Yes | Yes | Yes | Yes |
 | [`TMRGSORT`](../docs/isa/TMRGSORT.md) | Yes | Yes | Yes | Yes | Yes | Yes |
 | [`TMUL`](../docs/isa/TMUL.md) | Yes | Yes | Yes | Yes | Yes | Yes |
 | [`TMULS`](../docs/isa/TMULS.md) | Yes | Yes | Yes | Yes | Yes | Yes |
@@ -160,23 +158,16 @@ This table tracks per-instruction backend availability:
 | [`TSORT32`](../docs/isa/TSORT32.md) | Yes | Yes | Yes | Yes | Yes | Yes |
 | [`TSQRT`](../docs/isa/TSQRT.md) | Yes | Yes | Yes | Yes | Yes | Yes |
 | [`TSTORE`](../docs/isa/TSTORE.md) | Yes | Yes | Yes | Yes | Yes | TODO |
-| [`TSTORE_FP`](../docs/isa/TSTORE_FP.md) | Yes | TODO | Yes | Yes | Yes | Yes |
+| [`TSTORE_FP`](../docs/isa/TSTORE_FP.md) | Yes | Yes | Yes | Yes | Yes | Yes |
 | [`TSUB`](../docs/isa/TSUB.md) | Yes | Yes | Yes | Yes | Yes | Yes |
-| [`TSUBC`](../docs/isa/TSUBC.md) | Yes | TODO | TODO | TODO | TODO | TODO |
 | [`TSUBS`](../docs/isa/TSUBS.md) | Yes | Yes | Yes | Yes | Yes | Yes |
-| [`TSUBSC`](../docs/isa/TSUBSC.md) | Yes | TODO | TODO | TODO | TODO | TODO |
-| [`TSUBVIEW`](../docs/isa/TSUBVIEW.md) | TODO | TODO | Yes | Yes | TODO | TODO |
-| [`TSYNC`](../docs/isa/TSYNC.md) | TODO | TODO | Yes | Yes | Yes | Yes |
 | [`TTEST`](../docs/isa/comm/TTEST.md) | Yes | TODO | Yes | Yes | Yes | TODO |
 | [`TTRANS`](../docs/isa/TTRANS.md) | Yes | Yes | Yes | Yes | Yes | Yes |
 | [`TTRI`](../docs/isa/TTRI.md) | TODO | TODO | Yes | Yes | Yes | Yes |
 | [`TWAIT`](../docs/isa/comm/TWAIT.md) | Yes | TODO | Yes | Yes | Yes | TODO |
 | [`TXOR`](../docs/isa/TXOR.md) | Yes | TODO | Yes | Yes | Yes | Yes |
 | [`TXORS`](../docs/isa/TXORS.md) | Yes | TODO | Yes | Yes | Yes | Yes |
-| [`TMULADDDST`](../docs/isa/TMULADDDST_zh.md) | TODO | TODO | Yes | Yes | Yes | TODO |
-| [`TFUSEDMULADD`](../docs/isa/TFUSEDMULADD_zh.md) | TODO | TODO | Yes | Yes | Yes | TODO |
-| [`TSUBRELU`](../docs/isa/TSUBRELU_zh.md) | TODO | TODO | Yes | Yes | Yes | TODO |
-| [`TFUSEDMULADDRELU`](../docs/isa/TFUSEDMULADDRELU_zh.md) | TODO | TODO | Yes | Yes | Yes | TODO |
+| [`TMULA`](../docs/isa/TMULA_zh.md) | TODO | TODO | Yes | Yes | Yes | TODO |
 
 Notes:
 

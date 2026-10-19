@@ -12,6 +12,7 @@
 
 import os
 import numpy as np
+
 np.random.seed(19)
 
 
@@ -61,8 +62,8 @@ def gen_golden_data_tpartmax(case_name, param):
     # Save the input and golden data to binary files
     src0_in.tofile("input1.bin")
     src1_in.tofile("input2.bin")
-    
-    dst_out = np.maximum(padded_src0, padded_src1) # elemwise max
+
+    dst_out = np.maximum(padded_src0, padded_src1)  # elemwise max
     dst_out.tofile("golden.bin")
 
     output = np.zeros((dst_rows, dst_cols)).astype(dtype)
@@ -70,30 +71,36 @@ def gen_golden_data_tpartmax(case_name, param):
 
 
 class TPartMaxParams:
-    def __init__(self, dtype, dst_vr, dst_vc, src0_vr, src0_vc, src1_vr, src1_vc):
+    def __init__(self, dtype, dst_vr, dst_vc, src0_vr, src0_vc, src1_vr, src1_vc, is_inplace=False, custom_name=None):
         self.dtype = dtype
+        self.custom_name = custom_name
         self.dst_vr = dst_vr
         self.dst_vc = dst_vc
         self.src0_vr = src0_vr
         self.src0_vc = src0_vc
         self.src1_vr = src1_vr
         self.src1_vc = src1_vc
+        self.is_inplace = is_inplace
+
 
 def generate_case_name(param):
     dtype_str = {
-        np.float32: 'fp32',
-        np.float16: 'fp16',
-        np.int8: 's8',
-        np.int16: 's16',
-        np.int32: 's32',
-        np.uint8: 'u8',
-        np.uint16: 'u16',
-        np.uint32: 'u32',
-        np.int64: 's64',
-        np.uint64: 'u64',
+        np.float32: "fp32",
+        np.float16: "fp16",
+        np.int8: "s8",
+        np.int16: "s16",
+        np.int32: "s32",
+        np.uint8: "u8",
+        np.uint16: "u16",
+        np.uint32: "u32",
+        np.int64: "s64",
+        np.uint64: "u64",
     }[param.dtype]
-    return (f"TPARTMAXTest.case_{dtype_str}_{param.dst_vr}x{param.dst_vc}_{param.src0_vr}x{param.src0_vc}_"
-            f"{param.src1_vr}x{param.src1_vc}")
+    inplace_suffix = "_inplace" if getattr(param, "is_inplace", False) else ""
+    return (
+        f"TPARTMAXTest.case_{dtype_str}_{param.dst_vr}x{param.dst_vc}_{param.src0_vr}x{param.src0_vc}_"
+        f"{param.src1_vr}x{param.src1_vc}{inplace_suffix}"
+    )
 
 
 if __name__ == "__main__":
@@ -130,6 +137,11 @@ if __name__ == "__main__":
         TPartMaxParams(np.uint64, 4, 64, 4, 64, 4, 64),
         TPartMaxParams(np.int64, 1, 10912, 1, 10912, 1, 10908),
         TPartMaxParams(np.uint64, 1, 10912, 1, 10912, 1, 10908),
+        TPartMaxParams(np.int64, 4, 32, 4, 32, 4, 32, is_inplace=True),
+TPartMaxParams(np.uint64, 4, 32, 4, 32, 4, 32, is_inplace=True, custom_name="TPARTMAXTest.case_u64_4x32_4x32_4x32_inplace"),
+        TPartMaxParams(np.int64, 1, 1024, 1, 1024, 1, 1024, is_inplace=True),
+        TPartMaxParams(np.int64, 4, 64, 4, 64, 4, 40, is_inplace=True),
+        TPartMaxParams(np.int64, 1, 2048, 1, 2048, 1, 2045, is_inplace=True),
     ]
 
     for param in case_params_list:

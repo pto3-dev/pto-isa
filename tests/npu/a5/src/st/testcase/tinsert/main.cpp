@@ -213,8 +213,8 @@ void testTInsertND(int32_t rows, int32_t cols)
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<dType> golden(byteSize);
-    std::vector<dType> devFinal(byteSize);
+    std::vector<dType> golden(byteSize / sizeof(dType));
+    std::vector<dType> devFinal(byteSize / sizeof(dType));
     ReadFile(GetGoldenDir() + "/golden_output.bin", byteSize, golden.data(), byteSize);
     ReadFile(GetGoldenDir() + "/output.bin", byteSize, devFinal.data(), byteSize);
     EXPECT_TRUE(ResultCmp(golden, devFinal, 0.001f));

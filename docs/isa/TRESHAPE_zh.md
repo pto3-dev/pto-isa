@@ -1,4 +1,4 @@
-﻿# TRESHAPE
+# TRESHAPE
 
 ## 指令示意图
 

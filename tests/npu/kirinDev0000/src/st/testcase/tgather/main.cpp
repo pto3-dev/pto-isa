@@ -92,8 +92,8 @@ TEST_F(TGATHERTest, case1_float)
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<float> golden(dstFileSize);
-    std::vector<float> devFinal(dstFileSize);
+    std::vector<float> golden(dstFileSize / sizeof(float));
+    std::vector<float> devFinal(dstFileSize / sizeof(float));
     ReadFile(GetGoldenDir() + "/golden.bin", dstFileSize, golden.data(), dstFileSize);
     ReadFile(GetGoldenDir() + "/output.bin", dstFileSize, devFinal.data(), dstFileSize);
 
@@ -150,8 +150,8 @@ TEST_F(TGATHERTest, case2_int32)
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<int32_t> golden(dstFileSize);
-    std::vector<int32_t> devFinal(dstFileSize);
+    std::vector<int32_t> golden(dstFileSize / sizeof(int32_t));
+    std::vector<int32_t> devFinal(dstFileSize / sizeof(int32_t));
     ReadFile(GetGoldenDir() + "/golden.bin", dstFileSize, golden.data(), dstFileSize);
     ReadFile(GetGoldenDir() + "/output.bin", dstFileSize, devFinal.data(), dstFileSize);
 
@@ -208,8 +208,8 @@ TEST_F(TGATHERTest, case3_half)
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<aclFloat16> golden(dstFileSize);
-    std::vector<aclFloat16> devFinal(dstFileSize);
+    std::vector<aclFloat16> golden(dstFileSize / sizeof(aclFloat16));
+    std::vector<aclFloat16> devFinal(dstFileSize / sizeof(aclFloat16));
     ReadFile(GetGoldenDir() + "/golden.bin", dstFileSize, golden.data(), dstFileSize);
     ReadFile(GetGoldenDir() + "/output.bin", dstFileSize, devFinal.data(), dstFileSize);
 
@@ -266,8 +266,8 @@ TEST_F(TGATHERTest, case4_int16)
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<int16_t> golden(dstFileSize);
-    std::vector<int16_t> devFinal(dstFileSize);
+    std::vector<int16_t> golden(dstFileSize / sizeof(int16_t));
+    std::vector<int16_t> devFinal(dstFileSize / sizeof(int16_t));
     ReadFile(GetGoldenDir() + "/golden.bin", dstFileSize, golden.data(), dstFileSize);
     ReadFile(GetGoldenDir() + "/output.bin", dstFileSize, devFinal.data(), dstFileSize);
 
@@ -319,8 +319,8 @@ void test_gather()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(dstsize);
-    std::vector<T> devFinal(dstsize);
+    std::vector<T> golden(dstsize / sizeof(T));
+    std::vector<T> devFinal(dstsize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", dstsize, golden.data(), dstsize);
     ReadFile(GetGoldenDir() + "/output_z.bin", dstsize, devFinal.data(), dstsize);
 

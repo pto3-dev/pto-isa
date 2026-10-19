@@ -25,12 +25,12 @@ Use these codes referenced in the assertion index:
 - `FIX-A04` 32-byte alignment for unboxed tiles: for row-major unboxed tiles require `Cols * sizeof(T)` divisible by 32; for col-major unboxed tiles require `Rows * sizeof(T)` divisible by 32; otherwise use boxed layout (`SLayout != NoneBox`) or adjust the shape.
 - `FIX-A05` Valid-region compatibility: ensure `GetValidRow()`/`GetValidCol()` values match what the instruction expects (often src/dst valid sizes must match; reductions/expands have special rules).
 - `FIX-A06` Unsupported dtype/layout for an instruction: change the tile element type/layout to a supported one (often `float`/`half` and row-major), or add conversion (`TCVT`) / movement (`TMOV`, `TTRANS`) as required by the backend.
-- `FIX-A07` Event/`TSYNC` usage: single-op `TSYNC<OpCode>()` is restricted (vector-only on device); `Event<SrcOp, DstOp>` requires different ops and different pipeline classes—use the correct producer/consumer pair.
+- `FIX-A07` Event/event synchronization usage: single-op single-op synchronization is restricted (vector-only on device); `Event<SrcOp, DstOp>` requires different ops and different pipeline classes—use the correct producer/consumer pair.
 - `FIX-A08` TileType mismatch: use the correct tile location (`Vec/Mat/Left/Right/Acc/...`) for the instruction, and insert `TMOV` between locations when required.
 - `FIX-A09` GlobalTensor shape/stride mismatch or out-of-range: ensure the 5-D shape/stride matches the intended view and obeys backend constraints (ND/DN/NZ rules, range limits for dims, and alignment restrictions).
 - `FIX-A10` Gather/scatter contiguity/alignment: some gather/scatter paths require continuous rows/cols or 32B alignment—adjust valid sizes, layout, or use a different path.
 - `FIX-A11` Invalid numeric domain (e.g., divide-by-zero): avoid feeding illegal inputs (add epsilon/clamp) before `RECIP/RSQRT/DIV`-like ops.
-- `FIX-A12` `TASSIGN<Addr>(tile)` address/capacity error: ensure the target memory space exists on the current architecture (e.g. `ScaleLeft`/`ScaleRight` are A5-only); reduce tile dimensions (`Rows`/`Cols`) or element size so that `Rows * Cols * sizeof(DType) <= capacity`; choose `Addr` so that `Addr + tile_size <= capacity` and `Addr` is a multiple of the alignment (typically 32 bytes). Capacities can be overridden via `-DPTO_xxx_SIZE_BYTES=<value>` (see `include/pto/common/buffer_limits.hpp`).
+- `FIX-A12` `TASSIGN<Addr>(tile)` address/capacity error: ensure the target memory space exists on the current architecture (e.g. `ScaleLeft`/`ScaleRight` are supported on A5 and A6); reduce tile dimensions (`Rows`/`Cols`) or element size so that `Rows * Cols * sizeof(DType) <= capacity`; choose `Addr` so that `Addr + tile_size <= capacity` and `Addr` is a multiple of the alignment (typically 32 bytes). Capacities can be overridden via `-DPTO_xxx_SIZE_BYTES=<value>` (see `include/pto/common/buffer_limits.hpp`).
 
 ## Notes
 
@@ -137,7 +137,7 @@ Use these codes referenced in the assertion index:
 - **SA-0093** rows must be divisible by 16 for Layout::NZ (At: `include/pto/common/pto_tile.hpp:408 (+1)`; Fix: `FIX-A03`)
 - **SA-0094** rows or cols of fractal size is 0. (At: `include/pto/common/pto_tile.hpp:651`; Fix: `-`)
 - **SA-0095** SFractalSize_ illegal (At: `include/pto/common/pto_tile.hpp:667`; Fix: `-`)
-- **SA-0096** Single Op TSYNC only supports Vector PTO Instruction. (At: `include/pto/common/event.hpp:109`; Fix: `FIX-A07`)
+- **SA-0096** Single Op event synchronization only supports Vector PTO Instruction. (At: `include/pto/common/event.hpp:109`; Fix: `FIX-A07`)
 - **SA-0097** Size of datatype != 4 (At: `include/pto/common/pto_tile.hpp:574 (+1)`; Fix: `-`)
 - **SA-0098** Source dtype must be same with dst dtype (At: `include/pto/cpu/TLoad.hpp:153`; Fix: `-`)
 - **SA-0099** Source dtype must be same with dst dtype! (At: `include/pto/cpu/TStore.hpp:127 (+4)`; Fix: `-`)

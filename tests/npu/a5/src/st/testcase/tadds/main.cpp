@@ -105,6 +105,56 @@ bool TAddSTestFramework()
     return ResultCmp<T>(golden, devFinal, 0.001f);
 }
 
+template <uint32_t caseId, typename T, int tileRow, int tileCol, int validRow, int validCol>
+bool TAddSInplaceTestFramework()
+{
+    aclInit(nullptr);
+    aclrtSetDevice(0);
+
+    aclrtStream stream;
+    aclrtCreateStream(&stream);
+
+    size_t elementCount = tileRow * tileCol;
+    size_t byteSize = elementCount * sizeof(T);
+    T* dstHost;
+    T* dstDevice;
+    using ScalarT = std::conditional_t<std::is_same_v<T, int64_t> || std::is_same_v<T, uint64_t>, T, float>;
+    ScalarT scalar;
+
+    aclrtMallocHost((void**)(&dstHost), byteSize);
+    aclrtMalloc((void**)&dstDevice, byteSize, ACL_MEM_MALLOC_HUGE_FIRST);
+
+    ReadFile(GetGoldenDir() + "/input.bin", byteSize, dstHost, byteSize);
+    std::string scalar_file = GetGoldenDir() + "/divider.bin";
+    std::ifstream file(scalar_file, std::ios::binary);
+    file.read(reinterpret_cast<char*>(&scalar), sizeof(ScalarT));
+    file.close();
+
+    aclrtMemcpy(dstDevice, byteSize, dstHost, byteSize, ACL_MEMCPY_HOST_TO_DEVICE);
+    launchTADDSTestCase<caseId, T>(dstDevice, dstDevice, scalar, stream);
+    aclrtSynchronizeStream(stream);
+    aclrtMemcpy(dstHost, byteSize, dstDevice, byteSize, ACL_MEMCPY_DEVICE_TO_HOST);
+
+    WriteFile(GetGoldenDir() + "/output.bin", dstHost, byteSize);
+
+    aclrtFree(dstDevice);
+    aclrtFreeHost(dstHost);
+
+    aclrtDestroyStream(stream);
+    aclrtResetDevice(0);
+    aclFinalize();
+
+    std::vector<T> golden(elementCount);
+    std::vector<T> devFinal(elementCount);
+    ReadFile(GetGoldenDir() + "/golden.bin", byteSize, golden.data(), byteSize);
+    ReadFile(GetGoldenDir() + "/output.bin", byteSize, devFinal.data(), byteSize);
+
+    if constexpr (std::is_same_v<T, int64_t> || std::is_same_v<T, uint64_t>) {
+        return ResultCmpExact(golden, devFinal.data());
+    }
+    return ResultCmp<T>(golden, devFinal, 0.001f);
+}
+
 TEST_F(TADDSTest, case1)
 {
     bool ret = TAddSTestFramework<1, float, 32, 128, 32, 32, 64, 64>();
@@ -198,5 +248,35 @@ TEST_F(TADDSTest, case_int64_1x16364)
 TEST_F(TADDSTest, case_uint64_1x16364)
 {
     bool ret = TAddSTestFramework<16, uint64_t, 1, 16364, 1, 1, 16364, 16364>();
+    EXPECT_TRUE(ret);
+}
+
+TEST_F(TADDSTest, case_int64_4x32_inplace)
+{
+    bool ret = TAddSInplaceTestFramework<17, int64_t, 4, 32, 4, 32>();
+    EXPECT_TRUE(ret);
+}
+
+TEST_F(TADDSTest, case_uint64_4x32_inplace)
+{
+    bool ret = TAddSInplaceTestFramework<22, uint64_t, 4, 32, 4, 32>();
+    EXPECT_TRUE(ret);
+}
+
+TEST_F(TADDSTest, case_int64_1x1024_inplace)
+{
+    bool ret = TAddSInplaceTestFramework<18, int64_t, 1, 1024, 1, 1024>();
+    EXPECT_TRUE(ret);
+}
+
+TEST_F(TADDSTest, case_int64_4x64_40_inplace)
+{
+    bool ret = TAddSInplaceTestFramework<19, int64_t, 4, 64, 4, 40>();
+    EXPECT_TRUE(ret);
+}
+
+TEST_F(TADDSTest, case_int64_1x2048_2045_inplace)
+{
+    bool ret = TAddSInplaceTestFramework<21, int64_t, 1, 2048, 1, 2045>();
     EXPECT_TRUE(ret);
 }

@@ -22,8 +22,7 @@ template <int tilingKey>
 void LaunchTStoreAcc2gmScalarNz2nd(uint8_t* out, uint8_t* src0, uint8_t* src1, void* stream, float scalarQuant);
 
 template <int tilingKey>
-void LaunchTStoreAcc2gmScalarNz2NDC1HWC0(
-    uint8_t* out, uint8_t* src0, uint8_t* src1, void* stream, float scalarQuant);
+void LaunchTStoreAcc2gmScalarNz2NDC1HWC0(uint8_t* out, uint8_t* src0, uint8_t* src1, void* stream, float scalarQuant);
 
 class TStoreAcc2gmTest : public testing::Test {
 protected:
@@ -89,8 +88,8 @@ void test_tstore_acc2gm_nz2nd()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<dstDataType> golden(cFileSize);
-    std::vector<dstDataType> devFinal(cFileSize);
+    std::vector<dstDataType> golden(cFileSize / sizeof(dstDataType));
+    std::vector<dstDataType> devFinal(cFileSize / sizeof(dstDataType));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 
@@ -146,8 +145,8 @@ void test_tstore_acc2gm_scalar_nz2nd(float scalarQuant)
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<dstDataType> golden(cFileSize);
-    std::vector<dstDataType> devFinal(cFileSize);
+    std::vector<dstDataType> golden(cFileSize / sizeof(dstDataType));
+    std::vector<dstDataType> devFinal(cFileSize / sizeof(dstDataType));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 
@@ -209,8 +208,8 @@ void test_tstore_acc2gm_scalar_nz2ndc1hwc0(float scalarQuant)
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<dstDataType> golden(cFileSize);
-    std::vector<dstDataType> devFinal(cFileSize);
+    std::vector<dstDataType> golden(cFileSize / sizeof(dstDataType));
+    std::vector<dstDataType> devFinal(cFileSize / sizeof(dstDataType));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 

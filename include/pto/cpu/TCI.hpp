@@ -33,5 +33,12 @@ PTO_INTERNAL void TCI_IMPL(TileData& dst, T index)
     static_assert((std::is_same<typename TileData::DType, T>::value), "TCI data type must match tile data type");
     Tci_IMPL<TileData, T, descending>(dst.data(), index, dst.GetValidCol());
 }
+
+template <typename TileData, typename TileDataTmp, typename T, int descending>
+PTO_INTERNAL void TCI_IMPL(TileData& dst, T index, TileDataTmp& tmp)
+{
+    (void)tmp;
+    TCI_IMPL<TileData, T, descending>(dst, index);
+}
 } // namespace pto
 #endif

@@ -355,10 +355,21 @@ __tf__ PTO_INTERNAL void TMovToFb(typename DstTile::TileDType __out__ dst, typen
     constexpr uint16_t srcStride = 0;
     constexpr uint16_t dstStride = 0;
 
-    uint64_t xm = (static_cast<uint64_t>(burstNum & 0xFFF) << 4) | (static_cast<uint64_t>(burstLen & 0xFFFF) << 16) |
-                  (static_cast<uint64_t>(srcStride & 0xFFFF) << 32) | (static_cast<uint64_t>(dstStride & 0xFFFF) << 48);
+    uint64_t dstAddr = reinterpret_cast<uint64_t>(dstAddrP);
+    uint8_t dstMemBlk = 0;
+    __fbuf__ DstType* blockDst = dstAddrP;
+    if (dstAddr >= 0xE00) {
+        dstMemBlk = 4;
+        blockDst = reinterpret_cast<__fbuf__ DstType*>(dstAddr - 0xE00);
+    } else if (dstAddr >= 0xC00) {
+        dstMemBlk = 3;
+        blockDst = reinterpret_cast<__fbuf__ DstType*>(dstAddr - 0xC00);
+    } else if (dstAddr >= 0x800) {
+        dstMemBlk = 1;
+        blockDst = reinterpret_cast<__fbuf__ DstType*>(dstAddr - 0x800);
+    }
 
-    copy_cbuf_to_fbuf_v2(dstAddrP, srcAddrP, xm);
+    copy_cbuf_to_fbuf_v2(blockDst, srcAddrP, dstMemBlk, burstNum, burstLen, srcStride, dstStride);
 }
 
 template <typename DstTile, typename SrcTile>

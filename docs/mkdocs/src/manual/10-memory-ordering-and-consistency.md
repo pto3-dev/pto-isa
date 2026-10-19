@@ -28,7 +28,7 @@ A conforming implementation MUST ensure:
 
 - producer writes become visible to dependent consumers after required synchronization/ordering points
 - memory operations participating in explicit dependency chains preserve those chains
-- semantics defined by `TSYNC` and event dependencies are reflected in memory visibility
+- semantics defined by event synchronization and event dependencies are reflected in memory visibility
 
 ## 10.5 Unspecified and implementation-defined behavior
 

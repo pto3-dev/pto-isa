@@ -1,4 +1,4 @@
-﻿# TRELU
+# TRELU
 
 
 ## Tile Operation Diagram

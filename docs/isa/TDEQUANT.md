@@ -36,7 +36,7 @@ PTO_INST RecordEvent TDEQUANT(TileDataDst &dst, TileDataSrc &src, TileDataPara &
 | `src` | input | Quantized source tile, `S8` or `S16`, row-major, same valid shape as `dst` |
 | `scale` | input | Per-row inverse scale, `FP32`, broadcast across columns |
 | `offset` | input | Per-row zero-point, `FP32`, broadcast across columns |
-| `events...` | input | Wait events (`WaitEvents`); an implicit `TSYNC` precedes the op |
+| `events...` | input | Wait events (`WaitEvents`); an implicit event synchronization precedes the op |
 
 `scale` and `offset` must share a type (`TileDataPara`) whose dtype matches `dst` (all `FP32`).
 

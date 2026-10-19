@@ -9,14 +9,14 @@ This chapter defines architecture-visible synchronization and ordering behavior 
 PTO synchronization includes:
 
 - event-based dependency chaining
-- `TSYNC` ordering points between producer/consumer domains
+- event synchronization ordering points between producer/consumer domains
 - backend-specific low-level primitives abstracted by architecture semantics
 
 Programs MAY use implicit tool-managed synchronization in Auto mode, but explicit synchronization remains architecturally valid in all modes.
 
-## 5.3 TSYNC contract
+## 5.3 event synchronization contract
 
-`TSYNC` establishes ordering between operation sets.
+event synchronization establishes ordering between operation sets.
 A conforming implementation MUST ensure that:
 
 - operations ordered-before the synchronization point become visible to ordered-after consumers according to the memory model

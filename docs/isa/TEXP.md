@@ -1,4 +1,4 @@
-﻿# TEXP
+# TEXP
 
 
 ## Tile Operation Diagram

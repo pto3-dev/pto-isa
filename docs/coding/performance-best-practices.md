@@ -309,9 +309,10 @@ Event<Op::TLOAD, Op::TADD> e;
 e = TLOAD(tile, ...);
 TADD(result, tile, ..., e);
 
-// Bad: Global synchronization
-TLOAD(tile, ...);
-TSYNC<Op::TLOAD>();  // Wait for all TLOAD
+// Less efficient: Separate explicit wait before the consumer
+Event<Op::TLOAD, Op::TADD> loadEvent;
+loadEvent = TLOAD(tile, ...);
+WaitAllEvents(loadEvent);
 TADD(result, tile, ...);
 ```
 
@@ -321,7 +322,7 @@ TADD(result, tile, ...);
 for (int i = 0; i < N; i++) {
   TLOAD(tile, ...);
   TCOMPUTE(result, tile);
-  TSYNC();  // Wait for all operations to complete
+  synchronize();  // Wait for all operations to complete
 }
 
 // Good: Only drain at loop end
@@ -329,7 +330,7 @@ for (int i = 0; i < N; i++) {
   TLOAD(tile, ...);
   TCOMPUTE(result, tile);
 }
-TSYNC();  // Only sync once at the end
+synchronize();  // Only sync once at the end
 ```
 
 ---

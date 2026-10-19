@@ -99,8 +99,7 @@ PTO_INTERNAL void DivDiffCompensationFloatImpl(U& dstReg, U& srcReg0, U& srcReg1
 }
 
 template <typename T, typename U>
-PTO_INTERNAL void DivPrecisionImpl(
-    U& dstReg, U& srcReg0, U& srcReg1, MaskReg& activeMask, MaskReg& correctMask)
+PTO_INTERNAL void DivPrecisionImpl(U& dstReg, U& srcReg0, U& srcReg1, MaskReg& activeMask, MaskReg& correctMask)
 {
     RegTensor<T> rawDst;
     RegTensor<T> r, z, y;

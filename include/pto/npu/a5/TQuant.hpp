@@ -178,7 +178,8 @@ PTO_INTERNAL void AbsReduceMax_f32_opt(
     MaskReg preg_lower8 = pset_b32(PAT_VL8);
     static constexpr auto distValue =
         std::integral_constant<::DistVST, static_cast<::DistVST>(GetDistVst<float, DistVST::DIST_NORM>())>();
-    for (uint16_t i = 0; i < (uint16_t)vl_count / 4; ++i) {
+    uint16_t loopLimit = static_cast<uint16_t>(vl_count / 4);
+    for (uint16_t i = 0; i < loopLimit; ++i) {
         MaskReg preg_vl0 = CreatePredicate<float>(total_count);
         MaskReg preg_vl1 = CreatePredicate<float>(total_count);
         MaskReg preg_vl2 = CreatePredicate<float>(total_count);
@@ -211,7 +212,8 @@ PTO_INTERNAL void AbsReduceMax_f32_opt_largesizes(
     MaskReg preg_ALL_B32 = pset_b32(PAT_ALL);
     static constexpr auto distValue =
         std::integral_constant<::DistVST, static_cast<::DistVST>(GetDistVst<float, DistVST::DIST_NORM>())>();
-    for (uint16_t i = 0; i < (uint16_t)vl_count / 32; ++i) {
+    uint16_t loopLimit = static_cast<uint16_t>(vl_count / 32);
+    for (uint16_t i = 0; i < loopLimit; ++i) {
         for (uint16_t j = 0; j < 8; ++j) { // handling 4 VLs per loop, each VL is 256 B (64 fp32)
             MaskReg preg_vl0 = CreatePredicate<float>(total_count);
             MaskReg preg_vl1 = CreatePredicate<float>(total_count);
@@ -379,8 +381,11 @@ PTO_INTERNAL void AbsReduceMax_b16_ND_largesizes(
     constexpr uint32_t blks_per_vl = CCE_VL / BLOCK_BYTE_SIZE;                    // 8 blocks per VL
     static constexpr auto distValue =
         std::integral_constant<::DistVST, static_cast<::DistVST>(GetDistVst<T, DistVST::DIST_NORM>())>();
-    for (uint16_t i = 0; i < (uint16_t)vl_count / num_vl_per_outer_loop; ++i) {        // 32 VLs per outer loop
-        for (uint16_t j = 0; j < num_vl_per_outer_loop / num_vl_per_inner_loop; ++j) { // 2 VLs per inner loop
+    vbr(vu16_bf16_abs_mask, kBf16AbsMask);
+    uint16_t outerLoopLimit = static_cast<uint16_t>(vl_count / num_vl_per_outer_loop);
+    constexpr uint16_t innerLoopLimit = static_cast<uint16_t>(num_vl_per_outer_loop / num_vl_per_inner_loop);
+    for (uint16_t i = 0; i < outerLoopLimit; ++i) {     // 32 VLs per outer loop
+        for (uint16_t j = 0; j < innerLoopLimit; ++j) { // 2 VLs per inner loop
             MaskReg preg_vl0 = CreatePredicate<T>(total_count);
             MaskReg preg_vl1 = CreatePredicate<T>(total_count);
             uint32_t offset = (i * num_vl_per_outer_loop + j * num_vl_per_inner_loop) * elements_per_vl;
@@ -1111,7 +1116,8 @@ PTO_INTERNAL void CalcQuantizedFP8Values_Unroll2(
     uint32_t elem_count = total_elements_count;
     MaskReg preg_ALL = pset_b32(PAT_ALL);
     MaskReg preg_ALL_b8 = pset_b8(PAT_ALL);
-    for (uint16_t i = 0; i < (uint16_t)vl_count / 2; ++i) {
+    uint16_t loopLimit = static_cast<uint16_t>(vl_count / 2);
+    for (uint16_t i = 0; i < loopLimit; ++i) {
         vlds(vb32_scaling, scalingPtr, 8 * i, E2B_B32);
         vlds(vb32_in_even, vb32_in_odd, srcPtr, 2 * i * elementsPerRepeat, DINTLV_B32);
         vmul(vb32_out_1, vb32_in_even, vb32_scaling, preg_ALL, MODE_ZEROING);
@@ -2834,7 +2840,8 @@ PTO_INTERNAL void calcQuantizedFP8Values_DN_B16(
             vlds((vector_u16&)vb16_scaling, (__ubuf__ uint16_t*)scalingPtr, vl_start + j * SrcStaticCols, NORM);
             vcvt(vb32_scaling_even, vb16_scaling, preg_b16, PART_EVEN);
             vcvt(vb32_scaling_odd, vb16_scaling, preg_b16, PART_ODD);
-            for (uint16_t k = 0; k < grpSize; ++k) {
+            uint16_t groupLimit = static_cast<uint16_t>(grpSize);
+            for (uint16_t k = 0; k < groupLimit; ++k) {
                 uint32_t r = row_base + k;
                 vlds(vb16_input, srcPtr, r * SrcStaticCols + vl_start, NORM);
                 vcvt(vb32_input_even, vb16_input, preg_b16, PART_EVEN);
@@ -2872,7 +2879,8 @@ PTO_INTERNAL void calcQuantizedFP8Values_DN_float(
         for (uint16_t j = 0; j < num_grps_per_col; ++j) {
             uint32_t row_base = j * grpSize;
             vlds(vf32_scaling, scalingPtr, vl_start + j * SrcStaticCols, NORM);
-            for (uint16_t k = 0; k < grpSize; ++k) {
+            uint16_t groupLimit = static_cast<uint16_t>(grpSize);
+            for (uint16_t k = 0; k < groupLimit; ++k) {
                 uint32_t r = row_base + k;
                 vlds(vf32_input, srcPtr, r * SrcStaticCols + vl_start, NORM);
                 vmul(vf32_input, vf32_input, vf32_scaling, preg_b32, MODE_ZEROING);
@@ -2907,7 +2915,8 @@ PTO_INTERNAL void calcQuantizedFP4E2M1Values_DN_Bf16(
         for (uint16_t j = 0; j < num_grps_per_col; ++j) {
             uint32_t row_base = j * grpSize;
             vlds(vb16_scaling, scalingPtr, vl_start + j * StaticCols, NORM);
-            for (uint16_t k = 0; k < grpSize; ++k) {
+            uint16_t groupLimit = static_cast<uint16_t>(grpSize);
+            for (uint16_t k = 0; k < groupLimit; ++k) {
                 uint32_t r = row_base + k;
                 vlds(vb16_input, srcPtr, r * StaticCols + vl_start, NORM);
                 vmul(vb16_scaled, (vector_bf16&)vb16_input, (vector_bf16&)vb16_scaling, preg_b16, MODE_ZEROING);
@@ -2994,7 +3003,8 @@ PTO_INTERNAL void calcQuantizedFP4E2M1Values_DN_Fp16(
             vlds((vector_u16&)vb16_scaling, (__ubuf__ uint16_t*)(scalingPtr + vl_start + j * StaticCols), 0, NORM);
             vcvt(vf32_scaling_even, vb16_scaling, preg_b16, PART_EVEN);
             vcvt(vf32_scaling_odd, vb16_scaling, preg_b16, PART_ODD);
-            for (uint16_t k = 0; k < grpSize; ++k) {
+            uint16_t groupLimit = static_cast<uint16_t>(grpSize);
+            for (uint16_t k = 0; k < groupLimit; ++k) {
                 uint32_t r = row_base + k;
                 calcQuantizedFP4E2M1Values_DN_Fp16_Row<DstStaticRows, StaticCols>(
                     srcPtr, dstPtr, vf32_scaling_even, vf32_scaling_odd, packIndex, r, vl_start, packedBytes, preg_b16,

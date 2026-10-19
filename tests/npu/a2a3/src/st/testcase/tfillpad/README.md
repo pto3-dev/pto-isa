@@ -18,15 +18,24 @@ TFILLPAD (Tile Fill Pad) is a PTO instruction that copies data from a source til
 | 8 | uint16 | 259×7 | 260×32 | Min | Max | Row expansion (259→260) |
 | 9 | int8 | 259×7 | 260×64 | Min | Max | Row expansion with int8 |
 | 10 | float | 128×64 | 128×128 | Null | Custom(-1.0f) | **Custom pad value** |
+| 23–25 | e4m3 | 1×15 | 1×32 | Null | Zero/Min/Max | fp8 e4m3 `0x00`/`0xFE`/`0x7E` |
+| 26–28 | e5m2 | 1×15 | 1×32 | Null | Zero/Min/Max | fp8 e5m2 `0x00`/`0xFC`/`0x7C` |
+| 29–31 | hif8 | 1×15 | 1×32 | Null | Zero/Min/Max | HiF8 `0x00`/`0xEF`/`0x6F` |
+| 32–34 | e2m1x2 | 1×15 nibbles | 1×32 nibbles | Null | Zero/Min/Max | fp4 packed `0x00`/`0xFF`/`0x77`; golden 8+8 B |
+| 35–37 | e1m2x2 | 1×15 nibbles | 1×32 nibbles | Null | Zero/Min/Max | fp4 packed `0x00`/`0xFF`/`0x77`; golden 8+8 B |
+| 38 | e4m3 | 1×15 | 1×32 | Null | Custom(`0x42`) | custom hex still works |
+| 39 | e2m1x2 | 1×15 nibbles | 1×32 nibbles | Null | Custom(`0x33`) | golden 8+8 B |
+
+fp4x2 `ValidCol`/`Cols` are nibble-counted (same as TLOAD/TSTORE/TCVT). A 1×32 fp4 tile stores 16 packed bytes (`ceil(32/2)`). Host goldens use packed-byte width.
 
 ## Standard Pad Values
 
-| PadValue | Description | float | int32 | int16 | int8 |
-|----------|-------------|-------|-------|-------|------|
-| `Null` | No padding (0) | 0 | 0 | 0 | 0 |
-| `Zero` | Zero fill | 0 | 0 | 0 | 0 |
-| `Min` | Minimum value | -∞ | INT32_MIN | INT16_MIN | INT8_MIN |
-| `Max` | Maximum value | +∞ | INT32_MAX | INT16_MAX | INT8_MAX |
+| PadValue | Description | float | int32 | int16 | int8 | e4m3 | e5m2 | hif8 | fp4x2 |
+|----------|-------------|-------|-------|-------|------|------|------|------|-------|
+| `Null` | No padding (0) | 0 | 0 | 0 | 0 | `0x00` | `0x00` | `0x00` | `0x00` |
+| `Zero` | Zero fill | 0 | 0 | 0 | 0 | `0x00` | `0x00` | `0x00` | `0x00` |
+| `Min` | Minimum value | -∞ | INT32_MIN | INT16_MIN | INT8_MIN | `0xFE` | `0xFC` | `0xEF` | `0xFF` |
+| `Max` | Maximum value | +∞ | INT32_MAX | INT16_MAX | INT8_MAX | `0x7E` | `0x7C` | `0x6F` | `0x77` |
 
 ## Custom Pad Values (New API)
 

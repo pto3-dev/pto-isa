@@ -32,6 +32,12 @@ AICORE inline constexpr T CeilDiv(T num_1, T num_2)
     return (num_1 + num_2 - 1) / num_2;
 }
 
+template <typename ScaleTile, typename DataTile>
+AICORE inline void AssignMxScaleAddr(ScaleTile& scaleTile, DataTile& dataTile)
+{
+    __cce_pto_get_mx_scale_tile(scaleTile.data(), dataTile.data());
+}
+
 template <typename T, int format, int M, int KMX>
 using GlobalDataSrc2_t = std::conditional_t<
     (format == 0),
@@ -157,8 +163,8 @@ __global__ AICORE void RunTMOVMX(
     TMOV(bScaleTile, bScaleMatTile);
 
 #ifdef __PTO_AUTO__
-    TGET_SCALE_ADDR(aScaleTile, aTile);
-    TGET_SCALE_ADDR(bScaleTile, bTile);
+    AssignMxScaleAddr(aScaleTile, aTile);
+    AssignMxScaleAddr(bScaleTile, bTile);
 #endif
 
 #ifndef __PTO_AUTO__
@@ -286,8 +292,8 @@ __global__ AICORE void RunTEXTRACTMX(
     TEXTRACT(bScaleTile, bScaleMatTile, indexK / 32, indexN);
 
 #ifdef __PTO_AUTO__
-    TGET_SCALE_ADDR(aScaleTile, aTile);
-    TGET_SCALE_ADDR(bScaleTile, bTile);
+    AssignMxScaleAddr(aScaleTile, aTile);
+    AssignMxScaleAddr(bScaleTile, bTile);
 #endif
 
 #ifndef __PTO_AUTO__
@@ -408,8 +414,8 @@ __global__ AICORE void RunTEXTRACTMX_COMPACT(
     TEXTRACT(bScaleTile, bScaleMatTile, indexK / 32, indexN);
 
 #ifdef __PTO_AUTO__
-    TGET_SCALE_ADDR(aScaleTile, aTile);
-    TGET_SCALE_ADDR(bScaleTile, bTile);
+    AssignMxScaleAddr(aScaleTile, aTile);
+    AssignMxScaleAddr(bScaleTile, bTile);
 #endif
 
 #ifndef __PTO_AUTO__

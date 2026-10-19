@@ -43,8 +43,8 @@ static_assert(kInverseUbEnd <= A5_MAIN_UB_SIZE);
 
 class GroupBarrier {
 public:
-    AICORE inline void Init(GM_ADDR workspaceGM, const __gm__ MegaMoeTilingData *tilingData, uint32_t workerIdx,
-                            uint32_t workerCount)
+    AICORE inline void Init(
+        GM_ADDR workspaceGM, const __gm__ MegaMoeTilingData* tilingData, uint32_t workerIdx, uint32_t workerCount)
     {
         workspaceGM_ = workspaceGM;
         tilingData_ = tilingData;
@@ -59,14 +59,13 @@ public:
             workspaceGM_, tilingData_, kMegaMoeFixedSyncDeferredMetadataArrivalBase,
             kMegaMoeFixedSyncDeferredMetadataReadyBase, workerCount_, workerCount_, workerIdx_, 0U, phase);
         WaitEpochAcquire(
-            FixedSyncSlot(workspaceGM_, tilingData_,
-                                                     kMegaMoeFixedSyncDeferredMetadataReadyBase + workerIdx_),
+            FixedSyncSlot(workspaceGM_, tilingData_, kMegaMoeFixedSyncDeferredMetadataReadyBase + workerIdx_),
             static_cast<int32_t>(phase + 1U));
     }
 
 private:
     GM_ADDR workspaceGM_ = nullptr;
-    const __gm__ MegaMoeTilingData *tilingData_ = nullptr;
+    const __gm__ MegaMoeTilingData* tilingData_ = nullptr;
     uint32_t workerIdx_ = 0U;
     uint32_t workerCount_ = 0U;
     uint32_t phase_ = 0U;
@@ -74,23 +73,24 @@ private:
 
 class DeferredRouteMetadata {
 public:
-    AICORE inline void Init(GM_ADDR expertIdGM, GM_ADDR workspaceGM, const __gm__ MegaMoeTilingData *tilingData,
-                            uint32_t workerIdx, uint32_t workerCount)
+    AICORE inline void Init(
+        GM_ADDR expertIdGM, GM_ADDR workspaceGM, const __gm__ MegaMoeTilingData* tilingData, uint32_t workerIdx,
+        uint32_t workerCount)
     {
-        expertIdPtr_ = reinterpret_cast<__gm__ int32_t *>(expertIdGM);
+        expertIdPtr_ = reinterpret_cast<__gm__ int32_t*>(expertIdGM);
         workspaceGM_ = workspaceGM;
         tilingData_ = tilingData;
         workerIdx_ = workerIdx;
         workerCount_ = workerCount;
 
-        const __gm__ MegaMoeFrontReorderTiling &front = tilingData_->frontReorderTiling;
+        const __gm__ MegaMoeFrontReorderTiling& front = tilingData_->frontReorderTiling;
         routeElems_ = front.routeElems;
         expertNum_ = front.expertNum;
         rank_ = tilingData_->runtimeInfo.rank;
         rankSize_ = tilingData_->runtimeInfo.rankSize;
         expertPerRank_ = tilingData_->megaMoeInfo.expertPerRank;
-        sortedRouteSlotPtr_ = reinterpret_cast<__gm__ int32_t *>(workspaceGM_ + front.sortedRouteSlotOffset);
-        expandedRowIdxPtr_ = reinterpret_cast<__gm__ int32_t *>(workspaceGM_ + front.expandedRowIdxOffset);
+        sortedRouteSlotPtr_ = reinterpret_cast<__gm__ int32_t*>(workspaceGM_ + front.sortedRouteSlotOffset);
+        expandedRowIdxPtr_ = reinterpret_cast<__gm__ int32_t*>(workspaceGM_ + front.expandedRowIdxOffset);
 
         remoteWindow_.Init(reinterpret_cast<GM_ADDR>(tilingData_->runtimeInfo.remoteWindowContext));
         peerMemoryLayout_.Init(front);
@@ -99,29 +99,21 @@ public:
 
     AICORE inline void Run()
     {
-        if (workerCount_ == 0U || workerIdx_ >= workerCount_) {
-            return;
-        }
-
         const bool gmm1Mailbox =
             tilingData_->gmmSchedulerTiling.gmm1ScheduleMode == kMegaMoeGmm1ScheduleWave0MailboxSuffix;
-        if (tilingData_->gmmSchedulerTiling.mailbox.enabled != 0U) {
-            ParallelGmmTaskDescriptorBuilder descriptorBuilder;
-            descriptorBuilder.Init(workspaceGM_, tilingData_, workerIdx_, workerCount_);
-
-            if (gmm1Mailbox) {
-                const uint32_t gmm1TaskCount = descriptorBuilder.BuildGmm1();
-                barrier_.Sync();
-                if (workerIdx_ == 0U) {
-                    descriptorBuilder.PublishGeneratedTail(tilingData_->gmmSchedulerTiling.gmm1, gmm1TaskCount);
-                }
-            }
-
-            const uint32_t gmm2TaskCount = descriptorBuilder.BuildGmm2();
+        ParallelGmmTaskDescriptorBuilder descriptorBuilder;
+        descriptorBuilder.Init(workspaceGM_, tilingData_, workerIdx_, workerCount_);
+        if (gmm1Mailbox) {
+            const uint32_t gmm1TaskCount = descriptorBuilder.BuildGmm1();
             barrier_.Sync();
             if (workerIdx_ == 0U) {
-                descriptorBuilder.PublishGeneratedTail(tilingData_->gmmSchedulerTiling.gmm2, gmm2TaskCount);
+                descriptorBuilder.PublishGeneratedTail(tilingData_->gmmSchedulerTiling.gmm1, gmm1TaskCount);
             }
+        }
+        const uint32_t gmm2TaskCount = descriptorBuilder.BuildGmm2();
+        barrier_.Sync();
+        if (workerIdx_ == 0U) {
+            descriptorBuilder.PublishGeneratedTail(tilingData_->gmmSchedulerTiling.gmm2, gmm2TaskCount);
         }
         // Core 0 owns the single-run sort used by small-M cases. Run preSum on
         // the last worker so both metadata paths overlap at the sort barrier.
@@ -138,8 +130,7 @@ public:
         barrier_.Sync();
         if (workerIdx_ == 0U) {
             PublishScalarEpoch(
-                FixedSyncSlot(workspaceGM_, tilingData_,
-                                                         kMegaMoeFixedSyncDeferredExpandedReadySlot),
+                FixedSyncSlot(workspaceGM_, tilingData_, kMegaMoeFixedSyncDeferredExpandedReadySlot),
                 kMegaMoeFixedDeferredExpandedReadyMarker);
         }
     }
@@ -147,19 +138,19 @@ public:
 private:
     AICORE inline uint32_t FrontAivCount() const
     {
-        return tilingData_->fixedGroupTiling.physicalAivNum;
+        return tilingData_->fixedGroupTiling.physicalAicNum * kMegaMoeFixedAivSubblocksPerPhysicalBlock;
     }
 
     AICORE inline uint32_t FrontExpertCoreBegin(uint32_t globalExpert) const
     {
-        return static_cast<uint32_t>((static_cast<uint64_t>(globalExpert) * FrontAivCount() + expertNum_ - 1U) /
-                                     expertNum_);
+        return static_cast<uint32_t>(
+            (static_cast<uint64_t>(globalExpert) * FrontAivCount() + expertNum_ - 1U) / expertNum_);
     }
 
     AICORE inline uint32_t FrontExpertCoreEnd(uint32_t globalExpert) const
     {
-        return static_cast<uint32_t>((static_cast<uint64_t>(globalExpert + 1U) * FrontAivCount() + expertNum_ - 1U) /
-                                     expertNum_);
+        return static_cast<uint32_t>(
+            (static_cast<uint64_t>(globalExpert + 1U) * FrontAivCount() + expertNum_ - 1U) / expertNum_);
     }
 
     AICORE inline uint32_t ActiveMaskLaneCount(uint32_t globalExpert) const
@@ -172,22 +163,22 @@ private:
         return allocatedLanes < maskBlockCount ? allocatedLanes : maskBlockCount;
     }
 
-    AICORE inline __gm__ int32_t *RemoteMaskCount(uint32_t globalExpert, uint32_t laneIdx) const
+    AICORE inline __gm__ int32_t* RemoteMaskCount(uint32_t globalExpert, uint32_t laneIdx) const
     {
         const uint32_t dstRank = globalExpert / expertPerRank_;
         const uint32_t localExpert = globalExpert - dstRank * expertPerRank_;
-        __gm__ uint8_t *remoteMaskBase = reinterpret_cast<__gm__ uint8_t *>(
+        __gm__ uint8_t* remoteMaskBase = reinterpret_cast<__gm__ uint8_t*>(
             remoteWindow_.RemoteBase(peerMemoryLayout_.routeMaskSlots, static_cast<int32_t>(dstRank)));
         const uint64_t slot = static_cast<uint64_t>(localExpert) * rankSize_ + rank_;
-        return reinterpret_cast<__gm__ int32_t *>(remoteMaskBase +
-                                                  slot * tilingData_->frontReorderTiling.maskSlotBytes +
-                                                  tilingData_->frontReorderTiling.maskBytes +
-                                                  static_cast<uint64_t>(laneIdx) * kMegaMoeFrontMaskCountRecordBytes);
+        return reinterpret_cast<__gm__ int32_t*>(
+            remoteMaskBase + slot * tilingData_->frontReorderTiling.maskSlotBytes +
+            tilingData_->frontReorderTiling.maskBytes +
+            static_cast<uint64_t>(laneIdx) * kMegaMoeFrontMaskCountRecordBytes);
     }
 
-    AICORE inline __gm__ int32_t *RemotePreSumRow(uint32_t dstRank) const
+    AICORE inline __gm__ int32_t* RemotePreSumRow(uint32_t dstRank) const
     {
-        __gm__ int32_t *remotePreSum = reinterpret_cast<__gm__ int32_t *>(
+        __gm__ int32_t* remotePreSum = reinterpret_cast<__gm__ int32_t*>(
             remoteWindow_.RemoteBase(peerMemoryLayout_.preSumBeforeRank, static_cast<int32_t>(dstRank)));
         return remotePreSum + static_cast<uint64_t>(rank_) * expertPerRank_;
     }
@@ -197,8 +188,8 @@ private:
         uint32_t count = 0U;
         const uint32_t laneCount = ActiveMaskLaneCount(globalExpert);
         for (uint32_t laneIdx = 0U; laneIdx < laneCount; ++laneIdx) {
-            PtoLoadVector<int32_t, kCountRecordElems>(kPreSumCountUb, RemoteMaskCount(globalExpert, laneIdx),
-                                                      kCountRecordElems);
+            PtoLoadVector<int32_t, kCountRecordElems>(
+                kPreSumCountUb, RemoteMaskCount(globalExpert, laneIdx), kCountRecordElems);
             pto::PtoSetWaitFlag<PIPE_MTE2, PIPE_S>();
             count += static_cast<uint32_t>(PtoGetValue<int32_t, kCountRecordElems>(kPreSumCountUb, 0U));
         }
@@ -207,8 +198,8 @@ private:
 
     AICORE inline void LoadSingleLaneRouteCountsForRank(uint32_t dstRank) const
     {
-        using CountTile = pto::Tile<pto::TileType::Vec, int32_t, kMegaMoeFixedMaxExperts, kCountRecordElems,
-                                    pto::BLayout::RowMajor, -1, -1>;
+        using CountTile = pto::Tile<
+            pto::TileType::Vec, int32_t, kMegaMoeFixedMaxExperts, kCountRecordElems, pto::BLayout::RowMajor, -1, -1>;
         using CountShape = pto::Shape<pto::DYNAMIC, pto::DYNAMIC, pto::DYNAMIC, pto::DYNAMIC, pto::DYNAMIC>;
         using CountStride = pto::Stride<pto::DYNAMIC, pto::DYNAMIC, pto::DYNAMIC, pto::DYNAMIC, pto::DYNAMIC>;
         using CountGlobal = pto::GlobalTensor<int32_t, CountShape, CountStride, pto::Layout::ND>;
@@ -322,11 +313,11 @@ private:
         pto::PtoSetWaitFlag<PIPE_MTE3, PIPE_S>();
     }
 
-    __gm__ int32_t *expertIdPtr_ = nullptr;
-    __gm__ int32_t *sortedRouteSlotPtr_ = nullptr;
-    __gm__ int32_t *expandedRowIdxPtr_ = nullptr;
+    __gm__ int32_t* expertIdPtr_ = nullptr;
+    __gm__ int32_t* sortedRouteSlotPtr_ = nullptr;
+    __gm__ int32_t* expandedRowIdxPtr_ = nullptr;
     GM_ADDR workspaceGM_ = nullptr;
-    const __gm__ MegaMoeTilingData *tilingData_ = nullptr;
+    const __gm__ MegaMoeTilingData* tilingData_ = nullptr;
     PtoRemoteWindow remoteWindow_;
     MegaMoePeerMemoryLayout peerMemoryLayout_;
     GroupBarrier barrier_;

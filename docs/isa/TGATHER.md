@@ -1,4 +1,4 @@
-﻿# TGATHER
+# TGATHER
 
 
 ## Tile Operation Diagram

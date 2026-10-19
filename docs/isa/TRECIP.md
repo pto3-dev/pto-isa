@@ -1,4 +1,4 @@
-﻿# TRECIP
+# TRECIP
 
 
 ## Tile Operation Diagram

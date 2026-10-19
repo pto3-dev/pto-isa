@@ -66,6 +66,7 @@ jobs:
             export task_name=${{ inputs.task_name }}
             export ge_st_rt2=${{ inputs.ge_st_rt2 }}
             export package_name=${{ inputs.package_name }}
+            export GIT_TARGET_BRANCH=${{ env.TARGET_BRANCH }}
             BuildAccelerate bash compile.sh
           AC_SERVER_IP: ${{ vars.AC_SERVER_IP }}
       -

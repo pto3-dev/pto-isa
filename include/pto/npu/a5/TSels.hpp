@@ -141,7 +141,7 @@ PTO_INTERNAL void TSELS_IMPL(
         std::is_same<T, int64_t>::value || std::is_same<T, uint64_t>::value || std::is_same<T, int8_t>::value ||
             std::is_same<T, int16_t>::value || std::is_same<T, int32_t>::value || std::is_same<T, half>::value ||
             std::is_same<T, float32_t>::value || std::is_same<T, uint8_t>::value || std::is_same<T, uint16_t>::value ||
-            std::is_same<T, uint32_t>::value,
+            std::is_same<T, uint32_t>::value || std::is_same<T, bfloat16_t>::value,
         "TSELS: Invalid data type");
     static_assert(
         TileDataDst::isRowMajor && TileDataMask::isRowMajor && TileDataSrc::isRowMajor,

@@ -1,4 +1,4 @@
-﻿# TCOLEXPANDMAX
+# TCOLEXPANDMAX
 
 
 ## Tile Operation Diagram

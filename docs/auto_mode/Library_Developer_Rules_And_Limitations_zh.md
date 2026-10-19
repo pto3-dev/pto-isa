@@ -43,17 +43,17 @@ public:
 TL;DR:
 
 - 在tile function内（包括被其调用的函数内）调用`set_flag`，`wait_flag`或者`pipe_barrier`
-- 在其他地方尽量调用`PtoSetWaitFlag`或者`TSYNC`
+- 在其他地方尽量调用`PtoSetWaitFlag`
 
 原因：PTO编译器的分析以及优化都是建立在tile这一抽象层级上的，而tile function是这一抽象层级的最后一层；一旦进入tile function，就脱离了tile的层级范围，进入了CCE的领域。因此，tile function内部对于PTO编译器来说就是一个黑盒子，完全不关心里面是什么。
 
-因此，如果在tile function内部需要同步，依然需要库开发者手动插入同步，因为进入这一层已经超出了PTO编译器的使用范围。所以在tile function内部不能使用`PtoSetWaitFlag`或者`TSYNC`，因为它们在auto模式下都是no-op。
+因此，如果在tile function内部需要同步，依然需要库开发者手动插入同步，因为进入这一层已经超出了PTO编译器的使用范围。所以在tile function内部不能使用`PtoSetWaitFlag`，因为它在auto模式下是no-op。
 
 # 4 - 避免使用`TASSIGN`来实现PTO指令
 
 目前，有一些PTO指令的内部实现直接调用了`TASSIGN_IMPL`。这在auto模式下是行不通的。
 
-如果开发者的意图是想alias两个tile，那应该使用`TRESHAPE`或者`TSUBVIEW`来实现；其余任何用途在auto模式下都不能达到正确的结果。
+如果开发者的意图是想alias两个tile，那应该在语义匹配时使用`TRESHAPE`来实现；其余任何用途在auto模式下都不能达到正确的结果。
 
 比如，如果开发者直接调用`TASSIGN`来分配tile的地址，而这个分配的地址是基于一些算法或者代码逻辑实现的，那auto编译器肯定无法感知到具体的算法逻辑而实现和manual模式下相同的内存分配结果。
 

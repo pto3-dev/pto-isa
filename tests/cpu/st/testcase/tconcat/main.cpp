@@ -165,8 +165,8 @@ void test_tconcat()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(fileSizeDst);
-    std::vector<T> devFinal(fileSizeDst);
+    std::vector<T> golden(fileSizeDst / sizeof(T));
+    std::vector<T> devFinal(fileSizeDst / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", fileSizeDst, golden.data(), fileSizeDst);
     ReadFile(GetGoldenDir() + "/output.bin", fileSizeDst, devFinal.data(), fileSizeDst);
 
@@ -174,8 +174,8 @@ void test_tconcat()
     ASSERT_TRUE(ret);
 
     if constexpr (useIdx == USE_DST_IDX) {
-        std::vector<TIdx> goldenIdx(fileSizeDstIdx);
-        std::vector<TIdx> devFinalIdx(fileSizeDstIdx);
+        std::vector<TIdx> goldenIdx(fileSizeDstIdx / sizeof(TIdx));
+        std::vector<TIdx> devFinalIdx(fileSizeDstIdx / sizeof(TIdx));
         ReadFile(GetGoldenDir() + "/golden_idx.bin", fileSizeDstIdx, goldenIdx.data(), fileSizeDstIdx);
         ReadFile(GetGoldenDir() + "/output_idx.bin", fileSizeDstIdx, devFinalIdx.data(), fileSizeDstIdx);
 

@@ -15,7 +15,7 @@ See LICENSE in the root of the software repository for the full text of the Lice
 using namespace std;
 using namespace pto;
 
-template <typename T, int dstRow, int srcRow, int validRow, int srcCol, int srcValidCol>
+template <typename T, int dstRow, int srcRow, int validRow, int srcCol, int tmpCol, int srcValidCol>
 PTO_INTERNAL void runTRowProdSimple(__gm__ T* out, __gm__ T* src)
 {
     using ValidSrcShape = TileShape2D<T, validRow, srcValidCol>;
@@ -30,13 +30,14 @@ PTO_INTERNAL void runTRowProdSimple(__gm__ T* out, __gm__ T* src)
 
     using srcTileData = Tile<TileType::Vec, T, srcRow, srcCol, BLayout::RowMajor, validRow, srcValidCol>;
     using dstTileData = Tile<TileType::Vec, T, dstRow, 1, BLayout::ColMajor, validRow, 1>;
+    using tmpTileData = Tile<TileType::Vec, T, 1, tmpCol, BLayout::RowMajor, 1, tmpCol>;
     srcTileData srcTile;
-    srcTileData tmpTile;
+    tmpTileData tmpTile;
     dstTileData dstTile;
 
     TASSIGN(srcTile, 0x0);
     TASSIGN(tmpTile, srcRow * srcCol * sizeof(T));
-    TASSIGN(dstTile, 2 * srcRow * srcCol * sizeof(T));
+    TASSIGN(dstTile, srcRow * srcCol * sizeof(T) + 2 * tmpCol * sizeof(T));
 
     TLOAD(srcTile, srcGlobal);
     set_flag(PIPE_MTE2, PIPE_V, EVENT_ID0);
@@ -50,88 +51,88 @@ PTO_INTERNAL void runTRowProdSimple(__gm__ T* out, __gm__ T* src)
 
 extern "C" __global__ AICORE void launchTROWPRODCase1(__gm__ float* out, __gm__ float* src)
 {
-    runTRowProdSimple<float, 8, 1, 1, 8, 8>(out, src);
+    runTRowProdSimple<float, 8, 1, 1, 8, 64, 8>(out, src);
 }
 
 extern "C" __global__ AICORE void launchTROWPRODCase2(__gm__ float* out, __gm__ float* src)
 {
-    runTRowProdSimple<float, 8, 1, 1, 16, 16>(out, src);
+    runTRowProdSimple<float, 8, 1, 1, 16, 64, 16>(out, src);
 }
 
 extern "C" __global__ AICORE void launchTROWPRODCase3(__gm__ float* out, __gm__ float* src)
 {
-    runTRowProdSimple<float, 8, 1, 1, 128, 128>(out, src);
+    runTRowProdSimple<float, 8, 1, 1, 128, 64, 128>(out, src);
 }
 
 extern "C" __global__ AICORE void launchTROWPRODCase4(__gm__ float* out, __gm__ float* src)
 {
-    runTRowProdSimple<float, 8, 1, 1, 8, 5>(out, src);
+    runTRowProdSimple<float, 8, 1, 1, 8, 64, 5>(out, src);
 }
 
 extern "C" __global__ AICORE void launchTROWPRODCase5(__gm__ float* out, __gm__ float* src)
 {
-    runTRowProdSimple<float, 8, 1, 1, 16, 11>(out, src);
+    runTRowProdSimple<float, 8, 1, 1, 16, 64, 11>(out, src);
 }
 
 extern "C" __global__ AICORE void launchTROWPRODCase6(__gm__ float* out, __gm__ float* src)
 {
-    runTRowProdSimple<float, 8, 3, 2, 8, 8>(out, src);
+    runTRowProdSimple<float, 8, 3, 2, 8, 64, 8>(out, src);
 }
 
 extern "C" __global__ AICORE void launchTROWPRODCase7(__gm__ float* out, __gm__ float* src)
 {
-    runTRowProdSimple<float, 8, 3, 2, 24, 16>(out, src);
+    runTRowProdSimple<float, 8, 3, 2, 24, 64, 16>(out, src);
 }
 
 extern "C" __global__ AICORE void launchTROWPRODCase8(__gm__ float* out, __gm__ float* src)
 {
-    runTRowProdSimple<float, 8, 4, 3, 16, 9>(out, src);
+    runTRowProdSimple<float, 8, 4, 3, 16, 64, 9>(out, src);
 }
 
 extern "C" __global__ AICORE void launchTROWPRODCase9(__gm__ __fp16* out, __gm__ __fp16* src)
 {
-    runTRowProdSimple<__fp16, 16, 1, 1, 16, 16>(out, src);
+    runTRowProdSimple<__fp16, 16, 1, 1, 16, 64, 16>(out, src);
 }
 
 extern "C" __global__ AICORE void launchTROWPRODCase10(__gm__ __fp16* out, __gm__ __fp16* src)
 {
-    runTRowProdSimple<__fp16, 32, 26, 19, 32, 26>(out, src);
+    runTRowProdSimple<__fp16, 32, 26, 19, 32, 64, 26>(out, src);
 }
 
 // int32 test cases
 extern "C" __global__ AICORE void launchTROWPRODCase11(__gm__ int32_t* out, __gm__ int32_t* src)
 {
-    runTRowProdSimple<int32_t, 8, 1, 1, 8, 8>(out, src);
+    runTRowProdSimple<int32_t, 8, 1, 1, 8, 64, 8>(out, src);
 }
 extern "C" __global__ AICORE void launchTROWPRODCase12(__gm__ int32_t* out, __gm__ int32_t* src)
 {
-    runTRowProdSimple<int32_t, 8, 1, 1, 16, 16>(out, src);
+    runTRowProdSimple<int32_t, 8, 1, 1, 16, 64, 16>(out, src);
 }
 extern "C" __global__ AICORE void launchTROWPRODCase13(__gm__ int32_t* out, __gm__ int32_t* src)
 {
-    runTRowProdSimple<int32_t, 8, 1, 1, 128, 128>(out, src);
+    runTRowProdSimple<int32_t, 8, 1, 1, 128, 64, 128>(out, src);
 }
 extern "C" __global__ AICORE void launchTROWPRODCase14(__gm__ int32_t* out, __gm__ int32_t* src)
 {
-    runTRowProdSimple<int32_t, 8, 1, 1, 8, 5>(out, src);
+    runTRowProdSimple<int32_t, 8, 1, 1, 8, 64, 5>(out, src);
 }
 extern "C" __global__ AICORE void launchTROWPRODCase15(__gm__ int32_t* out, __gm__ int32_t* src)
 {
-    runTRowProdSimple<int32_t, 8, 3, 2, 24, 16>(out, src);
+    runTRowProdSimple<int32_t, 8, 3, 2, 24, 64, 16>(out, src);
 }
 
 // int16 test cases - need 32-byte alignment for int16_t (2 bytes), so cols must be multiple of 16
 extern "C" __global__ AICORE void launchTROWPRODCase16(__gm__ int16_t* out, __gm__ int16_t* src)
 {
-    runTRowProdSimple<int16_t, 16, 1, 1, 16, 16>(out, src);
+    runTRowProdSimple<int16_t, 16, 1, 1, 16, 128, 16>(out, src);
 }
 extern "C" __global__ AICORE void launchTROWPRODCase17(__gm__ int16_t* out, __gm__ int16_t* src)
 {
-    runTRowProdSimple<int16_t, 32, 26, 19, 32, 32>(out, src);
+    runTRowProdSimple<int16_t, 32, 26, 19, 32, 128, 32>(out, src);
 }
 extern "C" __global__ AICORE void launchTROWPRODCase18(__gm__ int16_t* out, __gm__ int16_t* src)
 {
-    runTRowProdSimple<int16_t, 16, 1, 1, 16, 16>(out, src);
+    runTRowProdSimple<int16_t, 16, 1, 1, 16, 128, 16>(out, src);
 }
 
 template <uint32_t caseId>

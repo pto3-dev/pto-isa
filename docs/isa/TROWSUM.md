@@ -1,4 +1,4 @@
-﻿# TROWSUM
+# TROWSUM
 
 
 ## Tile Operation Diagram

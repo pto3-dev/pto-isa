@@ -36,27 +36,7 @@ template <typename GlobalDstData, typename GlobalSrcData>
 PTO_INTERNAL AsyncEvent
 TPUT_ASYNC_MTE_FALLBACK(GlobalDstData& dstGlobalData, GlobalSrcData& srcGlobalData, const AsyncSession& session)
 {
-    (void)TPutAsyncCheckTensorCompatibility<GlobalDstData, GlobalSrcData>();
-
-    PTO_ASSERT(
-        dstGlobalData.data() != nullptr && srcGlobalData.data() != nullptr,
-        "TPUT_ASYNC MTE fallback: src and dst tensor pointers must not be null.");
-
-    PTO_ASSERT(
-        TPutAsyncIsFlatContiguous1D(srcGlobalData),
-        "TPUT_ASYNC MTE fallback: src tensor must be flat contiguous 1D (packed layout, single logical line). "
-        "Multi-dimensional or non-contiguous tensors are not supported.");
-    PTO_ASSERT(
-        TPutAsyncIsFlatContiguous1D(dstGlobalData),
-        "TPUT_ASYNC MTE fallback: dst tensor must be flat contiguous 1D (packed layout, single logical line). "
-        "Multi-dimensional or non-contiguous tensors are not supported.");
-
-    const uint32_t srcElems = TPutAsyncGetTotalElemCount(srcGlobalData);
-    const uint32_t dstElems = TPutAsyncGetTotalElemCount(dstGlobalData);
-    PTO_ASSERT(dstElems >= srcElems, "TPUT_ASYNC MTE fallback: dst buffer too small for src data.");
-
-    using T = typename GlobalSrcData::RawDType;
-    const uint64_t totalBytes = static_cast<uint64_t>(srcElems) * sizeof(T);
+    const uint64_t totalBytes = TPutAsyncValidatePayload(dstGlobalData, srcGlobalData);
     if (totalBytes == 0) {
         return AsyncEvent(0, DmaEngine::SDMA);
     }
@@ -93,34 +73,27 @@ TPUT_ASYNC_MTE_FALLBACK(GlobalDstData& dstGlobalData, GlobalSrcData& srcGlobalDa
 
 #ifdef PTO_URMA_SUPPORTED
 template <typename GlobalDstData, typename GlobalSrcData>
+PTO_INTERNAL uint64_t TPutAsyncCheckUrmaPayload(
+    GlobalDstData& dstGlobalData, GlobalSrcData& srcGlobalData, const AsyncSession& session, uint32_t peer)
+{
+    PTO_ASSERT(urma::detail::ValidateUrmaSession(session, peer), "TPUT_ASYNC URMA: invalid session, peer or QP.");
+    const uint64_t transferSize = TPutAsyncValidatePayload(dstGlobalData, srcGlobalData);
+    PTO_ASSERT(
+        transferSize > 0U && transferSize <= urma::kUrmaMaxWqeTransferBytes,
+        "TPUT_ASYNC URMA: transfer size must be in (0, 256MB] per single WQE.");
+    return transferSize;
+}
+
+template <typename GlobalDstData, typename GlobalSrcData>
 PTO_INTERNAL AsyncEvent TPUT_ASYNC_URMA_IMPL(
     GlobalDstData& dstGlobalData, GlobalSrcData& srcGlobalData, const AsyncSession& session, uint32_t peer)
 {
-    (void)TPutAsyncCheckTensorCompatibility<GlobalDstData, GlobalSrcData>();
+    const uint64_t transferSize = TPutAsyncCheckUrmaPayload(dstGlobalData, srcGlobalData, session, peer);
 
-    PTO_ASSERT(
-        TPutAsyncIsFlatContiguous1D(srcGlobalData),
-        "TPUT_ASYNC URMA: src tensor must be flat contiguous 1D (packed layout, single logical line). "
-        "Multi-dimensional or non-contiguous tensors are not supported by URMA async path.");
-    PTO_ASSERT(
-        TPutAsyncIsFlatContiguous1D(dstGlobalData),
-        "TPUT_ASYNC URMA: dst tensor must be flat contiguous 1D (packed layout, single logical line). "
-        "Multi-dimensional or non-contiguous tensors are not supported by URMA async path.");
-
-    const uint32_t srcElems = TPutAsyncGetTotalElemCount(srcGlobalData);
-    const uint32_t dstElems = TPutAsyncGetTotalElemCount(dstGlobalData);
-    PTO_ASSERT(dstElems >= srcElems, "TPUT_ASYNC URMA: dst buffer too small for src data");
-
-    using T = typename GlobalSrcData::RawDType;
-    const uint64_t transferSize = static_cast<uint64_t>(srcElems) * sizeof(T);
-    PTO_ASSERT(
-        transferSize > 0 && transferSize <= urma::kUrmaMaxWqeTransferBytes,
-        "TPUT_ASYNC URMA: transfer size must be in (0, 256MB] per single WQE");
-
-    const uint64_t eventHandle = urma::__urma_put_async(
+    const urma::detail::UrmaPostResult result = urma::__urma_put_async(
         reinterpret_cast<__gm__ uint8_t*>(dstGlobalData.data()),
         reinterpret_cast<__gm__ uint8_t*>(srcGlobalData.data()), transferSize, session, peer);
-    return AsyncEvent(eventHandle, DmaEngine::URMA);
+    return AsyncEvent(result.handle, DmaEngine::URMA, result.targetCqe);
 }
 
 template <typename GlobalDstData, typename GlobalSrcData>
@@ -137,21 +110,7 @@ template <typename GlobalDstData, typename GlobalSrcData>
 PTO_INTERNAL AsyncEvent TPUT_ASYNC_RDMA_IMPL(
     GlobalDstData& dstGlobalData, GlobalSrcData& srcGlobalData, const AsyncSession& session, uint32_t peer)
 {
-    (void)TPutAsyncCheckTensorCompatibility<GlobalDstData, GlobalSrcData>();
-
-    PTO_ASSERT(
-        TPutAsyncIsFlatContiguous1D(srcGlobalData),
-        "TPUT_ASYNC RDMA: src tensor must be flat contiguous 1D (packed layout, single logical line).");
-    PTO_ASSERT(
-        TPutAsyncIsFlatContiguous1D(dstGlobalData),
-        "TPUT_ASYNC RDMA: dst tensor must be flat contiguous 1D (packed layout, single logical line).");
-
-    const uint32_t srcElems = TPutAsyncGetTotalElemCount(srcGlobalData);
-    const uint32_t dstElems = TPutAsyncGetTotalElemCount(dstGlobalData);
-    PTO_ASSERT(dstElems >= srcElems, "TPUT_ASYNC RDMA: dst buffer too small for src data");
-
-    using T = typename GlobalSrcData::RawDType;
-    const uint64_t transferSize = static_cast<uint64_t>(srcElems) * sizeof(T);
+    const uint64_t transferSize = TPutAsyncValidatePayload(dstGlobalData, srcGlobalData);
     if (transferSize == 0) {
         return AsyncEvent(0, DmaEngine::RDMA);
     }

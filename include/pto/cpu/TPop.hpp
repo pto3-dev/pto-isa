@@ -35,17 +35,13 @@ PTO_INTERNAL void TPOP_IMPL(Pipe& pipe, TileCons& tile)
 
     // 2. Address calculation + TASSIGN + data transfer
     pipe.cons.template pop<TileCons, Split>(pipe.fifo, tile);
-    if constexpr (participateNoSplitC2V) {
-        if (get_subblockid() != 0) {
-            cpu_pipe::FillTile(tile, typename TileCons::DType{});
-        }
-    }
+    // Every participating lane reads the same payload; only the inactive lane gets a zeroed tile.
 }
 
 template <
     typename TileCons, typename Pipe,
     std::enable_if_t<(is_tile_data_v<TileCons> || is_conv_tile_v<TileCons>) && !is_global_data_v<TileCons>, int> = 0>
-PTO_INTERNAL void TPOP_REVERSED_IMPL(TileCons& tile, Pipe& pipe)
+PTO_INTERNAL void TPOP_IMPL(TileCons& tile, Pipe& pipe)
 {
     TPOP_IMPL<Pipe, TileCons, TileSplitAxis::TILE_NO_SPLIT>(pipe, tile);
 }

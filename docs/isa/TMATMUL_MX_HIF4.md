@@ -1,4 +1,4 @@
-﻿# TMATMUL_MX HiF4 (HiFloat4 Cube Matmul)
+# TMATMUL_MX HiF4 (HiFloat4 Cube Matmul)
 
 ## Introduction
 

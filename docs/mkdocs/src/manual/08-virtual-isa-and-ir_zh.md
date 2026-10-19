@@ -42,7 +42,7 @@ PTO 采用三层契约：
 降层 MUST 保持：
 
 - 有效区域语义
-- 显式顺序依赖（`event`、`TSYNC`、内存顺序点）
+- 显式顺序依赖（`event`、event synchronization、内存顺序点）
 - 架构定义域内的操作语义
 
 降层 MUST NOT 将实现定义行为静默改写为架构定义行为。

@@ -54,7 +54,29 @@ echo "Y" | apt install libgtest-dev libgmock-dev
 gcc --version
 rm -rf /opt/rh/devtoolset-7
 bisheng -v
-
+if [ "${GIT_TARGET_BRANCH}" == "master" ]; then
+    sudo update-alternatives --set gcc /usr/bin/gcc-15
+else
+    sudo update-alternatives --set gcc /usr/bin/gcc-14
+fi
+if gcc --version | head -n1 | grep -q "15\."; then
+    rm -rf /home/jenkins/opensource/lib_cache
+    if [ -d /home/jenkins/opensource/gcc15 ]; then
+        rm -rf /home/jenkins/opensource/gcc15/lib_cache/abseil-cpp
+        rm -rf /home/jenkins/opensource/gcc15/lib_cache/device/abseil-cpp
+        ln -s /home/jenkins/opensource/gcc15/lib_cache/ /home/jenkins/opensource/lib_cache
+    elif [ -d /home/jenkins/opensource/gcc15x86 ]; then
+        rm -rf /home/jenkins/opensource/gcc15x86/lib_cache/abseil-cpp
+        rm -rf /home/jenkins/opensource/gcc15x86/lib_cache/device/abseil-cpp
+        ln -s /home/jenkins/opensource/gcc15x86/lib_cache/ /home/jenkins/opensource/lib_cache
+    fi
+elif gcc --version | head -n1 | grep -q "14\."; then
+    gcc --version
+else
+    gcc --version
+    rm -rf /home/jenkins/opensource/lib_cache
+    ln -s /home/jenkins/opensource/ubuntu20/lib_cache /home/jenkins/opensource/lib_cache
+fi
 set +e
 if [[ "${ge_st_rt2}X" == "A5X" ]]; then
     LOG_DO bash build.sh --a5 --build

@@ -56,8 +56,6 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #include "pto/npu/a5/TSub.hpp"
 #include "pto/npu/a5/TMin.hpp"
 #include "pto/npu/a5/TMax.hpp"
-#include "pto/npu/a5/TSubView.hpp"
-#include "pto/npu/a5/TGetScaleAddr.hpp"
 #include "pto/npu/a5/TMrgSort.hpp"
 #include "pto/npu/a5/TCmps.hpp"
 #include "pto/npu/a5/TCmp.hpp"

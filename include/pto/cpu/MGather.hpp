@@ -44,8 +44,9 @@ PTO_INTERNAL void MGATHER_IMPL(TileDst& dst, GlobalData& src, TileInd& indexes)
     auto* base = src.data();
     const auto srcRowStride = src.GetStride(3);
     const auto srcColStride = src.GetStride(4);
-    // This procedure should not be parallelized, as it will break down rule "last of the values with same index should stay"
-    for (std::size_t i=0; i<validRow; i++) {
+    // This procedure should not be parallelized, as it will break down rule "last of the values with same index should
+    // stay"
+    for (std::size_t i = 0; i < validRow; i++) {
         size_t idx = 0;
         if constexpr (CMode == Coalesce::Elem) {
             for (std::size_t j = 0; j < validCol; ++j) {

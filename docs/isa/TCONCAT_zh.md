@@ -64,8 +64,8 @@ PTO_INST RecordEvent TCONCAT(TileDst &dst, TileSrc0 &src0, TileSrc1 &src1, TileD
 
 - `TCONCAT` 有三种重载变体：
     - 基本形式：`TCONCAT(dst, src0, src1)` - 拼接完整有效区域
-    - 索引形式（5参数）：`TCONCAT(dst, src0, src1, src0Idx, src1Idx)` - 使用每行索引Tile指定动态列数
-    - 索引形式（6参数）：`TCONCAT(dst, src0, src1, dstIdx, src0Idx, src1Idx)` - 同时输出每行的拼接列数
+    - 索引形式（5参数）：`TCONCAT(dst, src0, src1, src0Idx, src1Idx)` - 使用每行索引Tile指定动态字节数
+    - 索引形式（6参数）：`TCONCAT(dst, src0, src1, dstIdx, src0Idx, src1Idx)` - 同时输出每行拼接后的字节数
 - 所有Tile必须为 `TileType::Vec`（向量Tile）
 - 所有Tile必须使用行主序布局（`isRowMajor == true`）
 
@@ -77,8 +77,14 @@ PTO_INST RecordEvent TCONCAT(TileDst &dst, TileSrc0 &src0, TileSrc1 &src1, TileD
     - Ascend 950PR/Ascend 950DT：`dst.GetValidCol() == src0.GetValidCol() + src1.GetValidCol()`（总列数必须等于dst有效列数）
 - 索引形式：
     - 行数约束与基本形式相同
-    - 列数由索引Tile动态确定
-    - 6参数形式要求 `dstIdx.GetValidRow() == 1`（`dstIdx` 为单行聚合Tile，汇总每行的拼接列数）
+    - 每行索引Tile的首个元素表示字节数。实现将其除以索引元素大小得到源列数，并将拼接结果裁剪到 `dst.GetValidCol()`。
+    - 6参数形式要求 `dstIdx.GetValidCol() == 1`；每个输出元素保存裁剪后拼接列数对应的字节数。
+
+### Atlas A2/A3索引形式实现行为
+
+- 完整向量repeat与剩余的掩码尾段分别拷贝。
+- 当源数据量不足一次向量repeat时，该行全部通过掩码尾段路径拷贝。
+- 仅当repeat次数大于0时才执行完整repeat的`vcopy`；完整repeat次数为0时跳过该拷贝。
 
 ### 数据类型约束
 

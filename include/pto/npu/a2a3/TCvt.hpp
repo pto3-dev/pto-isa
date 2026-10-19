@@ -392,8 +392,9 @@ PTO_INTERNAL void GenCastCallFp16ToInt16_NonSatTorch(
     const uint16_t elemsPerRow = (numElemsPerRow == 0) ? static_cast<uint16_t>(128) : numElemsPerRow;
     const uint16_t numSubChunks = (elemsPerRow + maxChunkElems - 1) / maxChunkElems; // 1 or 2
     const uint16_t lastChunkMask = elemsPerRow - (numSubChunks - 1) * maxChunkElems; // [1, 64]
+    const uint16_t repeatLimit = static_cast<uint16_t>(repeatNum);
 
-    for (uint16_t r = 0; r < repeatNum; r++) {
+    for (uint16_t r = 0; r < repeatLimit; r++) {
         __ubuf__ half* rowSrc = src + static_cast<uint32_t>(r) * srcRepeatStride * fp16ElemsPerBlock;
         __ubuf__ int16_t* rowDst = dst + static_cast<uint32_t>(r) * dstRepeatStride * int16ElemsPerBlock;
 
@@ -500,8 +501,9 @@ PTO_INTERNAL void GenCastCallFp16ToInt8_NonSatTorch(
     const uint16_t elemsPerRow = (numElemsPerRow == 0) ? static_cast<uint16_t>(128) : numElemsPerRow;
     const uint16_t numSubChunks = (elemsPerRow + maxChunkElems - 1) / maxChunkElems; // 1 or 2
     const uint16_t lastChunkMask = elemsPerRow - (numSubChunks - 1) * maxChunkElems; // [1, 64]
+    const uint16_t repeatLimit = static_cast<uint16_t>(repeatNum);
 
-    for (uint16_t r = 0; r < repeatNum; r++) {
+    for (uint16_t r = 0; r < repeatLimit; r++) {
         __ubuf__ half* rowSrc = src + static_cast<uint32_t>(r) * srcRepeatStride * fp16ElemsPerBlock;
         __ubuf__ int8_t* rowDst = dst + static_cast<uint32_t>(r) * dstRepeatStride * int8ElemsPerBlock;
 

@@ -25,12 +25,12 @@ PTO 使用三种常见的断言机制：
 - `FIX-A04` 非装箱 tile 的 32 字节对齐：对于行主序非装箱 tile，要求 `Cols * sizeof(T)` 可被 32 整除；对于列主序非装箱 tile，要求 `Rows * sizeof(T)` 可被 32 整除；否则使用装箱布局（`SLayout != NoneBox`）或调整形状。
 - `FIX-A05` 有效区域兼容性：确保 `GetValidRow()`/`GetValidCol()` 值与指令期望的匹配（通常源/目标有效大小必须匹配；归约/扩展有特殊规则）。
 - `FIX-A06` 指令不支持的数据类型/布局：将 tile 元素类型/布局更改为支持的类型（通常是 `float`/`half` 和行主序），或根据后端要求添加转换（`TCVT`）/移动（`TMOV`、`TTRANS`）。
-- `FIX-A07` Event/`TSYNC` 使用：单操作 `TSYNC<OpCode>()` 受限（设备上仅限向量）；`Event<SrcOp, DstOp>` 要求不同的操作和不同的流水线类——使用正确的生产者/消费者对。
+- `FIX-A07` Event/event synchronization 使用：单操作 single-op synchronization 受限（设备上仅限向量）；`Event<SrcOp, DstOp>` 要求不同的操作和不同的流水线类——使用正确的生产者/消费者对。
 - `FIX-A08` TileType 不匹配：为指令使用正确的 tile 位置（`Vec/Mat/Left/Right/Acc/...`），并在需要时在位置之间插入 `TMOV`。
 - `FIX-A09` GlobalTensor 形状/步长不匹配或超出范围：确保 5-D 形状/步长与预期视图匹配并遵守后端约束（ND/DN/NZ 规则、维度的范围限制和对齐限制）。
 - `FIX-A10` Gather/scatter 连续性/对齐：某些 gather/scatter 路径需要连续的行/列或 32B 对齐——调整有效大小、布局或使用不同的路径。
 - `FIX-A11` 无效的数值域（例如除以零）：避免输入非法输入（在 `RECIP/RSQRT/DIV` 类操作之前添加 epsilon/clamp）。
-- `FIX-A12` `TASSIGN<Addr>(tile)` 地址/容量错误：确保目标内存空间在当前架构上存在（例如 `ScaleLeft`/`ScaleRight` 仅限 A5）；减小 tile 维度（`Rows`/`Cols`）或元素类型大小，使 `Rows * Cols * sizeof(DType) <= capacity`；选择 `Addr` 使得 `Addr + tile_size <= capacity` 且 `Addr` 是对齐值的整数倍（通常为 32 字节）。容量可通过 `-DPTO_xxx_SIZE_BYTES=<value>` 覆盖（参见 `include/pto/common/buffer_limits.hpp`）。
+- `FIX-A12` `TASSIGN<Addr>(tile)` 地址/容量错误：确保目标内存空间在当前架构上存在（例如 `ScaleLeft`/`ScaleRight` 支持 Ascend 950PR/Ascend 950DT 和 Ascend 960）；减小 tile 维度（`Rows`/`Cols`）或元素类型大小，使 `Rows * Cols * sizeof(DType) <= capacity`；选择 `Addr` 使得 `Addr + tile_size <= capacity` 且 `Addr` 是对齐值的整数倍（通常为 32 字节）。容量可通过 `-DPTO_xxx_SIZE_BYTES=<value>` 覆盖（参见 `include/pto/common/buffer_limits.hpp`）。
 
 ## 注意事项
 
@@ -137,7 +137,7 @@ PTO 使用三种常见的断言机制：
 - **SA-0093** rows must be divisible by 16 for Layout::NZ (位置： `include/pto/common/pto_tile.hpp:408 (+1)`; 修复： `FIX-A03`)
 - **SA-0094** rows 或 cols of fractal size is 0. (位置： `include/pto/common/pto_tile.hpp:651`; 修复： `-`)
 - **SA-0095** SFractalSize_ illegal (位置： `include/pto/common/pto_tile.hpp:667`; 修复： `-`)
-- **SA-0096** Single Op TSYNC only supports Vector PTO Instruction. (位置： `include/pto/common/event.hpp:109`; 修复： `FIX-A07`)
+- **SA-0096** Single Op event synchronization only supports Vector PTO Instruction. (位置： `include/pto/common/event.hpp:109`; 修复： `FIX-A07`)
 - **SA-0097** Size of datatype != 4 (位置： `include/pto/common/pto_tile.hpp:574 (+1)`; 修复： `-`)
 - **SA-0098** Source dtype must be same with dst dtype (位置： `include/pto/cpu/TLoad.hpp:153`; 修复： `-`)
 - **SA-0099** Source dtype must be same with dst dtype! (位置： `include/pto/cpu/TStore.hpp:127 (+4)`; 修复： `-`)

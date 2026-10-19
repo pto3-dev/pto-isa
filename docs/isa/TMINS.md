@@ -1,4 +1,4 @@
-﻿# TMINS
+# TMINS
 
 
 ## Tile Operation Diagram

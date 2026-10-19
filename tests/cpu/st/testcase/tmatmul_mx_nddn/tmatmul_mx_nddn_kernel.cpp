@@ -33,6 +33,12 @@ AICORE inline constexpr T CeilDiv(T num_1, T num_2)
     return (num_1 + num_2 - 1) / num_2;
 }
 
+template <typename ScaleTile, typename DataTile>
+AICORE inline void AssignMxScaleAddr(ScaleTile& scaleTile, DataTile& dataTile)
+{
+    scaleTile.data() = reinterpret_cast<typename ScaleTile::DType*>(dataTile.data());
+}
+
 template <typename T, int format, int scaleK, int N>
 using GlobalDataSrc3_t = std::conditional_t<
     (format == 1),
@@ -162,8 +168,8 @@ __global__ AICORE void RunTMATMULMX(
     TMOV(bScaleTile, bScaleMatTile);
 
 #ifdef __PTO_AUTO__
-    TGET_SCALE_ADDR(aScaleTile, aTile);
-    TGET_SCALE_ADDR(bScaleTile, bTile);
+    AssignMxScaleAddr(aScaleTile, aTile);
+    AssignMxScaleAddr(bScaleTile, bTile);
 #endif
 
     if constexpr (isBias) {
@@ -320,8 +326,8 @@ __global__ AICORE void RunTMATMULMX_SPLIT_K(
         TMOV(bScaleTile, bScaleMatTile);
 
 #ifdef __PTO_AUTO__
-        TGET_SCALE_ADDR(aScaleTile, aTile);
-        TGET_SCALE_ADDR(bScaleTile, bTile);
+        AssignMxScaleAddr(aScaleTile, aTile);
+        AssignMxScaleAddr(bScaleTile, bTile);
 #endif
 
         if constexpr (isBias) {
@@ -468,8 +474,8 @@ __global__ AICORE void RunTGEMVMX(
     TMOV(bScaleTile, bScaleMatTile);
 
 #ifdef __PTO_AUTO__
-    TGET_SCALE_ADDR(aScaleTile, aTile);
-    TGET_SCALE_ADDR(bScaleTile, bTile);
+    AssignMxScaleAddr(aScaleTile, aTile);
+    AssignMxScaleAddr(bScaleTile, bTile);
 #endif
 
 #ifndef __PTO_AUTO__

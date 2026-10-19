@@ -18,6 +18,36 @@ namespace pto {
 
 inline namespace TMatmulInternal {
 constexpr const int MMAD_MAX_SUPPORT_LENGTH = 4095;
+// mad has no destination-stride operand. Reject static multi-column Acc row
+// windows when mad's compact stride, ceil16(ValidRow), differs from Rows.
+// Dynamic ValidRow is not rejected here because the type cannot distinguish a
+// standalone compact buffer from a parent row window.
+template <typename TileRes>
+PTO_INTERNAL constexpr bool MadAccStrideCompatible()
+{
+    static_assert(TileRes::Loc == TileType::Acc, "MadAccStrideCompatible expects an Acc tile.");
+    if constexpr (TileRes::Compact != CompactMode::Null || TileRes::Cols <= FRACTAL_NZ_ROW) {
+        return true;
+    } else if constexpr (TileRes::ValidRow == DYNAMIC) {
+        return true;
+    } else {
+        constexpr int roundedValidRow = (TileRes::ValidRow + FRACTAL_NZ_ROW - 1) / FRACTAL_NZ_ROW * FRACTAL_NZ_ROW;
+        return roundedValidRow == TileRes::Rows;
+    }
+}
+
+template <typename TileRes, typename TileLeft, typename TileRight>
+PTO_INTERNAL void InitA6BiasMadOperands(
+    typename TileRes::TileDType cMatrix, typename TileLeft::TileDType aMatrix, typename TileRight::TileDType bMatrix,
+    uint64_t bias, __cc__ typename TileRes::DType*& c, __ca__ typename TileLeft::DType*& a,
+    __cb__ typename TileRight::DType*& b)
+{
+    c = (__cc__ typename TileRes::DType*)__cce_get_tile_ptr(cMatrix);
+    a = (__ca__ typename TileLeft::DType*)__cce_get_tile_ptr(aMatrix);
+    b = (__cb__ typename TileRight::DType*)__cce_get_tile_ptr(bMatrix);
+    uint64_t biasPacked = ((uint64_t)c) & 0xffffffffULL | ((bias & 0xffffffffULL) << 32);
+    c = (__cc__ typename TileRes::DType*)biasPacked;
+}
 
 template <typename TileRes, typename TileLeft, typename TileRight>
 inline constexpr bool kIsMmadF16F32 =
@@ -108,11 +138,10 @@ __tf__ AICORE void TMatmulBias(
     typename TileRes::TileDType __out__ cMatrix, typename TileLeft::TileDType __in__ aMatrix,
     typename TileRight::TileDType __in__ bMatrix, uint64_t bias, uint16_t m, uint16_t k, uint16_t n)
 {
-    __cc__ typename TileRes::DType* c = (__cc__ typename TileRes::DType*)__cce_get_tile_ptr(cMatrix);
-    __ca__ typename TileLeft::DType* a = (__ca__ typename TileLeft::DType*)__cce_get_tile_ptr(aMatrix);
-    __cb__ typename TileRight::DType* b = (__cb__ typename TileRight::DType*)__cce_get_tile_ptr(bMatrix);
-    uint64_t xd = ((uint64_t)c) & 0xffffffffULL | ((bias & 0xffffffffULL) << 32);
-    c = (__cc__ typename TileRes::DType*)xd;
+    __cc__ typename TileRes::DType* c;
+    __ca__ typename TileLeft::DType* a;
+    __cb__ typename TileRight::DType* b;
+    InitA6BiasMadOperands<TileRes, TileLeft, TileRight>(cMatrix, aMatrix, bMatrix, bias, c, a, b);
 
     PTO_A6_DISPATCH_MAD(c, a, b, m, k, n);
 }
@@ -248,7 +277,7 @@ PTO_INTERNAL void CheckDynamicMmad(uint16_t aMatrixRow, uint16_t aMatrixCol, uin
 }
 
 template <typename TileRes, typename TileLeft, typename TileRight>
-PTO_INTERNAL void CheckMadValid()
+PTO_INTERNAL void CheckA6MadDType()
 {
     using AType = typename TileLeft::DType;
     using BType = typename TileRight::DType;
@@ -287,49 +316,77 @@ PTO_INTERNAL void CheckMadValid()
             "halfxint8 (MMAD.f16s8), bfloat16xint8 (MMAD.bf16s8), bfloat16xbfloat16, floatxfloat, "
             "selected fp8 pairs, and hifloat8xhifloat8.");
     }
+}
+
+template <typename TileRes, typename TileLeft, typename TileRight>
+PTO_INTERNAL void CheckA6MadFractal()
+{
+    constexpr bool leftFractalValid =
+        TileLeft::Loc == TileType::Left && !TileLeft::isRowMajor && TileLeft::SFractal == SLayout::RowMajor;
+    constexpr bool rightFractalValid =
+        TileRight::Loc == TileType::Right && TileRight::isRowMajor && TileRight::SFractal == SLayout::ColMajor;
+    constexpr bool accFractalValid =
+        TileRes::Loc == TileType::Acc && !TileRes::isRowMajor && TileRes::SFractal == SLayout::RowMajor;
+    static_assert(leftFractalValid && rightFractalValid && accFractalValid, "Non-conforming matrix fractal.");
+}
+
+template <typename TileRes>
+PTO_INTERNAL void CheckA6MadAccStride()
+{
+    constexpr bool accStrideRepresentable = MadAccStrideCompatible<TileRes>();
     static_assert(
-        ((TileLeft::Loc == TileType::Left) && (!TileLeft::isRowMajor) && (TileLeft::SFractal == SLayout::RowMajor)) &&
-            ((TileRight::Loc == TileType::Right) && (TileRight::isRowMajor) &&
-             (TileRight::SFractal == SLayout::ColMajor)) &&
-            ((TileRes::Loc == TileType::Acc) && (!TileRes::isRowMajor) && (TileRes::SFractal == SLayout::RowMajor)),
-        "Non-conforming matrix fractal.");
+        accStrideRepresentable,
+        "The Acc tile is a row window of a taller tile (ValidRow < Rows) with more than one block column, "
+        "which mad's compact write stride cannot represent. Use a full-Rows Acc tile per row window, "
+        "or window the columns instead.");
+}
+
+template <typename TileRes, typename TileLeft, typename TileRight>
+PTO_INTERNAL void CheckMadValid()
+{
+    CheckA6MadDType<TileRes, TileLeft, TileRight>();
+    CheckA6MadFractal<TileRes, TileLeft, TileRight>();
+    CheckA6MadAccStride<TileRes>();
+}
+
+template <typename TileLeft, typename TileRight>
+PTO_INTERNAL void GetA6MadShape(TileLeft& aMatrix, TileRight& bMatrix, uint16_t& m, uint16_t& k, uint16_t& n)
+{
+    m = aMatrix.GetValidRow();
+    k = aMatrix.GetValidCol();
+    n = bMatrix.GetValidCol();
+    CheckDynamicMmad(m, k, n);
+}
+
+template <bool cmatrixInitVal, AccPhase Phase, typename TileRes, typename TileLeft, typename TileRight>
+PTO_INTERNAL void RunA6Matmul(TileRes& cMatrix, TileLeft& aMatrix, TileRight& bMatrix)
+{
+    CheckMadValid<TileRes, TileLeft, TileRight>();
+    uint16_t m;
+    uint16_t k;
+    uint16_t n;
+    GetA6MadShape(aMatrix, bMatrix, m, k, n);
+    TMatmul<Phase, TileRes, TileLeft, TileRight, false, cmatrixInitVal, true>(
+        cMatrix.data(), aMatrix.data(), bMatrix.data(), m, k, n);
 }
 
 template <AccPhase Phase = AccPhase::Unspecified, typename TileRes, typename TileLeft, typename TileRight>
 PTO_INTERNAL void TMATMUL_IMPL(TileRes& cMatrix, TileLeft& aMatrix, TileRight& bMatrix)
 {
-    // cmatrixInitVal Indicates the initial matrix, 1: the number in C matrix is 0, 0：use the real number in C matrix
-    CheckMadValid<TileRes, TileLeft, TileRight>();
-
-    uint16_t m = aMatrix.GetValidRow();
-    uint16_t k = aMatrix.GetValidCol();
-    uint16_t n = bMatrix.GetValidCol();
-    CheckDynamicMmad(m, k, n);
-
-    TMatmul<Phase, TileRes, TileLeft, TileRight, false, true, true>(
-        cMatrix.data(), aMatrix.data(), bMatrix.data(), m, k, n);
+    RunA6Matmul<true, Phase>(cMatrix, aMatrix, bMatrix);
 }
 
 template <AccPhase Phase = AccPhase::Unspecified, typename TileRes, typename TileLeft, typename TileRight>
 PTO_INTERNAL void TMATMUL_ACC_IMPL(TileRes& cOutMatrix, TileRes& cInMatrix, TileLeft& aMatrix, TileRight& bMatrix)
 {
-    // cmatrixInitVal Indicates the initial matrix, 1: the number in C matrix is 0, 0：use the real number in C matrix
-    CheckMadValid<TileRes, TileLeft, TileRight>();
-
-    uint16_t m = aMatrix.GetValidRow();
-    uint16_t k = aMatrix.GetValidCol();
-    uint16_t n = bMatrix.GetValidCol();
-    CheckDynamicMmad(m, k, n);
-
-    TMatmul<Phase, TileRes, TileLeft, TileRight, false, false, true>(
-        cOutMatrix.data(), aMatrix.data(), bMatrix.data(), m, k, n);
+    (void)cInMatrix;
+    RunA6Matmul<false, Phase>(cOutMatrix, aMatrix, bMatrix);
 }
 
-// Convenience overload where the accumulator tile is both the input and output.
 template <AccPhase Phase = AccPhase::Unspecified, typename TileRes, typename TileLeft, typename TileRight>
 PTO_INTERNAL void TMATMUL_ACC_IMPL(TileRes& cMatrix, TileLeft& aMatrix, TileRight& bMatrix)
 {
-    TMATMUL_ACC_IMPL<Phase>(cMatrix, cMatrix, aMatrix, bMatrix);
+    RunA6Matmul<false, Phase>(cMatrix, aMatrix, bMatrix);
 }
 
 template <

@@ -114,9 +114,9 @@ TASSIGN(tileB, 0x0);
 TRESHAPE(tileB, tileA);
 ```
 
-## 2.2 使用`TSUBVIEW`来告诉编译器tile B是tile A的一个subview
+## 2.2 使用sub-tile aliasing来告诉编译器tile B是tile A的一个subview
 
-和`TRESHAPE`目的相同，但是用来表达tileB是tileA的一个subview。语义是，tileB的地址是在tileA的首地址基础上，加上一些rowOffset和colOffset而来。auto模式需要这个接口，是因为需要专门的接口来告诉编译器两个tile之间的alias关系。详见`docs/isa/TSUBVIEW_zh.md`。
+和`TRESHAPE`目的相同，但是用来表达tileB是tileA的一个subview。语义是，tileB的地址是在tileA的首地址基础上，加上一些rowOffset和colOffset而来。auto模式需要这个接口，是因为需要专门的接口来告诉编译器两个tile之间的alias关系。详见`docs/auto_mode/Kernel_Developer_Rules_And_Limitations_zh.md`。
 
 示例:
 
@@ -132,7 +132,7 @@ TASSIGN(tileA, 0x0);
 TASSIGN(tileB, 0x0 + rowOffset * TileData::Col + colOffset * 1 + sizeof(T));
 
 // Correct for auto mode
-TSUBVIEW(tileB, tileA, rowOffset, colOffset);
+sub-tile aliasing(tileB, tileA, rowOffset, colOffset);
 ```
 
 ## 2.3 - 记住auto模式的重要编程思维：Tile一旦被定义了，其地址不能在运行时被改变
@@ -153,16 +153,16 @@ manual模式下程序员拥有完全的自由，可以在运行时的任何时�
 因此，对于auto模式来说，一个至关重要的思维模式是：
 **把每个tile想象成一个C++的引用，其在被定义的时候它们的内存就已经被绑定了，且永远不能再变。**
 
-## 2.4 - 正确理解`TRESHAPE`和`TSUBVIEW`在auto模式下的语义
+## 2.4 - 正确理解`TRESHAPE`和sub-tile aliasing在auto模式下的语义
 
 在manual模式下，这两个都是实际上的PTO指令：它们在内部都是直接调用`TASSIGN`。这意味着，就像上一条讲的，理论上程序员可以使用它们在任何时间地点来改变一个Tile的地址。
-然而，在auto模式下，它们不是可执行的PTO指令，而只是单纯的对于编译器的提示：用来表达两个tile之间的alias关系用的。因此，它们不能用来改变tile的地址，所以如果你用`TRESHAPE`或者`TSUBVIEW`在同一个tile上重复用作输出，那是未定义行为，比如：
+然而，在auto模式下，它们不是可执行的PTO指令，而只是单纯的对于编译器的提示：用来表达两个tile之间的alias关系用的。因此，它们不能用来改变tile的地址，所以如果你用`TRESHAPE`或者sub-tile aliasing在同一个tile上重复用作输出，那是未定义行为，比如：
 
 ```cpp
 TRESHAPE(tile0, tile1);
 foo(tile0);
 ...
-TSUBVIEW(tile0, tile2, 0, 0);
+sub-tile aliasing(tile0, tile2, 0, 0);
 bar(tile0);
 ```
 
@@ -199,6 +199,6 @@ kernel开发者应该只调用PTO指令，避免CCE intrinsics。两点原因：
 
 基于这个原因，kernel开发者应该避免调用`Tile::data()`成员函数；理论上讲，这个接口不是给kernel开发者用的，而只是给库开发者在tile function上使用的。
 
-## 3.3 - 尽量使用`PtoSetWaitFlag`或者`TSYNC`而不是`set_flag`和`wait_flag`
+## 3.3 - 尽量使用`PtoSetWaitFlag`或者event synchronization而不是`set_flag`和`wait_flag`
 
-在`PtoSetWaitFlag`和`TSYNC`的内部实现中，存在manual和auto模式的隔离：manual模式下是正常调用`set_flag`和`wait_flag`，而auto模式下是no-op，因此其不会对auto模式下编译器自动插入的同步产生冲突。如果kernel开发者直接调用`set_flag`和`wait_flag`，则他们需要手动使用`__PTO_AUTO__`宏隔离开auto模式，比较麻烦。
+在`PtoSetWaitFlag`和event synchronization的内部实现中，存在manual和auto模式的隔离：manual模式下是正常调用`set_flag`和`wait_flag`，而auto模式下是no-op，因此其不会对auto模式下编译器自动插入的同步产生冲突。如果kernel开发者直接调用`set_flag`和`wait_flag`，则他们需要手动使用`__PTO_AUTO__`宏隔离开auto模式，比较麻烦。

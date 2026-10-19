@@ -413,7 +413,7 @@ AICORE inline float Swiglu<InputElement>::ReduceFullRowMaxAbs(uint32_t bufferId)
         pto::TASSIGN(tmpTile, ubAbsOffset + elemOffset);
         pto::TASSIGN(rowMaxTile, firstReduceChunk ? ubMaxOffset : ubAbsOffset);
         pto::TROWMAX(rowMaxTile, absTile, tmpTile);
-        pto::TSYNC<pto::Op::TROWMAX>();
+        pto::detail::PtoSyncOp<pto::Op::TROWMAX>();
         if (!firstReduceChunk) {
             ScalarTile accTile(1, 1);
             ScalarTile newTile(1, 1);
@@ -422,7 +422,7 @@ AICORE inline float Swiglu<InputElement>::ReduceFullRowMaxAbs(uint32_t bufferId)
             pto::TASSIGN(newTile, ubAbsOffset);
             pto::TASSIGN(dstTile, ubMaxOffset);
             pto::TMAX(dstTile, accTile, newTile);
-            pto::TSYNC<pto::Op::TMAX>();
+            pto::detail::PtoSyncOp<pto::Op::TMAX>();
         }
         firstReduceChunk = false;
     }

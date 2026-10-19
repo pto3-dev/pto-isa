@@ -95,10 +95,10 @@ void test_tdeinterleave()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden0(fileSizeTile);
-    std::vector<T> golden1(fileSizeTile);
-    std::vector<T> devFinal0(fileSizeTile);
-    std::vector<T> devFinal1(fileSizeTile);
+    std::vector<T> golden0(fileSizeTile / sizeof(T));
+    std::vector<T> golden1(fileSizeTile / sizeof(T));
+    std::vector<T> devFinal0(fileSizeTile / sizeof(T));
+    std::vector<T> devFinal1(fileSizeTile / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden0.bin", fileSizeTile, golden0.data(), fileSizeTile);
     ReadFile(GetGoldenDir() + "/golden1.bin", fileSizeTile, golden1.data(), fileSizeTile);
     ReadFile(GetGoldenDir() + "/output0.bin", fileSizeTile, devFinal0.data(), fileSizeTile);
@@ -189,10 +189,10 @@ void test_tdeinterleave_single_src()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden0(fileSizeTile);
-    std::vector<T> golden1(fileSizeTile);
-    std::vector<T> devFinal0(fileSizeTile);
-    std::vector<T> devFinal1(fileSizeTile);
+    std::vector<T> golden0(fileSizeTile / sizeof(T));
+    std::vector<T> golden1(fileSizeTile / sizeof(T));
+    std::vector<T> devFinal0(fileSizeTile / sizeof(T));
+    std::vector<T> devFinal1(fileSizeTile / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden0.bin", fileSizeTile, golden0.data(), fileSizeTile);
     ReadFile(GetGoldenDir() + "/golden1.bin", fileSizeTile, golden1.data(), fileSizeTile);
     ReadFile(GetGoldenDir() + "/output0.bin", fileSizeTile, devFinal0.data(), fileSizeTile);

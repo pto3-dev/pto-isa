@@ -885,7 +885,7 @@ extern "C" __global__ AICORE void launchTMOV_10(__gm__ uint8_t* out, __gm__ uint
 }
 extern "C" __global__ AICORE void launchTMOV_11(__gm__ uint8_t* out, __gm__ uint8_t* src0, __gm__ uint8_t* src1)
 {
-    runTMOV_UNALIGN<int32_t, int8_t, int8_t, 65, 40, 66, true, true, 96, 64, 96>(
+    runTMOV_UNALIGN<int32_t, int8_t, int8_t, 96, 40, 66, true, true, 96, 64, 96>(
         reinterpret_cast<__gm__ int32_t*>(out), reinterpret_cast<__gm__ int8_t*>(src0),
         reinterpret_cast<__gm__ int8_t*>(src1));
 }

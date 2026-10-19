@@ -35,7 +35,7 @@ PTO_INST RecordEvent TAXPY(TileDataDst &dst, TileDataSrc &src0, typename TileDat
 | `dst` | input/output | Accumulation base and result tile ($y$), read-modify-write, `Vec` |
 | `src0` | input | Scaled source tile ($x$), read-only, `Vec`, same valid shape as `dst` |
 | `scalar` | input | Scalar scale factor ($a$), of type `TileDataSrc::DType` |
-| `events...` | input | Wait events (`WaitEvents`); an implicit `TSYNC` precedes the op |
+| `events...` | input | Wait events (`WaitEvents`); an implicit event synchronization precedes the op |
 
 ## Tile Sizes & Data Types
 
@@ -65,6 +65,10 @@ TAXPY runs on the vector pipeline (`PIPE_V`) using the `vaxpy` ($a \cdot x + y$)
 1. **Same type (`dst` and `src0` share a dtype)**: load `src0` and `dst` per repeat, run `vaxpy(dst, src0, scalar)`, and store back to `dst`; tail columns shorter than a full repeat are masked by a predicate.
 2. **Diff type (`dst`=`float`, `src0`=`half`)**: the half data of `src0` is widened to FP32 before accumulating (on A5 via `UNPK_B16` unpack followed by `vcvt`; on A2/A3 handled natively by `vaxpy` with 4-block src / 8-block dst).
 3. On A2/A3, count mode vs. norm mode is selected based on whether the repeat-stride overflows and the relation between column count and row count, so any valid shape is covered.
+
+In CPU_SIM, the `half`/`half` path rounds the product to `half` before adding it to `dst`, then rounds the sum to
+`half`. This models the two observable half-precision steps instead of evaluating the full expression at host
+floating-point precision.
 
 ## Constraints
 

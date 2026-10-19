@@ -39,7 +39,7 @@ Ordering is defined across three domains:
 - In a single dependent chain, later operations MUST observe earlier committed effects.
 
 2. **Event/synchronization domain**
-- Event operations and `TSYNC` MUST establish the architecture-defined ordering points.
+- Event operations and event synchronization MUST establish the architecture-defined ordering points.
 
 3. **Memory visibility domain**
 - `TLOAD`/`TSTORE` visibility rules apply according to memory-ordering constraints in chapter 11.

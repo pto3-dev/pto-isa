@@ -1,4 +1,4 @@
-﻿# TCOLEXPANDADD
+# TCOLEXPANDADD
 
 
 ## Tile Operation Diagram

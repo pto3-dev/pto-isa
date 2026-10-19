@@ -17,7 +17,7 @@ PTO 虚拟 ISA 的设计目标是：
 - **有效区域优先**：`Rv/Cv` 定义架构计算覆盖。
 - **位置-意图模型**：`Mat/Left/Right/Acc/Bias/Scale` 等类型参与合法性约束。
 - **双编程模型**：Auto 与 Manual 都是架构层公民。
-- **事件中心同步**：顺序通过事件与 `TSYNC` 显式表达。
+- **事件中心同步**：顺序通过事件与 event synchronization 显式表达。
 
 ## 1.3 架构边界
 

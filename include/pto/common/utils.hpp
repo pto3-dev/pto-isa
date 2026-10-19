@@ -84,6 +84,42 @@ PTO_INTERNAL uint32_t CeilAlignment(uint32_t num1, uint32_t num2)
     return (num1 + num2 - 1) / num2 * num2;
 }
 
+template <typename T, typename AddrType>
+PTO_INTERNAL void TASSIGN_IMPL(T& obj, AddrType addr);
+
+namespace detail {
+// Internal helper retained for PTO implementation code after the public TSUBVIEW
+// wrapper was removed. It is not part of the public ISA surface.
+template <typename TileDataDst, typename TileDataSrc>
+PTO_INTERNAL void PtoSubTileView(TileDataDst& dst, TileDataSrc& src, uint16_t rowIdx, uint16_t colIdx)
+{
+    constexpr int kRowStride = TileDataSrc::RowStride;
+    constexpr int kColStride = TileDataSrc::ColStride;
+    const uint64_t totalOffset = rowIdx * kRowStride + colIdx * kColStride;
+
+    static_assert(
+        TileDataDst::Loc == TileDataSrc::Loc, "The destination and source tiles must have the same TileType!");
+
+#ifdef __COSTMODEL
+    dst.data() = src.data() + totalOffset;
+#elif !defined(__PTO_AUTO__)
+    TASSIGN_IMPL(dst, (uint64_t)(src.data() + totalOffset));
+#else
+    static_assert(
+        TileDataDst::BFractal == TileDataSrc::BFractal, "The destination and source tiles must have the same BFractal");
+    PTO_ASSERT(
+        src.GetValidRow() >= dst.GetValidRow(), "The source tile's validRow must be at least as big as the destination "
+                                                "tile's validRow!");
+    PTO_ASSERT(
+        src.GetValidCol() >= dst.GetValidCol(), "The source tile's validCol must be at least as big as the destination "
+                                                "tile's validCol!");
+
+    const uint64_t byteOffset = totalOffset * sizeof(typename TileDataSrc::DType);
+    __cce_alias(dst.data(), src.data(), byteOffset);
+#endif
+}
+} // namespace detail
+
 template <typename T>
 struct B82B16Trait {
     static constexpr bool isB8 = (std::is_same_v<T, int8_t> || std::is_same_v<T, uint8_t>);

@@ -1,4 +1,4 @@
-﻿# TLOG
+# TLOG
 
 
 ## Tile Operation Diagram

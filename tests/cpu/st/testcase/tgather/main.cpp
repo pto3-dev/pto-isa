@@ -376,8 +376,8 @@ void runTGATHERTest(size_t rowsSrc0, size_t colsSrc0, size_t rowsDst, size_t col
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<Src0DstT> golden(dstFileSize);
-    std::vector<Src0DstT> devFinal(dstFileSize);
+    std::vector<Src0DstT> golden(dstFileSize / sizeof(Src0DstT));
+    std::vector<Src0DstT> devFinal(dstFileSize / sizeof(Src0DstT));
     CHECK_RESULT_GTEST(ReadFile(GetGoldenDir() + "/golden.bin", dstFileSize, golden.data(), dstFileSize));
     CHECK_RESULT_GTEST(ReadFile(GetGoldenDir() + "/output.bin", dstFileSize, devFinal.data(), dstFileSize));
 

@@ -18,6 +18,7 @@ np.random.seed(19)
 def gen_golden_data_trem(case_name, param):
     dtype = param.dtype
 
+    tile_row, tile_col = param.tile_row, param.tile_col
     h_valid, w_valid = [param.valid_row, param.valid_col]
 
     if np.issubdtype(dtype, np.integer):
@@ -55,6 +56,17 @@ def gen_golden_data_trem(case_name, param):
         input1 = np.random.uniform(low=value_min, high=value_max, size=(h_valid, w_valid)).astype(dtype)
         input2 = np.random.uniform(low=value_min, high=value_max, size=(h_valid, w_valid)).astype(dtype)
         golden = input1 % input2
+
+    if "inplace" in case_name and (w_valid < tile_col or h_valid < tile_row):
+        full_input1 = np.zeros([tile_row, tile_col]).astype(dtype)
+        full_input2 = np.zeros([tile_row, tile_col]).astype(dtype)
+        full_golden = np.zeros([tile_row, tile_col]).astype(dtype)
+        full_input1[0:h_valid, 0:w_valid] = input1
+        full_input2[0:h_valid, 0:w_valid] = input2
+        full_golden[0:h_valid, 0:w_valid] = golden
+        input1 = full_input1
+        input2 = full_input2
+        golden = full_golden
 
     # Apply valid region constraints
     output = np.zeros(h_valid * w_valid).astype(dtype)
@@ -104,6 +116,11 @@ if __name__ == "__main__":
         TremParams("TREMTest.case_uint64_4x64", np.uint64, 4, 64, 4, 64),
         TremParams("TREMTest.case_int64_32x32", np.int64, 32, 32, 32, 32),
         TremParams("TREMTest.case_uint64_32x32", np.uint64, 32, 32, 32, 32),
+        TremParams("TREMTest.case_int64_4x32_inplace", np.int64, 4, 32, 4, 32),
+TremParams("TREMTest.case_uint64_4x32_inplace", np.uint64, 4, 32, 4, 32),
+        TremParams("TREMTest.case_int64_1x1024_inplace", np.int64, 1, 1024, 1, 1024),
+        TremParams("TREMTest.case_int64_1x2048_2045_inplace", np.int64, 1, 2048, 1, 2045),
+        TremParams("TREMTest.case_int64_4x64_40_inplace", np.int64, 4, 64, 4, 40),
     ]
 
     for param in case_params_list:

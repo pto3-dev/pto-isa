@@ -17,25 +17,37 @@ np.random.seed(19)
 
 def gen_golden_data_tand(case_name, param):
     dtype = param.dtype
+    tile_row, tile_col = param.tile_row, param.tile_col
 
     h_valid, w_valid = [param.valid_row, param.valid_col]
 
-    # Generate random input arrays
-    input1 = np.random.randint(1, 16383, size=h_valid * w_valid).astype(dtype)
-    input2 = np.random.randint(1, 16383, size=h_valid * w_valid).astype(dtype)
+    if dtype in (np.int64, np.uint64):
+        # Full-tile arrays so the written binary sizes match main.cpp's
+        # kTRows_*kTCols_ read. Use large values so the high 32-bit half of
+        # each 64-bit element is exercised.
+        rng = np.random.default_rng(5)
+        size = tile_row * tile_col
+        if dtype == np.int64:
+            input1 = rng.integers(-(2 ** 31), 2 ** 31 - 1, size=size, dtype=np.int64)
+            input2 = rng.integers(-(2 ** 31), 2 ** 31 - 1, size=size, dtype=np.int64)
+        else:
+            input1 = rng.integers(0, 2 ** 32 - 1, size=size, dtype=np.uint64)
+            input2 = rng.integers(0, 2 ** 32 - 1, size=size, dtype=np.uint64)
 
-    # Perform the andbtraction
-    golden = input1 & input2
-
-    # Apply valid region constraints
-    output = np.zeros(h_valid * w_valid).astype(dtype)
+        golden = np.zeros(size).astype(dtype)
+        golden[0:h_valid * w_valid] = (
+            input1[0:h_valid * w_valid] & input2[0:h_valid * w_valid])
+    else:
+        input1 = np.random.randint(1, 16383, size=h_valid * w_valid).astype(dtype)
+        input2 = np.random.randint(1, 16383, size=h_valid * w_valid).astype(dtype)
+        golden = input1 & input2
 
     # Save the input and golden data to binary files
     input1.tofile("input1.bin")
     input2.tofile("input2.bin")
     golden.tofile("golden.bin")
 
-    return output, input1, input2, golden
+    return input1, input2, golden
 
 
 class TAndParams:
@@ -68,6 +80,10 @@ if __name__ == "__main__":
         TAndParams("TANDTest.case9", np.int32, 8, 8, 8, 8),
         TAndParams("TANDTest.case10", np.int16, 16, 16, 16, 16), # half
         TAndParams("TANDTest.case11", np.int32, 8, 8, 8, 8), # float
+        TAndParams("TANDTest.case_int64_4x16_4x15", np.int64, 4, 16, 4, 15),
+        TAndParams("TANDTest.case_uint64_4x16_4x15", np.uint64, 4, 16, 4, 15),
+        TAndParams("TANDTest.case_int64_32x32_32x32", np.int64, 32, 32, 32, 32),
+        TAndParams("TANDTest.case_int64_1x1024_1x1024", np.int64, 1, 1024, 1, 1024),
     ]
 
     for param in case_params_list:

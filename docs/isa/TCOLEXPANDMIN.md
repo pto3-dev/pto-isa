@@ -1,4 +1,4 @@
-﻿# TCOLEXPANDMIN
+# TCOLEXPANDMIN
 
 
 ## Tile Operation Diagram

@@ -1,6 +1,6 @@
 # PTO ISA Conventions
 
-Shared conventions for the per-instruction ISA reference pages in `docs/isa/` and the corresponding C++ intrinsics in `include/pto/common/pto_instr.hpp` are defined below.
+This page defines shared conventions used by the per-instruction ISA reference pages in `docs/isa/` and the corresponding C++ intrinsics in `include/pto/common/pto_instr.hpp`.
 
 ## Notation
 
@@ -36,6 +36,6 @@ For multi-operand instructions (e.g., `src0`, `src1`), the docs assume the input
 ## Events and synchronization
 
 - Instructions may require ordering between memory and vector pipelines. When examples show events (e.g., `set_flag(...)` / `wait_flag(...)`), they indicate the required ordering constraints on the target backend.
-- `TSYNC` is used for explicit synchronization when needed by a sequence of instructions.
+- event synchronization is used for explicit synchronization when needed by a sequence of instructions.
 
 See `docs/coding/Event.md` for the event model used by PTO Tile Lib.

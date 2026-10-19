@@ -31,7 +31,7 @@ svg { font-family: Arial, Helvetica, sans-serif; }
 .validBox { fill: none; stroke-width: 2; stroke-dasharray: 6 4; }
 </style>
 <rect x="0" y="0" width="1200" height="720" class="frame" />
-<rect x="24" y="24" width="1152" height="672" class="panel" />
+<rect x="24" y="24" width="1152" height="672" class="panel"/>
 <text x="40" y="46" class="title">MGATHER</text>
 <text x="40" y="72" class="subtitle">Gather-load elements from global memory into a tile using per-element indices.</text>
 <text x="40" y="92" class="meta">Template: memory</text>
@@ -121,9 +121,9 @@ svg { font-family: Arial, Helvetica, sans-serif; }
 <text x="593" y="374" class="axisText">c</text>
 <text x="553" y="408" class="axisText" text-anchor="end">r</text>
 <circle cx="600" cy="324" r="22" class="opCircle" stroke="#6A47C4" />
-<rect x="583" y="307" width="34" height="34" rx="6" class="opRect" stroke="#6A47C4" />
-<text x="600" y="322.5" class="opText" font-size="8px" text-anchor="middle">MGATHE</text>
-<text x="600" y="331.5" class="opText" font-size="8px" text-anchor="middle">R</text>
+<rect x="583" y="307" width="34" height="34" rx="6" class="opRect" stroke="#6A47C4"/>
+<text x="600" y="322.5" class="opText" text-anchor="middle" font-size="8px">MGATHE</text>
+<text x="600" y="331.5" class="opText" text-anchor="middle" font-size="8px">R</text>
 <path d="M 604 256 L 604 324 L 578 324 L 578 324" class="arrow" stroke="#6A47C4" marker-end="url(#arrow)" />
 <path d="M 772 300 L 772 324 L 622 324 L 622 324" class="arrow" stroke="#6A47C4" marker-end="url(#arrow)" />
 <path d="M 600 346 L 600 347 L 600 347 L 600 348" class="arrow" stroke="#6A47C4" marker-end="url(#arrow)" />

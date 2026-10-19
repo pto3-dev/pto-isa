@@ -1,4 +1,4 @@
-﻿# SETFMATRIX
+# SETFMATRIX
 
 ## 指令示意图
 

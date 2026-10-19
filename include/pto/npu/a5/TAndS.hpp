@@ -48,15 +48,21 @@ __tf__ PTO_INTERNAL OP_NAME(TANDS) OP_TYPE(element_wise) void TAndS(
     constexpr unsigned elementsPerRepeat = CCE_VL / sizeof(T);
     constexpr unsigned dstRowStride = TileDataDst::RowStride;
     constexpr unsigned src0RowStride = TileDataSrc::RowStride;
-    BinaryInstr<AndSOp<T>, TileDataDst, TileDataSrc, T, elementsPerRepeat, blockSizeElem, dstRowStride, src0RowStride>(
-        dstPtr, src0Ptr, src1, validRows, validCols, version);
+    if constexpr (std::is_same_v<T, int64_t> || std::is_same_v<T, uint64_t>) {
+        Int64Scalar<Int64Op::And, T, TileDataDst::Cols, TileDataSrc::Cols>(dstPtr, src0Ptr, src1, validRows, validCols);
+    } else {
+        BinaryInstr<
+            AndSOp<T>, TileDataDst, TileDataSrc, T, elementsPerRepeat, blockSizeElem, dstRowStride, src0RowStride>(
+            dstPtr, src0Ptr, src1, validRows, validCols, version);
+    }
 }
 
 template <typename TileDataDst, typename TileDataSrc>
 PTO_INTERNAL void TANDS_IMPL(TileDataDst& dst, TileDataSrc& src0, typename TileDataSrc::DType src1)
 {
     using T = typename TileDataDst::DType;
-    static_assert(sizeof(T) == 4 || sizeof(T) == 2 || sizeof(T) == 1, "Fix: TANDS has invalid data type.");
+    static_assert(
+        sizeof(T) == 8 || sizeof(T) == 4 || sizeof(T) == 2 || sizeof(T) == 1, "Fix: TANDS has invalid data type.");
     static_assert(TileDataDst::isRowMajor && TileDataSrc::isRowMajor, "Fix: TANDS only support row major layout.");
     static_assert(
         std::is_same_v<T, typename TileDataSrc::DType>,

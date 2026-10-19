@@ -72,8 +72,8 @@ void test_trowmin()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(dstFileSize);
-    std::vector<T> devFinal(dstFileSize);
+    std::vector<T> golden(dstFileSize / sizeof(T));
+    std::vector<T> devFinal(dstFileSize / sizeof(T));
     CHECK_RESULT_GTEST(ReadFile(GetGoldenDir() + "/golden.bin", dstFileSize, golden.data(), dstFileSize));
     CHECK_RESULT_GTEST(ReadFile(GetGoldenDir() + "/output.bin", dstFileSize, devFinal.data(), dstFileSize));
 

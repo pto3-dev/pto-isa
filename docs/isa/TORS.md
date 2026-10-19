@@ -1,4 +1,4 @@
-﻿# TORS
+# TORS
 
 
 ## Tile Operation Diagram

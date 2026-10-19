@@ -83,8 +83,8 @@ void test_ttrans()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(dstFileSize);
-    std::vector<T> result(dstFileSize);
+    std::vector<T> golden(dstFileSize / sizeof(T));
+    std::vector<T> result(dstFileSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", dstFileSize, golden.data(), dstFileSize);
     ReadFile(GetGoldenDir() + "/output.bin", dstFileSize, result.data(), dstFileSize);
 
@@ -136,8 +136,8 @@ void test_ttrans_group()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(dstFileSize);
-    std::vector<T> result(dstFileSize);
+    std::vector<T> golden(dstFileSize / sizeof(T));
+    std::vector<T> result(dstFileSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", dstFileSize, golden.data(), dstFileSize);
     ReadFile(GetGoldenDir() + "/output.bin", dstFileSize, result.data(), dstFileSize);
 

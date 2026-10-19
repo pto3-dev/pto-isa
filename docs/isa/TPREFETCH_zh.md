@@ -1,4 +1,4 @@
-﻿# TPREFETCH
+# TPREFETCH
 
 ## 指令示意图
 
@@ -8,7 +8,7 @@
 
 将数据从全局内存预取到Tile本地缓存/缓冲区（实现定义）。这通常用于在随后的 `TLOAD` 之前减少延迟。
 
-注意：与大多数PTO指令不同，`TPREFETCH` 在C++包装器中**不会**隐式调用 `TSYNC(events...)`。
+注意：与大多数PTO指令不同，`TPREFETCH` 在C++包装器中**不会**隐式调用 event waits。
 
 ## 数学语义
 

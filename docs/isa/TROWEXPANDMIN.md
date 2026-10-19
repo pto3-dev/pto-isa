@@ -1,4 +1,4 @@
-﻿# TROWEXPANDMIN
+# TROWEXPANDMIN
 
 
 ## Tile Operation Diagram

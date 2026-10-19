@@ -237,7 +237,7 @@ using TileP = pto::Tile<pto::TileType::Vec, float, 16, PADDED,
 - [ ] `TPREFETCH` used to overlap data movement with compute.
 
 **Synchronization**
-- [ ] `Event<SrcOp, DstOp>` for fine-grained ordering; no global `TSYNC` in the steady-state loop.
+- [ ] `Event<SrcOp, DstOp>` for fine-grained ordering in the steady-state loop.
 - [ ] Each consumer waits only on its specific producer event.
 
 ---

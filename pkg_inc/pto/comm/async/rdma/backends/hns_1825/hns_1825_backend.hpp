@@ -203,8 +203,35 @@ AICORE inline __ubuf__ uint8_t* FillWqeCtrlSeg(__ubuf__ uint8_t* ubBase, uint32_
     return ubBase + sizeof(Hns1825WqeCtrlSeg);
 }
 
+// Inline WRITE uses the bytes after the task segment instead of a data segment.
+AICORE inline __ubuf__ uint8_t* FillInlineWqeCtrlSeg(__ubuf__ uint8_t* ubBase, uint32_t curHead, uint32_t depth)
+{
+    constexpr uint32_t kCtrlValue = 0x40;
+    constexpr uint32_t kDataInlineShift = 6;
+    constexpr uint32_t kVaValue = 0x20;
+    constexpr uint32_t kCqeSignalShift = 7;
+    constexpr uint32_t kOwnerShift = 7;
+    constexpr uint32_t kCmpTaskLenShift = 28;
+    constexpr uint32_t kMsnShift = 12;
+    constexpr uint32_t kMsnMask = 0x3;
+    constexpr uint32_t kSegLenUnit = sizeof(uint64_t);
+    constexpr uint32_t kInlineBytes = sizeof(int32_t);
+    constexpr uint32_t kInlineBdsl = (kInlineBytes + kSegLenUnit - 1U) / kSegLenUnit;
+    const uint16_t wfBdsl = static_cast<uint16_t>(kInlineBdsl | ((curHead & kMsnMask) << kMsnShift));
+
+    __ubuf__ Hns1825WqeCtrlSeg* ctrl = reinterpret_cast<__ubuf__ Hns1825WqeCtrlSeg*>(ubBase);
+    ctrl->owner_sl = (((curHead & depth) == 0U) ? 0U : (1U << kOwnerShift)) | kCtrlValue;
+    ctrl->df_tsl = static_cast<uint8_t>(
+        (1U << kCqeSignalShift) | (1U << kDataInlineShift) | kVaValue | (sizeof(Hns1825WqeRdmaTaskSeg) / kSegLenUnit));
+    ctrl->wf_bdsl = Htobe16(wfBdsl);
+    ctrl->cl_pi = Htobe32(1U << kCmpTaskLenShift);
+    ctrl->db = 0;
+    return ubBase + sizeof(Hns1825WqeCtrlSeg);
+}
+
 // Fill the 32B RDMA task segment (opcode / len / remote VA / rkey / ulp).
-AICORE inline __ubuf__ uint8_t* FillWqeTaskSeg(__ubuf__ uint8_t* addr, const RdmaSendWr& wr, RdmaOpcode opcode)
+AICORE inline __ubuf__ uint8_t* FillWqeTaskSeg(
+    __ubuf__ uint8_t* addr, const RdmaSendWr& wr, RdmaOpcode opcode, bool fence = false)
 {
     constexpr uint32_t kMsgWrite = 0x04;
     constexpr uint32_t kMsgRead = 0x08;
@@ -214,6 +241,7 @@ AICORE inline __ubuf__ uint8_t* FillWqeTaskSeg(__ubuf__ uint8_t* addr, const Rdm
     __ubuf__ Hns1825WqeRdmaTaskSeg* task = (__ubuf__ Hns1825WqeRdmaTaskSeg*)(__ubuf__ void*)addr;
     task->com_tsk.value = 0;
     task->com_tsk.bs.signal = 1;
+    task->com_tsk.bs.fence = fence ? 1U : 0U;
     task->com_tsk.bs.opcode = hwOpcode;
     task->com_tsk.value = Htobe32(task->com_tsk.value);
     task->data_len = Htobe32((uint32_t)wr.message_len);
@@ -260,6 +288,21 @@ AICORE inline uint32_t FillWqeWriteRead(
     WriteInvalidWqebb(sqCtx, curHead + 1);
     WriteUbToGmWithSync((uint64_t)wqeAddr, ub, kHns1825WriteReadWqeSize, syncId);
     return kHns1825WriteReadWqeSize;
+}
+
+// Assemble one fenced 4-byte inline RDMA WRITE. The inline value is payload
+// data and therefore stays in host byte order; only WQE control fields are
+// converted to the NIC's big-endian format.
+AICORE inline void FillWqeInlineSet(
+    const RdmaSendWr& wr, int32_t signalValue, __gm__ RoceSqCtx* sqCtx, __gm__ uint8_t* wqeAddr, uint32_t curHead,
+    __ubuf__ uint8_t* ub, uint32_t syncId)
+{
+    __ubuf__ uint8_t* inlineData =
+        FillWqeTaskSeg(FillInlineWqeCtrlSeg(ub, curHead, sqCtx->depth), wr, RdmaOpcode::OP_RDMA_WRITE, true);
+    *reinterpret_cast<__ubuf__ uint64_t*>(inlineData) = static_cast<uint32_t>(signalValue);
+    *reinterpret_cast<__ubuf__ uint64_t*>(inlineData + sizeof(uint64_t)) = 0U;
+    WriteInvalidWqebb(sqCtx, curHead + 1U);
+    WriteUbToGmWithSync(reinterpret_cast<uint64_t>(wqeAddr), ub, kHns1825WriteReadWqeSize, syncId);
 }
 
 // Ring the SQ doorbell: update PI mirror, publish software doorbell, write hardware doorbell via st_dev.
@@ -335,6 +378,56 @@ AICORE inline PostSendResult PostSendReadWrite(const RdmaExecContext& ctx, RdmaS
     return {curHead, 0};
 }
 
+// Post payload WRITE followed by a fenced inline signal WRITE. Both WQEs are
+// signaled and consume one WQEBB/CQE each, so the existing head/tail mapping
+// remains valid. The SQ is published once after both WQEs are complete.
+AICORE inline PostSendResult PostSendWriteNotify(
+    const RdmaExecContext& ctx, RdmaSendWr& payloadWr, RdmaSendWr& signalWr, int32_t signalValue)
+{
+    __gm__ RdmaInfo* info = reinterpret_cast<__gm__ RdmaInfo*>(ctx.contextGm);
+    const uint32_t pe = ctx.destRankId;
+    const uint32_t qpIdx = ctx.qpIdx;
+    const uint32_t qpNum = info->qpNum;
+    __ubuf__ uint8_t* ub = ctx.tmpBuf.addr;
+    const uint32_t syncId = ctx.syncId;
+
+    __gm__ RoceSqCtx* sqCtx = reinterpret_cast<__gm__ RoceSqCtx*>(
+        info->sqPtr + (static_cast<uint64_t>(pe) * qpNum + qpIdx) * sizeof(RoceSqCtx));
+    const uint32_t depth = sqCtx->depth;
+    uint32_t curHead = ReadU32Gm(sqCtx->headAddr);
+    const uint32_t curTail = ReadU32Gm(sqCtx->tailAddr);
+
+    // The workspace rejects depths <= the threshold. If the threshold is
+    // reached, draining all outstanding CQEs leaves room for both WQEs before
+    // any queue state is modified.
+    if (curHead - curTail >= depth - kHns1825PollCqThreshold) {
+        const uint32_t status = PollCq(info, pe, qpIdx, curHead, ub, syncId);
+        if (status != 0U) {
+            return {curHead, status};
+        }
+    }
+
+    __gm__ RdmaMemInfo* remoteMem = reinterpret_cast<__gm__ RdmaMemInfo*>(info->memPtr + sizeof(RdmaMemInfo) * pe);
+    __gm__ RdmaMemInfo* localMem = reinterpret_cast<__gm__ RdmaMemInfo*>(info->memPtr + sizeof(RdmaMemInfo) * ctx.myPe);
+    payloadWr.rkey = remoteMem->rkey;
+    payloadWr.lkey = localMem->lkey;
+    signalWr.rkey = remoteMem->rkey;
+    signalWr.lkey = localMem->lkey;
+
+    __gm__ uint8_t* payloadWqe = GetSendWqe(sqCtx, curHead & (depth - 1U));
+    (void)FillWqeWriteRead(payloadWr, sqCtx, payloadWqe, curHead, RdmaOpcode::OP_RDMA_WRITE, ub, syncId);
+    dcci(reinterpret_cast<__gm__ void*>(payloadWqe), SINGLE_CACHE_LINE);
+
+    ++curHead;
+    __gm__ uint8_t* signalWqe = GetSendWqe(sqCtx, curHead & (depth - 1U));
+    FillWqeInlineSet(signalWr, signalValue, sqCtx, signalWqe, curHead, ub, syncId);
+    dcci(reinterpret_cast<__gm__ void*>(signalWqe), SINGLE_CACHE_LINE);
+
+    ++curHead;
+    RingSqDoorbell(sqCtx, curHead, ub, syncId);
+    return {curHead, 0U};
+}
+
 AICORE inline bool IsRangeInsideMr(uint64_t address, uint64_t length, __gm__ const RdmaMemInfo* mem)
 {
     if (mem == nullptr || address < mem->addr || length == 0 || length > mem->size) {
@@ -361,6 +454,17 @@ AICORE inline uint32_t ValidateTransfer(
     return IsRangeInsideMr(localAddr, len, localMem) && IsRangeInsideMr(remoteAddr, len, remoteMem) ?
                0 :
                kHns1825InvalidArgumentError;
+}
+
+AICORE inline uint32_t ValidateNotifySignal(const RdmaExecContext& ctx, uint64_t remoteSignalAddr)
+{
+    if ((remoteSignalAddr & (alignof(int32_t) - 1U)) != 0U) {
+        return kHns1825InvalidArgumentError;
+    }
+    __gm__ RdmaInfo* info = reinterpret_cast<__gm__ RdmaInfo*>(ctx.contextGm);
+    __gm__ RdmaMemInfo* remoteMem =
+        reinterpret_cast<__gm__ RdmaMemInfo*>(info->memPtr + sizeof(RdmaMemInfo) * ctx.destRankId);
+    return IsRangeInsideMr(remoteSignalAddr, sizeof(int32_t), remoteMem) ? 0U : kHns1825InvalidArgumentError;
 }
 
 } // namespace detail
@@ -435,6 +539,32 @@ AICORE inline uint64_t Write(const RdmaExecContext& ctx, __gm__ uint8_t* dst, __
     wr.message_len = len;
     detail::PostSendResult result = detail::PostSendReadWrite<RdmaOpcode::OP_RDMA_WRITE>(ctx, wr);
     return result.status == 0 ? EncodeHandle(ctx.destRankId, result.curHead) : EncodeErrorHandle(result.status);
+}
+
+// RDMA WRITE followed by a fenced 4-byte inline RDMA WRITE to remoteSignal.
+AICORE inline uint64_t WriteNotify(
+    const RdmaExecContext& ctx, __gm__ uint8_t* dst, __gm__ uint8_t* src, uint64_t len, __gm__ int32_t* remoteSignal,
+    int32_t signalValue)
+{
+    uint32_t status =
+        detail::ValidateTransfer(ctx, reinterpret_cast<uint64_t>(src), reinterpret_cast<uint64_t>(dst), len);
+    if (status == 0U) {
+        status = detail::ValidateNotifySignal(ctx, reinterpret_cast<uint64_t>(remoteSignal));
+    }
+    if (status != 0U) {
+        return EncodeErrorHandle(status);
+    }
+
+    RdmaSendWr payloadWr{};
+    payloadWr.remote_addr = dst;
+    payloadWr.local_addr = src;
+    payloadWr.message_len = len;
+    RdmaSendWr signalWr{};
+    signalWr.remote_addr = reinterpret_cast<__gm__ uint8_t*>(remoteSignal);
+    signalWr.message_len = sizeof(int32_t);
+
+    const detail::PostSendResult result = detail::PostSendWriteNotify(ctx, payloadWr, signalWr, signalValue);
+    return result.status == 0U ? EncodeHandle(ctx.destRankId, result.curHead) : EncodeErrorHandle(result.status);
 }
 
 // RDMA READ: dst is local, src is remote (remote goes into wr.remote_addr).

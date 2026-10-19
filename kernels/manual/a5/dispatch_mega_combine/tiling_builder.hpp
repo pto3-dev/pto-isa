@@ -49,19 +49,17 @@ struct A5FixedScheduleConfig {
     uint32_t dispatchGroupSize = 0U;
     uint32_t gmm1GroupSize = 0U;
     uint32_t gmm2GroupSize = 0U;
+    uint32_t fullAicGmm1WaveCount = kMegaMoeFullAicGmm1WaveCount;
     uint32_t unpermuteTwoPhaseMinM = 0U;
     uint32_t unpermutePhase1Aiv0WorkerCount = 0U;
 
-    constexpr uint32_t PhysicalAivNum() const
-    {
-        return physicalAicNum * kMegaMoeFixedAivSubblocksPerPhysicalBlock;
-    }
+    constexpr uint32_t PhysicalAivNum() const { return physicalAicNum * kMegaMoeFixedAivSubblocksPerPhysicalBlock; }
 };
 
 // Returns nullptr when the selected effective launch count has no validated default schedule.
-const A5FixedScheduleConfig *FindA5DefaultSchedule(uint32_t effectiveAicNum);
+const A5FixedScheduleConfig* FindA5DefaultSchedule(uint32_t effectiveAicNum);
 
 // Exact canonical-shape cases take precedence over the default for the selected AIC count.
-const A5FixedScheduleConfig *SelectA5FixedSchedule(const CaseConfig &cfg);
+const A5FixedScheduleConfig* SelectA5FixedSchedule(const CaseConfig& cfg);
 
-MegaMoeBuildResult BuildMegaMoeTiling(const CaseConfig &cfg, const StandaloneRankRuntime &runtime);
+MegaMoeBuildResult BuildMegaMoeTiling(const CaseConfig& cfg, const StandaloneRankRuntime& runtime);

@@ -1,4 +1,4 @@
-﻿# TSELS
+# TSELS
 
 ## Tile Operation Diagram
 

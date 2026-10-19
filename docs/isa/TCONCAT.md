@@ -63,8 +63,8 @@ PTO_INST RecordEvent TCONCAT(TileDst &dst, TileSrc0 &src0, TileSrc1 &src1, TileD
 
 - `TCONCAT` has three overload variants:
     - basic form: `TCONCAT(dst, src0, src1)` - concatenates full valid regions
-    - indexed form (5 args): `TCONCAT(dst, src0, src1, src0Idx, src1Idx)` - uses per-row index tiles to specify dynamic column counts
-    - indexed form (6 args): `TCONCAT(dst, src0, src1, dstIdx, src0Idx, src1Idx)` - also outputs the concatenated column count per row
+    - indexed form (5 args): `TCONCAT(dst, src0, src1, src0Idx, src1Idx)` - uses per-row index tiles to specify dynamic byte counts
+    - indexed form (6 args): `TCONCAT(dst, src0, src1, dstIdx, src0Idx, src1Idx)` - also outputs the concatenated byte count per row
 - All tiles must have `TileType::Vec` (vector tiles)
 - All tiles must use row-major layout (`isRowMajor == true`)
 
@@ -76,8 +76,14 @@ PTO_INST RecordEvent TCONCAT(TileDst &dst, TileSrc0 &src0, TileSrc1 &src1, TileD
     - A5: `dst.GetValidCol() == src0.GetValidCol() + src1.GetValidCol()` (total columns must equal dst valid columns)
 - Indexed form:
     - Same row count constraints as basic form
-    - Column counts are determined dynamically from index tiles
-    - `dstIdx.GetValidRow() == 1` for 6-argument form
+    - For each row, the first index element is a byte count. The implementation divides it by the index element size to obtain the source column count, then clips the concatenated result to `dst.GetValidCol()`.
+    - `dstIdx.GetValidCol() == 1` for the 6-argument form. Each output element stores the clipped concatenated column count in bytes.
+
+### A2/A3 indexed-form implementation behavior
+
+- Full vector repeats and the remaining masked tail are copied separately.
+- When a source count is smaller than one vector repeat, the row is copied entirely by the masked-tail path.
+- A full-repeat `vcopy` is issued only when its repeat count is greater than zero; a zero full-repeat count is skipped.
 
 ### Data type constraints
 

@@ -44,7 +44,6 @@ PTO Tile Lib 的测试与示例，覆盖 CPU 仿真与 NPU（`sim` 和板上 `np
 - `run_comm_test.sh`：通信 ST 一键脚本（详见下方说明）
 - `run_costmodel.py`：代价模型运行脚本
 - `run_costmodel_tests.sh`：代价模型一键脚本
-- `run_pipeline.sh`：流水线测试脚本
 - `validate_op_coverage.py`：算子覆盖率验证脚本
 - `validate_testcase_names.py`：用例命名规范验证脚本
 

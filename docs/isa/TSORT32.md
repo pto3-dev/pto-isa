@@ -1,4 +1,4 @@
-﻿# TSort32
+# TSort32
 
 ## Tile Operation Diagram
 
@@ -85,7 +85,7 @@ For `src` of shape $R \times C$ (valid region), block size 32:
 | `validCol` arbitrary (4-arg) | tail block padded to 32 with $-\infty$ via `tmp` |
 | `repeat = validCol/32` (3-arg) or `ceil(validCol/32)` (4-arg) | VBS32 repeat count, ≤ 255 per call; larger `validCol` splits into multiple `vbitsort` calls |
 | `tmp` (4-arg) ≥ `tmpSize` elements (equation below) | holds the padded copy of the tail/row |
-| No `WaitEvents&...` / no internal `TSYNC` | synchronize explicitly if needed |
+| No `WaitEvents&...` / no internal event synchronization | synchronize explicitly if needed |
 
 ### `tmp` size equation (4-arg)
 

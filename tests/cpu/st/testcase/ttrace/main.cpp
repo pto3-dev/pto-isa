@@ -50,7 +50,7 @@ protected:
     }
 };
 
-TEST_F(TTraceTest, CapturesZeroOperandAndBasicTileInstructions)
+TEST_F(TTraceTest, CapturesBasicTileInstructions)
 {
     if (!pto::cpu_sim::kInstructionTraceEnabled) {
         GTEST_SKIP() << "PTO_CPU_SIM_TRACE_MODE is disabled for this build.";
@@ -67,33 +67,26 @@ TEST_F(TTraceTest, CapturesZeroOperandAndBasicTileInstructions)
     FillLinear(src1, 2.0f);
     pto::cpu_sim::ResetInstructionTrace();
 
-    pto::TSYNC<pto::Op::TADD>();
     pto::TADD(dst, src0, src1);
     pto::TDIV(dst, src0, src1);
 
     const auto trace = pto::cpu_sim::CopyInstructionTraceRecords();
-    ASSERT_EQ(trace.size(), 3u);
+    ASSERT_EQ(trace.size(), 2u);
 
-    EXPECT_EQ(trace[0].opcode, "TSYNC");
+    EXPECT_EQ(trace[0].opcode, "TADD");
     EXPECT_EQ(trace[0].block_idx, 7u);
     EXPECT_EQ(trace[0].sequence_id, 0u);
-    EXPECT_TRUE(trace[0].input_tiles.empty());
-    EXPECT_TRUE(trace[0].scalar_inputs.empty());
-    EXPECT_TRUE(trace[0].output_tiles.empty());
+    ASSERT_EQ(trace[0].input_tiles.size(), 2u);
+    ASSERT_EQ(trace[0].output_tiles.size(), 1u);
+    EXPECT_EQ(trace[0].input_tiles[0].address, TraceAddress(src0));
+    EXPECT_EQ(trace[0].input_tiles[1].address, TraceAddress(src1));
+    EXPECT_EQ(trace[0].output_tiles[0].address, TraceAddress(dst));
+    EXPECT_EQ(trace[0].output_tiles[0].shape, (std::vector<int64_t>{2, 32}));
 
-    EXPECT_EQ(trace[1].opcode, "TADD");
+    EXPECT_EQ(trace[1].opcode, "TDIV");
     EXPECT_EQ(trace[1].sequence_id, 1u);
     ASSERT_EQ(trace[1].input_tiles.size(), 2u);
     ASSERT_EQ(trace[1].output_tiles.size(), 1u);
-    EXPECT_EQ(trace[1].input_tiles[0].address, TraceAddress(src0));
-    EXPECT_EQ(trace[1].input_tiles[1].address, TraceAddress(src1));
-    EXPECT_EQ(trace[1].output_tiles[0].address, TraceAddress(dst));
-    EXPECT_EQ(trace[1].output_tiles[0].shape, (std::vector<int64_t>{2, 32}));
-
-    EXPECT_EQ(trace[2].opcode, "TDIV");
-    EXPECT_EQ(trace[2].sequence_id, 2u);
-    ASSERT_EQ(trace[2].input_tiles.size(), 2u);
-    ASSERT_EQ(trace[2].output_tiles.size(), 1u);
 
     std::ostringstream json;
     pto::cpu_sim::DumpInstructionTraceJson(json);

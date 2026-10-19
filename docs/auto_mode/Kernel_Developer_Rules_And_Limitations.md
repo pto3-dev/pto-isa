@@ -111,9 +111,9 @@ TASSIGN(tileB, 0x0);
 TRESHAPE(tileB, tileA);
 ```
 
-## 2.2 Use `TSUBVIEW` to tell compiler that tile B is a sub-view of tile A ***
+## 2.2 Use sub-tile aliasing to tell compiler that tile B is a sub-view of tile A ***
 
-Same purpose as `TRESHAPE`, but this is used to express that tile B's address is based on tile A's address, plus some offset. This interface is needed for auto mode because it tells the compiler how 2 tiles alias with each other. You can check `docs/isa/TSUBVIEW.md` for details.
+Same purpose as `TRESHAPE`, but this is used to express that tile B's address is based on tile A's address, plus some offset. This interface is needed for auto mode because it tells the compiler how 2 tiles alias with each other. You can check `docs/auto_mode/Kernel_Developer_Rules_And_Limitations.md` for details.
 
 Example:
 
@@ -129,7 +129,7 @@ TASSIGN(tileA, 0x0);
 TASSIGN(tileB, 0x0 + rowOffset * TileData::Col + colOffset * 1 + sizeof(T));
 
 // Correct for auto mode
-TSUBVIEW(tileB, tileA, rowOffset, colOffset);
+sub-tile aliasing(tileB, tileA, rowOffset, colOffset);
 ```
 
 ## 2.3 - Keep in mind that tile's memory shouldn't change at runtime in auto mode
@@ -149,7 +149,7 @@ Users in manual mode can use trick like this to change a tile' address at any po
 Here's a crucial mindset for auto mode:
 **think of a tile as a C++ reference, meaning that its memory address is already determined and cannot change once declared**.
 
-## 2.4 - Correctly understand the semantics of `TRESHAPE` and `TSUBVIEW`
+## 2.4 - Correctly understand the semantics of `TRESHAPE` and sub-tile aliasing
 
 In manual mode, they are both actual PTO instructions that (re)assign an address to a tile. However, their semantic is different in auto mode: **they simply serve as a hint to the compiler about how 2 tiles alias with each other.**
 
@@ -157,21 +157,21 @@ In manual mode, they are both actual PTO instructions that (re)assign an address
 
     The semantic of the `TRESHAPE` instruction is slightly different in the AUTO mode compared to the Manual Mode. In Manual Mode, ``TRESHAPE`` it assigns the address of the ``source`` tile to the ``destination`` tile at the point of execution of the ``TRESHAPE`` instruction. However, in the AUTO mode, `TRESHAPE` acts as a mechanism to bind the source and destination tile to the same address. This binding is valid across the entire scope in which the source and destination tiles are defined.
 
-* `TSUBVIEW`:
+* sub-tile aliasing:
 
-    The `TSUBVIEW` instruction allows users obtain a subtile from a larger tile. In the AUTO mode, the compiler calculates the relative offset of the subtile and add it to the automatically allocated address of the base tile.
+    The sub-tile aliasing instruction allows users obtain a subtile from a larger tile. In the AUTO mode, the compiler calculates the relative offset of the subtile and add it to the automatically allocated address of the base tile.
 
-Note that since in the AUTO mode is that the address of a tile cannot change throughout its scope, a tile cannot be used as the destination for multiple `TRESHAPE` or `TSUBVIEW` instructions. For example, the following example is invalid in the AUTO mode and the actual behavior is undefined.
+Note that since in the AUTO mode is that the address of a tile cannot change throughout its scope, a tile cannot be used as the destination for multiple `TRESHAPE` or sub-tile aliasing instructions. For example, the following example is invalid in the AUTO mode and the actual behavior is undefined.
 
 ```cpp
 TRESHAPE(tile0, tile1);
 foo(tile0);
 ...
-TSUBVIEW(tile0, tile2, 0, 0);
+sub-tile aliasing(tile0, tile2, 0, 0);
 bar(tile0);
 ```
 
-As a good practice, it is highly recommended that the ``TSUBVIEW`` and ``TRESHAPE`` instructions are placed right the declaration of the destination tiles.
+As a good practice, it is highly recommended that the `sub-tile aliasing` and ``TRESHAPE`` instructions are placed right the declaration of the destination tiles.
 
 # 3 - General rules
 
@@ -212,8 +212,8 @@ For this reason, you shouldn't call `.data()` member function of a tile directly
 
 If you have no choice (e.g., there's no equivalent of a PTO instruction) but use CCE intrinsics directly, you should summit a request to pto-isa to add new PTO instruction.
 
-## 3.3 - Prefer using `PtoSetWaitFlag` or `TSYNC` instead of `set_flag` and `wait_flag`
+## 3.3 - Prefer using `PtoSetWaitFlag` or event synchronization instead of `set_flag` and `wait_flag`
 
-Internal implementation of `PtoSetWaitFlag` and `TSYNC` have guards against manual and auto mode; when compiling in auto mode, this interface is a no-op, so that it doesn't conflict with auto-sync from compiler. This can save you some typing and make the code look cleaner.
+Internal implementation of `PtoSetWaitFlag` and event synchronization have guards against manual and auto mode; when compiling in auto mode, this interface is a no-op, so that it doesn't conflict with auto-sync from compiler. This can save you some typing and make the code look cleaner.
 
 If you call `set_flag` and `wait_flag` directly in your kernel, you always need to manually guard it using the macro `__PTO_AUTO__`, which is cumbersome.

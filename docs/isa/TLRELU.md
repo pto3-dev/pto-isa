@@ -1,4 +1,4 @@
-﻿# TLRELU
+# TLRELU
 
 
 ## Tile Operation Diagram

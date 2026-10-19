@@ -20,15 +20,14 @@ See LICENSE in the root of the software repository for the full text of the Lice
 namespace pto {
 
 #if defined(PTO_NPU_ARCH_A5) || defined(PTO_NPU_ARCH_A6)
-template <typename T>
+template <CmpMode Mode, typename T>
 PTO_INTERNAL void Int64CompareRelationalRegs(
-    MaskReg& dst, vector_s32& lhsLow, vector_s32& lhsHigh, vector_s32& rhsLow, vector_s32& rhsHigh, CmpMode mode,
-    MaskReg& mask)
+    MaskReg& dst, vector_s32& lhsLow, vector_s32& lhsHigh, vector_s32& rhsLow, vector_s32& rhsHigh, MaskReg& mask)
 {
     MaskReg lowEq, highCmp, lowCmp;
     vcmp_eq(lowEq, lhsHigh, rhsHigh, mask);
-    if (mode == CmpMode::LT || mode == CmpMode::LE) {
-        if (mode == CmpMode::LT)
+    if constexpr (Mode == CmpMode::LT || Mode == CmpMode::LE) {
+        if constexpr (Mode == CmpMode::LT)
             vcmp_lt(lowCmp, (vector_u32&)lhsLow, (vector_u32&)rhsLow, mask);
         else
             vcmp_le(lowCmp, (vector_u32&)lhsLow, (vector_u32&)rhsLow, mask);
@@ -38,7 +37,7 @@ PTO_INTERNAL void Int64CompareRelationalRegs(
             vcmp_lt(highCmp, (vector_u32&)lhsHigh, (vector_u32&)rhsHigh, mask);
         }
     } else {
-        if (mode == CmpMode::GT)
+        if constexpr (Mode == CmpMode::GT)
             vcmp_gt(lowCmp, (vector_u32&)lhsLow, (vector_u32&)rhsLow, mask);
         else
             vcmp_ge(lowCmp, (vector_u32&)lhsLow, (vector_u32&)rhsLow, mask);
@@ -68,98 +67,82 @@ PTO_INTERNAL void Int64CompareNotEqualRegs(
     por(dst, lowNe, highNe, mask);
 }
 
-template <typename T>
+template <CmpMode Mode, typename T>
 PTO_INTERNAL void Int64CompareRegs(
-    MaskReg& dst, vector_s32& lhsLow, vector_s32& lhsHigh, vector_s32& rhsLow, vector_s32& rhsHigh, CmpMode mode,
-    MaskReg& mask)
+    MaskReg& dst, vector_s32& lhsLow, vector_s32& lhsHigh, vector_s32& rhsLow, vector_s32& rhsHigh, MaskReg& mask)
 {
-    if (mode == CmpMode::EQ) {
+    if constexpr (Mode == CmpMode::EQ) {
         Int64CompareEqualRegs(dst, lhsLow, lhsHigh, rhsLow, rhsHigh, mask);
-        return;
-    }
-    if (mode == CmpMode::NE) {
+    } else if constexpr (Mode == CmpMode::NE) {
         Int64CompareNotEqualRegs(dst, lhsLow, lhsHigh, rhsLow, rhsHigh, mask);
-        return;
+    } else {
+        Int64CompareRelationalRegs<Mode, T>(dst, lhsLow, lhsHigh, rhsLow, rhsHigh, mask);
     }
-    Int64CompareRelationalRegs<T>(dst, lhsLow, lhsHigh, rhsLow, rhsHigh, mode, mask);
 }
 
-template <unsigned ElementsPerRepeat>
-PTO_INTERNAL void Int64ComparePairArgs(
-    uint16_t pairRepeat, uint32_t remainingCols, uint32_t& colOffset0, uint32_t& colOffset1, MaskReg& mask0,
-    MaskReg& mask1)
+template <CmpMode Mode, typename T, unsigned DstRowBytes, unsigned Src0Cols, unsigned Src1Cols>
+PTO_INTERNAL void Int64CompareMode(
+    __ubuf__ uint8_t* dst, __ubuf__ T* src0, __ubuf__ T* src1, unsigned validRows, unsigned validCols)
 {
-    (void)remainingCols;
-    colOffset0 = pairRepeat * ElementsPerRepeat * 2;
-    colOffset1 = colOffset0 + ElementsPerRepeat;
-    mask0 = pset_b32(PAT_ALL);
-    mask1 = pset_b32(PAT_ALL);
-}
+    constexpr unsigned elementsPerRepeat = 64; // vlds+DINTLV_B32 loads 64 int64 elements (512B)
+    uint16_t repeatTimes = CeilDivision(validCols, elementsPerRepeat) + 1; // +1 to ensure even pair
+    __VEC_SCOPE__
+    {
+        vector_s32 lhsLow0, lhsHigh0, rhsLow0, rhsHigh0;
+        vector_s32 lhsLow1, lhsHigh1, rhsLow1, rhsHigh1;
+        uint16_t rows = validRows;
+        constexpr int32_t dstRepeatStride = 2 * elementsPerRepeat / 32;
+        for (uint16_t row = 0; row < rows; ++row) {
+            __ubuf__ uint32_t* rowDst = (__ubuf__ uint32_t*)(dst + row * DstRowBytes);
+            uint32_t sreg = validCols;
+            for (uint16_t j = 0; j < (uint16_t)(repeatTimes / 2); ++j) {
+                MaskReg preg;
+                MaskReg result0, result1, dstReg, tmpMask;
+                // batch 0
+                uint32_t colOffset0 = j * 2 * elementsPerRepeat;
+                vlds(lhsLow0, lhsHigh0, (__ubuf__ int32_t*)src0, (row * Src0Cols + colOffset0) * 2, DINTLV_B32);
+                vlds(rhsLow0, rhsHigh0, (__ubuf__ int32_t*)src1, (row * Src1Cols + colOffset0) * 2, DINTLV_B32);
+                preg = plt_b32(sreg, POST_UPDATE);
 
-PTO_INTERNAL void Int64CompareStorePairResult(
-    __ubuf__ uint32_t* rowDst, uint16_t pairRepeat, MaskReg& result0, MaskReg& result1)
-{
-    MaskReg packed, unused;
-    pdintlv_b8(packed, unused, result0, result1);
-    psts(packed, rowDst + pairRepeat * 2, 0, PK);
-}
-
-template <unsigned ElementsPerRepeat>
-PTO_INTERNAL void Int64CompareTailArgs(
-    uint16_t pairRepeatTimes, uint32_t remainingCols, uint32_t& colOffset, MaskReg& mask, MaskReg& packedMask)
-{
-    colOffset = pairRepeatTimes * ElementsPerRepeat * 2;
-    uint32_t cols = remainingCols;
-    if (cols > ElementsPerRepeat)
-        cols = ElementsPerRepeat;
-    uint32_t maskCols = cols * 4;
-    mask = plt_b32(maskCols, POST_UPDATE);
-    packedMask = plt_b8(cols, POST_UPDATE);
+                Int64CompareRegs<Mode, T>(result0, lhsLow0, lhsHigh0, rhsLow0, rhsHigh0, preg);
+                // batch 1
+                uint32_t colOffset1 = (j * 2 + 1) * elementsPerRepeat;
+                vlds(lhsLow1, lhsHigh1, (__ubuf__ int32_t*)src0, (row * Src0Cols + colOffset1) * 2, DINTLV_B32);
+                vlds(rhsLow1, rhsHigh1, (__ubuf__ int32_t*)src1, (row * Src1Cols + colOffset1) * 2, DINTLV_B32);
+                preg = plt_b32(sreg, POST_UPDATE);
+                Int64CompareRegs<Mode, T>(result1, lhsLow1, lhsHigh1, rhsLow1, rhsHigh1, preg);
+                // Same pattern as TCmp_32B: pdintlv_b8 + PK
+                pdintlv_b8(dstReg, tmpMask, result0, result1);
+                psts(dstReg, rowDst + j * dstRepeatStride, 0, PK);
+            }
+        }
+    }
 }
 
 template <typename T, unsigned DstRowBytes, unsigned Src0Cols, unsigned Src1Cols>
 PTO_INTERNAL void Int64Compare(
     __ubuf__ uint8_t* dst, __ubuf__ T* src0, __ubuf__ T* src1, CmpMode mode, unsigned validRows, unsigned validCols)
 {
-    constexpr unsigned elementsPerRepeat = 32;
-    uint16_t repeatTimes = CeilDivision(validCols, elementsPerRepeat);
-    uint16_t pairRepeatTimes = repeatTimes / 2;
-    __VEC_SCOPE__
-    {
-        vector_s32 lhsLow0, lhsHigh0, rhsLow0, rhsHigh0;
-        vector_s32 lhsLow1, lhsHigh1, rhsLow1, rhsHigh1;
-        uint16_t rows = validRows;
-        for (uint16_t row = 0; row < rows; ++row) {
-            __ubuf__ uint32_t* rowDst = (__ubuf__ uint32_t*)(dst + row * DstRowBytes);
-            uint32_t remainingCols = validCols;
-            for (uint16_t pairRepeat = 0; pairRepeat < pairRepeatTimes; ++pairRepeat) {
-                uint32_t colOffset0, colOffset1;
-                MaskReg mask0, mask1, result0, result1;
-                Int64ComparePairArgs<elementsPerRepeat>(
-                    pairRepeat, remainingCols, colOffset0, colOffset1, mask0, mask1);
-                vlds(lhsLow0, lhsHigh0, (__ubuf__ int32_t*)src0 + (row * Src0Cols + colOffset0) * 2, 0, DINTLV_B32);
-                vlds(rhsLow0, rhsHigh0, (__ubuf__ int32_t*)src1 + (row * Src1Cols + colOffset0) * 2, 0, DINTLV_B32);
-                vlds(lhsLow1, lhsHigh1, (__ubuf__ int32_t*)src0 + (row * Src0Cols + colOffset1) * 2, 0, DINTLV_B32);
-                vlds(rhsLow1, rhsHigh1, (__ubuf__ int32_t*)src1 + (row * Src1Cols + colOffset1) * 2, 0, DINTLV_B32);
-                Int64CompareRegs<T>(result0, lhsLow0, lhsHigh0, rhsLow0, rhsHigh0, mode, mask0);
-                Int64CompareRegs<T>(result1, lhsLow1, lhsHigh1, rhsLow1, rhsHigh1, mode, mask1);
-                Int64CompareStorePairResult(rowDst, pairRepeat, result0, result1);
-                remainingCols -= elementsPerRepeat * 2;
-            }
-            if ((repeatTimes & 1) != 0) {
-                uint32_t colOffset;
-                MaskReg mask, packedMask;
-                MaskReg result, packed;
-                Int64CompareTailArgs<elementsPerRepeat>(pairRepeatTimes, remainingCols, colOffset, mask, packedMask);
-                vlds(lhsLow0, lhsHigh0, (__ubuf__ int32_t*)src0 + (row * Src0Cols + colOffset) * 2, 0, DINTLV_B32);
-                vlds(rhsLow0, rhsHigh0, (__ubuf__ int32_t*)src1 + (row * Src1Cols + colOffset) * 2, 0, DINTLV_B32);
-                Int64CompareRegs<T>(result, lhsLow0, lhsHigh0, rhsLow0, rhsHigh0, mode, mask);
-                ppack(packed, result, LOWER);
-                ppack(packed, packed, LOWER);
-                pand(packed, packed, packedMask, packedMask);
-                psts(packed, rowDst + pairRepeatTimes * 2, 0, NORM);
-            }
-        }
+    switch (mode) {
+        case CmpMode::NE:
+            Int64CompareMode<CmpMode::NE, T, DstRowBytes, Src0Cols, Src1Cols>(dst, src0, src1, validRows, validCols);
+            break;
+        case CmpMode::LT:
+            Int64CompareMode<CmpMode::LT, T, DstRowBytes, Src0Cols, Src1Cols>(dst, src0, src1, validRows, validCols);
+            break;
+        case CmpMode::GT:
+            Int64CompareMode<CmpMode::GT, T, DstRowBytes, Src0Cols, Src1Cols>(dst, src0, src1, validRows, validCols);
+            break;
+        case CmpMode::GE:
+            Int64CompareMode<CmpMode::GE, T, DstRowBytes, Src0Cols, Src1Cols>(dst, src0, src1, validRows, validCols);
+            break;
+        case CmpMode::LE:
+            Int64CompareMode<CmpMode::LE, T, DstRowBytes, Src0Cols, Src1Cols>(dst, src0, src1, validRows, validCols);
+            break;
+        case CmpMode::EQ:
+        default:
+            Int64CompareMode<CmpMode::EQ, T, DstRowBytes, Src0Cols, Src1Cols>(dst, src0, src1, validRows, validCols);
+            break;
     }
 }
 #else
@@ -266,7 +249,8 @@ __tf__ PTO_INTERNAL OP_NAME(TCMP) OP_TYPE(element_wise) void TCmp_32B(
         constexpr int32_t dstRepeatStride = 2 * repeatElm / CMP_BITS_PER_INDEX;
         for (uint16_t i = 0; i < (uint16_t)(validRow); i++) {
             sReg = validCol;
-            for (uint16_t j = 0; j < (uint16_t)(repeatTimes / 2); j++) {
+            uint16_t halfRepeatTimes = static_cast<uint16_t>(repeatTimes / 2);
+            for (uint16_t j = 0; j < halfRepeatTimes; j++) {
                 vlds(src0Reg0, src0, i * SrcTile0::RowStride + j * 2 * repeatElm, NORM);
                 vlds(src1Reg0, src1, i * SrcTile0::RowStride + j * 2 * repeatElm, NORM);
                 vlds(src0Reg1, src0, i * SrcTile1::RowStride + (j * 2 + 1) * repeatElm, NORM);

@@ -1,4 +1,4 @@
-﻿# TPARTMUL
+# TPARTMUL
 
 
 ## Tile Operation Diagram

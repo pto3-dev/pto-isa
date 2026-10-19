@@ -221,7 +221,7 @@ def gen_golden_data(case_name, param):
     if is_bias:
         golden = (np.matmul(x1_slice.astype(l0c_type), x2_slice.astype(l0c_type)).astype(l0c_type) + bias_slice.astype(l0c_type)).astype(l0c_type)
     else:
-        golden = (np.matmul(x1_slice.astype(l0c_type), x2_slice.astype(l0c_type)).astype(l0c_type)).astype(l0c_type)
+        golden = np.matmul(x1_slice.astype(l0c_type), x2_slice.astype(l0c_type)).astype(l0c_type)
 
     #-----------------------------------------quant------------------------------
     if dst_type == np.int8:

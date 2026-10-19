@@ -102,6 +102,7 @@ set(CMAKE_CPP_COMPILE_OPTIONS
 
 include_directories(
     ${PROJECT_SOURCE_DIR}/../../../../../include
+    ${PROJECT_SOURCE_DIR}/../../../../../pkg_inc
     ${ASCEND_HOME_PATH}/include
     ${ASCEND_DRIVER_PATH}/kernel/inc
 )

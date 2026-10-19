@@ -15,6 +15,25 @@ namespace pto {
 
 inline namespace TMatmulInternal {
 constexpr const int MMAD_MAX_SUPPORT_LENGTH = 4095;
+// mad has no destination-stride operand. Reject static multi-column Acc row
+// windows when mad's compact stride, ceil16(ValidRow), differs from Rows.
+// Dynamic ValidRow is not rejected here because the type cannot distinguish a
+// standalone compact buffer from a parent row window.
+template <typename TileRes>
+PTO_INTERNAL constexpr bool MadAccStrideCompatible()
+{
+    static_assert(TileRes::Loc == TileType::Acc, "MadAccStrideCompatible expects an Acc tile.");
+    if constexpr (TileRes::Compact != CompactMode::Null) {
+        return true;
+    } else if constexpr (TileRes::Cols <= FRACTAL_NZ_ROW) {
+        return true;
+    } else if constexpr (TileRes::ValidRow == DYNAMIC) {
+        return true;
+    } else {
+        return (TileRes::ValidRow + FRACTAL_NZ_ROW - 1) / FRACTAL_NZ_ROW * FRACTAL_NZ_ROW == TileRes::Rows;
+    }
+}
+
 } // namespace TMatmulInternal
 
 template <typename TileLeft, typename TileRight>
@@ -94,6 +113,11 @@ PTO_INTERNAL void CheckStaticMad()
     static_assert(TileLeft::Loc == TileType::Left, "TileLeft TileType must be set to TileType::Left.");
     static_assert(TileRight::Loc == TileType::Right, "TileRight TileType must be set to TileType::Right.");
     static_assert(TileRes::Loc == TileType::Acc, "TileRes TileType must be set to TileType::Acc.");
+    static_assert(
+        MadAccStrideCompatible<TileRes>(),
+        "The Acc tile is a row window of a taller tile (ValidRow < Rows) with more than one block column, "
+        "which mad's compact write stride cannot represent. Use a full-Rows Acc tile per row window, "
+        "or window the columns instead.");
 }
 
 PTO_INTERNAL void CheckDynamicMad(uint16_t aMatrixRow, uint16_t aMatrixCol, uint16_t bMatrixCol)

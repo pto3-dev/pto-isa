@@ -37,7 +37,7 @@ PTO_INST RecordEvent TDEQUANT(TileDataDst &dst, TileDataSrc &src, TileDataPara &
 | `src` | 输入 | 量化源Tile，`S8` 或 `S16`，行主序，有效形状与 `dst` 相同 |
 | `scale` | 输入 | 每行反缩放系数，`FP32`，沿列广播 |
 | `offset` | 输入 | 每行零点偏移，`FP32`，沿列广播 |
-| `events...` | 输入 | 等待事件（`WaitEvents`），指令前隐式 `TSYNC` |
+| `events...` | 输入 | 等待事件（`WaitEvents`），指令前隐式 event synchronization |
 
 `scale` 与 `offset` 必须为同一类型（`TileDataPara`），且其dtype与 `dst` 一致（均为 `FP32`）。
 

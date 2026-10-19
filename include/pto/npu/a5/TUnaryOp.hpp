@@ -19,6 +19,7 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #include "custom/TExp_Custom.hpp"
 #include "custom/TLog_Custom.hpp"
 #include "custom/TSqrtHp.hpp"
+#include "TBinOp.hpp"
 
 namespace pto {
 template <typename Op, typename T, unsigned nRepeatElem>
@@ -153,6 +154,53 @@ PTO_INTERNAL void TUnaryCheck()
         "TUnaryOp: Invalid data type.");
 }
 
+#if defined(PTO_NPU_ARCH_A5) || defined(PTO_NPU_ARCH_A6)
+template <Int64Op Op, typename T, unsigned DstCols, unsigned SrcCols>
+PTO_INTERNAL void Int64UnaryRepeat(__ubuf__ T* dst, __ubuf__ T* src, uint16_t row, uint32_t colOffset, MaskReg& mask)
+{
+    vector_s32 dstLow, dstHigh, srcLow, srcHigh, half0, half1;
+    MaskReg lowMask, highMask;
+    uint32_t srcOffset = (row * SrcCols + colOffset) * 2;
+    uint32_t dstOffset = (row * DstCols + colOffset) * 2;
+    vlds(srcLow, srcHigh, (__ubuf__ int32_t*)src, srcOffset, DINTLV_B32);
+    if constexpr (Op == Int64Op::Not) {
+        vnot((vector_u32&)dstLow, (vector_u32&)srcLow, mask, MODE_ZEROING);
+        vnot((vector_u32&)dstHigh, (vector_u32&)srcHigh, mask, MODE_ZEROING);
+    } else {
+        Int64AbsRegs(dstLow, dstHigh, srcLow, srcHigh, mask);
+    }
+    pintlv_b32(lowMask, highMask, mask, mask);
+    vintlv(half0, half1, dstLow, dstHigh);
+    vsts(half0, (__ubuf__ int32_t*)dst, dstOffset, NORM_B32, lowMask);
+    vsts(half1, (__ubuf__ int32_t*)dst, dstOffset + CCE_VL / sizeof(int32_t), NORM_B32, highMask);
+}
+
+template <Int64Op Op, typename T, unsigned DstCols, unsigned SrcCols>
+PTO_INTERNAL void Int64Unary(__ubuf__ T* dst, __ubuf__ T* src, unsigned validRows, unsigned validCols)
+{
+    constexpr unsigned elementsPerRepeat = CCE_VL * 2 / sizeof(T);
+    __VEC_SCOPE__
+    {
+        uint16_t rowCount = validRows;
+        uint16_t colRepeats = CeilDivision(validCols, elementsPerRepeat);
+        for (uint16_t row = 0; row < rowCount; ++row) {
+            uint32_t sreg = validCols;
+            for (uint16_t colRepeat = 0; colRepeat < colRepeats; ++colRepeat) {
+                MaskReg preg = CreatePredicate<uint32_t>(sreg);
+                Int64UnaryRepeat<Op, T, DstCols, SrcCols>(dst, src, row, colRepeat * elementsPerRepeat, preg);
+            }
+        }
+    }
+}
+#else
+// Declaration-only stubs for kirin9030/kirinX90 (no 64-bit intrinsics).
+// The A5 instruction headers call these templates from discarded if-constexpr
+// branches; they are never instantiated on architectures without 64-bit
+// vector support, so a declaration is sufficient for phase-1 name lookup.
+template <Int64Op Op, typename T, unsigned DstCols, unsigned SrcCols>
+PTO_INTERNAL void Int64Unary(__ubuf__ T* dst, __ubuf__ T* src, unsigned validRows, unsigned validCols);
+#endif
+
 /* TEXP */
 template <ExpAlgorithm PrecisionType, typename T>
 struct ExpOp {
@@ -203,14 +251,19 @@ __tf__ PTO_INTERNAL OP_NAME(TNOT) OP_TYPE(element_wise) void TNot(
     using T = typename DstTile::DType;
     __ubuf__ T* dst = (__ubuf__ T*)__cce_get_tile_ptr(dstData);
     __ubuf__ T* src = (__ubuf__ T*)__cce_get_tile_ptr(srcData);
-    TUnaryOp<DstTile, SrcTile, NotOp<T>>(dst, src, validRow, validCol, version);
+    if constexpr (std::is_same_v<T, int64_t> || std::is_same_v<T, uint64_t>) {
+        Int64Unary<Int64Op::Not, T, DstTile::Cols, SrcTile::Cols>(dst, src, validRow, validCol);
+    } else {
+        TUnaryOp<DstTile, SrcTile, NotOp<T>>(dst, src, validRow, validCol, version);
+    }
 }
 template <typename DstTile, typename SrcTile>
 PTO_INTERNAL void TNOT_IMPL(DstTile& dst, SrcTile& src)
 {
     TUnaryCheck<DstTile, SrcTile, false>();
     static_assert(
-        std::is_same_v<typename DstTile::DType, uint32_t> || std::is_same_v<typename DstTile::DType, int32_t> ||
+        std::is_same_v<typename DstTile::DType, uint64_t> || std::is_same_v<typename DstTile::DType, int64_t> ||
+            std::is_same_v<typename DstTile::DType, uint32_t> || std::is_same_v<typename DstTile::DType, int32_t> ||
             std::is_same_v<typename DstTile::DType, uint16_t> || std::is_same_v<typename DstTile::DType, int16_t> ||
             std::is_same_v<typename DstTile::DType, uint8_t> || std::is_same_v<typename DstTile::DType, int8_t>,
         "TNOT: Invalid data type.");
@@ -307,17 +360,21 @@ __tf__ PTO_INTERNAL OP_NAME(TABS) OP_TYPE(element_wise) void TAbs(
     using T = typename DstTile::DType;
     __ubuf__ T* dst = (__ubuf__ T*)__cce_get_tile_ptr(dstData);
     __ubuf__ T* src = (__ubuf__ T*)__cce_get_tile_ptr(srcData);
-    TUnaryOp<DstTile, SrcTile, AbsOp<T>>(dst, src, validRow, validCol, version);
+    if constexpr (std::is_same_v<T, int64_t>) {
+        Int64Unary<Int64Op::Abs, T, DstTile::Cols, SrcTile::Cols>(dst, src, validRow, validCol);
+    } else {
+        TUnaryOp<DstTile, SrcTile, AbsOp<T>>(dst, src, validRow, validCol, version);
+    }
 }
 template <typename DstTile, typename SrcTile>
 PTO_INTERNAL void TABS_IMPL(DstTile& dst, SrcTile& src)
 {
     TUnaryCheck<DstTile, SrcTile, false>();
     static_assert(
-        std::is_same_v<typename DstTile::DType, float32_t> || std::is_same_v<typename DstTile::DType, float> ||
-            std::is_same_v<typename DstTile::DType, float16_t> || std::is_same_v<typename DstTile::DType, half> ||
-            std::is_same_v<typename DstTile::DType, int8_t> || std::is_same_v<typename DstTile::DType, int16_t> ||
-            std::is_same_v<typename DstTile::DType, int32_t>,
+        std::is_same_v<typename DstTile::DType, int64_t> || std::is_same_v<typename DstTile::DType, float32_t> ||
+            std::is_same_v<typename DstTile::DType, float> || std::is_same_v<typename DstTile::DType, float16_t> ||
+            std::is_same_v<typename DstTile::DType, half> || std::is_same_v<typename DstTile::DType, int8_t> ||
+            std::is_same_v<typename DstTile::DType, int16_t> || std::is_same_v<typename DstTile::DType, int32_t>,
         "TABS: Invalid data type.");
     unsigned dstValidRow = dst.GetValidRow();
     unsigned dstValidCol = dst.GetValidCol();

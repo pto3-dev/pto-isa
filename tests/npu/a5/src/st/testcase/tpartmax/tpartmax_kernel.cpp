@@ -121,6 +121,64 @@ void LaunchTPartMax<uint64_t, 1, 10912, 1, 10912, 1, 10908, false>(
 
 template <
     typename T, int dstVR, int dstVC, int src0VR, int src0VC, int src1VR, int src1VC, int dstTR, int dstTC, int src0TR,
+    int src0TC, int src1TR, int src1TC>
+__global__ AICORE void runTPartMaxInplace(__gm__ T __out__* out, __gm__ T __in__* src1)
+{
+    using GlobalDataDst = GlobalTensor<T, Shape<1, 1, 1, dstVR, dstVC>, pto::Stride<1, 1, dstVR, dstVC, 1>>;
+    using GlobalDataSrc0 = GlobalTensor<T, Shape<1, 1, 1, src0VR, src0VC>, pto::Stride<1, 1, src0VR, src0VC, 1>>;
+    using GlobalDataSrc1 = GlobalTensor<T, Shape<1, 1, 1, src1VR, src1VC>, pto::Stride<1, 1, src1VR, src1VC, 1>>;
+
+    using TileDataDst = Tile<TileType::Vec, T, dstTR, dstTC, BLayout::RowMajor, -1, -1>;
+    using TileDataSrc0 = Tile<TileType::Vec, T, src0TR, src0TC, BLayout::RowMajor, -1, -1>;
+    using TileDataSrc1 = Tile<TileType::Vec, T, src1TR, src1TC, BLayout::RowMajor, -1, -1>;
+
+    TileDataSrc0 src0Tile(src0VR, src0VC);
+    TileDataSrc1 src1Tile(src1VR, src1VC);
+    TileDataDst dstTile(dstVR, dstVC);
+
+    constexpr uint64_t tileBytes = dstTR * dstTC * sizeof(T);
+    TASSIGN(src0Tile, 0x0);
+    TASSIGN(dstTile, 0x0);
+    TASSIGN(src1Tile, tileBytes);
+
+    GlobalDataSrc0 src0Global((__gm__ T*)out);
+    GlobalDataSrc1 src1Global(src1);
+    GlobalDataDst dstGlobal(out);
+
+    TLOAD(src0Tile, src0Global);
+    TLOAD(src1Tile, src1Global);
+#ifndef __PTO_AUTO__
+    set_flag(PIPE_MTE2, PIPE_V, EVENT_ID0);
+    wait_flag(PIPE_MTE2, PIPE_V, EVENT_ID0);
+#endif
+    TPARTMAX<TileDataDst, TileDataSrc0, TileDataSrc1>(dstTile, src0Tile, src1Tile);
+#ifndef __PTO_AUTO__
+    set_flag(PIPE_V, PIPE_MTE3, EVENT_ID0);
+    wait_flag(PIPE_V, PIPE_MTE3, EVENT_ID0);
+#endif
+    TSTORE(dstGlobal, dstTile);
+    out = dstGlobal.data();
+}
+
+template <typename T, int dstVR, int dstVC, int src0VR, int src0VC, int src1VR, int src1VC, bool isHalf = false>
+void LaunchTPartMaxInplace(T* out, T* src1, void* stream)
+{
+    constexpr int alignedSrc0VC = PTO_CEIL(src0VC, BLOCK_BYTE_SIZE / sizeof(T));
+    constexpr int alignedSrc1VC = PTO_CEIL(src1VC, BLOCK_BYTE_SIZE / sizeof(T));
+    constexpr int alignedDstVC = PTO_CEIL(dstVC, BLOCK_BYTE_SIZE / sizeof(T));
+    if constexpr (std::is_same_v<T, aclFloat16> && isHalf == true) {
+        runTPartMaxInplace<
+            half, dstVR, dstVC, src0VR, src0VC, src1VR, src1VC, dstVR, alignedDstVC, src0VR, alignedSrc0VC, src1VR,
+            alignedSrc1VC><<<1, nullptr, stream>>>((half*)out, (half*)src1);
+    } else {
+        runTPartMaxInplace<
+            T, dstVR, dstVC, src0VR, src0VC, src1VR, src1VC, dstVR, alignedDstVC, src0VR, alignedSrc0VC, src1VR,
+            alignedSrc1VC><<<1, nullptr, stream>>>(out, src1);
+    }
+}
+
+template <
+    typename T, int dstVR, int dstVC, int src0VR, int src0VC, int src1VR, int src1VC, int dstTR, int dstTC, int src0TR,
     int src0TC, int src1TR, int src1TC, bool isHalf = false>
 void LaunchTPartMax(T* out, T* src0, T* src1, void* stream)
 {
@@ -178,3 +236,13 @@ template void TPartMaxTest::LaunchTPartMax<int64_t, 4, 64, 4, 64, 4, 64>(
     int64_t* out, int64_t* src0, int64_t* src1, void* stream);
 template void TPartMaxTest::LaunchTPartMax<uint64_t, 4, 64, 4, 64, 4, 64>(
     uint64_t* out, uint64_t* src0, uint64_t* src1, void* stream);
+template void TPartMaxTest::LaunchTPartMaxInplace<int64_t, 4, 32, 4, 32, 4, 32, false>(
+    int64_t* out, int64_t* src1, void* stream);
+template void TPartMaxTest::LaunchTPartMaxInplace<uint64_t, 4, 32, 4, 32, 4, 32, false>(
+    uint64_t* out, uint64_t* src1, void* stream);
+template void TPartMaxTest::LaunchTPartMaxInplace<int64_t, 1, 1024, 1, 1024, 1, 1024, false>(
+    int64_t* out, int64_t* src1, void* stream);
+template void TPartMaxTest::LaunchTPartMaxInplace<int64_t, 4, 64, 4, 64, 4, 40, false>(
+    int64_t* out, int64_t* src1, void* stream);
+template void TPartMaxTest::LaunchTPartMaxInplace<int64_t, 1, 2048, 1, 2048, 1, 2045, false>(
+    int64_t* out, int64_t* src1, void* stream);

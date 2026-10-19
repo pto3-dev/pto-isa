@@ -1,4 +1,4 @@
-﻿# TSCATTER
+# TSCATTER
 
 ## 指令示意图
 

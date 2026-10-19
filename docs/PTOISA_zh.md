@@ -1,6 +1,6 @@
 # PTO ISA 概述
 
-本文档为根据 `docs/isa/manifest.yaml` 自动生成的 ISA 索引。
+本文档为根据 `docs/isa/manifest.yaml` 和通信 ISA 参考自动生成的 ISA 索引。
 
 ## 文档目录
 
@@ -10,6 +10,7 @@
 | 概述 | [`docs/PTOISA_zh.md`](PTOISA_zh.md) | 本页（概述 + 全量指令索引）。 |
 | ISA 参考 | [`docs/isa/README_zh.md`](isa/scalar/ops/micro-instruction/README_zh.md) | 每条指令参考目录。 |
 | ISA 参考 | [`docs/isa/conventions_zh.md`](isa/conventions_zh.md) | 通用符号、操作数、事件与修饰符。 |
+| 通信 ISA | [`docs/isa/comm/README_zh.md`](isa/comm/README_zh.md) | 每条通信 ISA 指令参考。 |
 | 权威源 | [`include/pto/common/pto_instr.hpp`](reference/pto-intrinsics-header_zh.md) | C++ intrinsic API（权威来源）。 |
 | PTO auto 模式 | [`docs/auto_mode/README_zh.md`](README_zh.md) | PTO auto模式文档入口 |
 
@@ -17,18 +18,20 @@
 
 | 分类 | 指令 | 描述 |
 |---|---|---|
-| 同步 | [`TSYNC`](isa/TSYNC_zh.md) | 同步 PTO 执行（等待事件或插入每操作流水线屏障）。 |
 | 同步 | [`SYNCALL`](isa/SYNCALL_zh.md) | 跨核同步屏障（硬件 FFTS 或软件 GM 轮询）。 |
 | 手动 / 资源绑定 | [`TASSIGN`](isa/TASSIGN_zh.md) | 将 Tile 对象绑定到实现定义的片上地址（手动放置）。 |
 | 手动 / 资源绑定 | [`SETFMATRIX`](isa/SETFMATRIX_zh.md) | 为类 IMG2COL 操作设置 FMATRIX 寄存器。 |
 | 手动 / 资源绑定 | [`SET_IMG2COL_RPT`](isa/SET_IMG2COL_RPT_zh.md) | 从 IMG2COL 配置 Tile 设置 IMG2COL 重复次数元数据。 |
 | 手动 / 资源绑定 | [`SET_IMG2COL_PADDING`](isa/SET_IMG2COL_PADDING_zh.md) | 从 IMG2COL 配置 Tile 设置 IMG2COL 填充元数据。 |
+| 手动 / 资源绑定 | [`SET_QUANT_SCALAR`](isa/SET_QUANT_SCALAR_zh.md) | 设置标量量化参数，用于后续 TPUSH 操作。 |
+| 手动 / 资源绑定 | [`SET_QUANT_VECTOR`](isa/SET_QUANT_VECTOR_zh.md) | 从 Scaling Tile 设置向量量化参数，用于后续 TPUSH 操作。 |
 | 逐元素（Tile-Tile） | [`TADD`](isa/TADD_zh.md) | 两个 Tile 的逐元素加法。 |
 | 逐元素（Tile-Tile） | [`TABS`](isa/TABS_zh.md) | Tile 的逐元素绝对值。 |
 | 逐元素（Tile-Tile） | [`TAND`](isa/TAND_zh.md) | 两个 Tile 的逐元素按位与。 |
 | 逐元素（Tile-Tile） | [`TOR`](isa/TOR_zh.md) | 两个 Tile 的逐元素按位或。 |
 | 逐元素（Tile-Tile） | [`TSUB`](isa/TSUB_zh.md) | 两个 Tile 的逐元素减法。 |
 | 逐元素（Tile-Tile） | [`TMUL`](isa/TMUL_zh.md) | 两个 Tile 的逐元素乘法。 |
+| 逐元素（Tile-Tile） | [`TMADD`](isa/TMADD_zh.md) | 三元逐元素运算：`src0 * dst + src1`。 |
 | 逐元素（Tile-Tile） | [`TMIN`](isa/TMIN_zh.md) | 两个 Tile 的逐元素最小值。 |
 | 逐元素（Tile-Tile） | [`TMAX`](isa/TMAX_zh.md) | 两个 Tile 的逐元素最大值。 |
 | 逐元素（Tile-Tile） | [`TCMP`](isa/TCMP_zh.md) | 比较两个 Tile 并写入一个打包的谓词掩码。 |
@@ -39,8 +42,6 @@
 | 逐元素（Tile-Tile） | [`TLOG`](isa/TLOG_zh.md) | Tile 的逐元素自然对数。 |
 | 逐元素（Tile-Tile） | [`TRECIP`](isa/TRECIP_zh.md) | Tile 的逐元素倒数。 |
 | 逐元素（Tile-Tile） | [`TPRELU`](isa/TPRELU_zh.md) | 带逐元素斜率 Tile 的逐元素参数化 ReLU (PReLU)。 |
-| 逐元素（Tile-Tile） | [`TADDC`](isa/TADDC_zh.md) | 三元逐元素加法：`src0 + src1 + src2`。 |
-| 逐元素（Tile-Tile） | [`TSUBC`](isa/TSUBC_zh.md) | 三元逐元素运算：`src0 - src1 + src2`。 |
 | 逐元素（Tile-Tile） | [`TCVT`](isa/TCVT_zh.md) | 带指定舍入模式的逐元素类型转换。 |
 | 逐元素（Tile-Tile） | [`TSEL`](isa/TSEL_zh.md) | 使用掩码 Tile 在两个 Tile 之间进行选择（逐元素选择）。 |
 | 逐元素（Tile-Tile） | [`TRSQRT`](isa/TRSQRT_zh.md) | 逐元素倒数平方根。 |
@@ -52,6 +53,7 @@
 | 逐元素（Tile-Tile） | [`TNEG`](isa/TNEG_zh.md) | Tile 的逐元素取负。 |
 | 逐元素（Tile-Tile） | [`TREM`](isa/TREM_zh.md) | 两个 Tile 的逐元素余数，余数符号与除数相同。 |
 | 逐元素（Tile-Tile） | [`TFMOD`](isa/TFMOD_zh.md) | 两个 Tile 的逐元素余数，余数符号与被除数相同。 |
+| 逐元素（Tile-Tile） | [`TMULA`](isa/TMULA_zh.md) | 三元逐元素运算：`src0 * src1 + dst`。 |
 | Tile-标量 / Tile-立即数 | [`TEXPANDS`](isa/TEXPANDS_zh.md) | 将标量广播到目标 Tile 中。 |
 | Tile-标量 / Tile-立即数 | [`TCMPS`](isa/TCMPS_zh.md) | 将 Tile 与标量比较并写入逐元素比较结果。 |
 | Tile-标量 / Tile-立即数 | [`TSELS`](isa/TSELS_zh.md) | 使用掩码 Tile 在源 Tile 和标量之间进行选择（源 Tile 逐元素选择）。 |
@@ -71,8 +73,6 @@
 | Tile-标量 / Tile-立即数 | [`TXORS`](isa/TXORS_zh.md) | Tile 与标量的逐元素按位异或。 |
 | Tile-标量 / Tile-立即数 | [`TLRELU`](isa/TLRELU_zh.md) | 带标量斜率的 Leaky ReLU。 |
 | Tile-标量 / Tile-立即数 | [`TPOWS`](isa/TPOWS_zh.md) | Tile 逐元素与标量幂运算。 |
-| Tile-标量 / Tile-立即数 | [`TADDSC`](isa/TADDSC_zh.md) | 与标量和第二个 Tile 的融合逐元素加法：`src0 + scalar + src1`。 |
-| Tile-标量 / Tile-立即数 | [`TSUBSC`](isa/TSUBSC_zh.md) | 融合逐元素运算：`src0 - scalar + src1`。 |
 | 轴归约 / 扩展 | [`TROWSUM`](isa/TROWSUM_zh.md) | 通过对列求和来归约每一行。 |
 | 轴归约 / 扩展 | [`TROWPROD`](isa/TROWPROD_zh.md) | 通过跨列乘积来归约每一行。 |
 | 轴归约 / 扩展 | [`TCOLSUM`](isa/TCOLSUM_zh.md) | 通过对行求和来归约每一列。 |
@@ -103,12 +103,14 @@
 | 轴归约 / 扩展 | [`TCOLEXPANDEXPDIF`](isa/TCOLEXPANDEXPDIF_zh.md) | 列指数差运算：计算 exp(src0 - src1)，其中 src1 为每列标量。 |
 | 内存（GM <-> Tile） | [`TLOAD`](isa/TLOAD_zh.md) | 从 GlobalTensor (GM) 加载数据到 Tile。 |
 | 内存（GM <-> Tile） | [`TPREFETCH`](isa/TPREFETCH_zh.md) | 将数据从全局内存预取到 Tile 本地缓存/缓冲区（提示）。 |
+| 内存（GM <-> Tile） | [`TPREFETCH_ASYNC`](isa/TPREFETCH_ASYNC_zh.md) | 通过 SDMA CMO 将 GlobalTensor 区域从 GM 异步预取到 L2 Cache。 |
 | 内存（GM <-> Tile） | [`TSTORE`](isa/TSTORE_zh.md) | 将 Tile 中的数据存储到 GlobalTensor (GM)，可选使用原子写入或量化参数。 |
-| 内存（GM <-> Tile） | [`TSTORE_FP`](isa/TSTORE_FP_zh.md) | 使用缩放 (`fp`) Tile 作为向量量化参数，将累加器 Tile 存储到全局内存。 |
+| 内存（GM <-> Tile） | [`TSTORE_FP`](isa/TSTORE_FP_zh.md) | 历史 fp 量化存储形式的源码兼容 C++ 别名。 |
 | 内存（GM <-> Tile） | [`MGATHER`](isa/MGATHER_zh.md) | 使用逐元素索引从全局内存收集加载元素到 Tile 中。 |
 | 内存（GM <-> Tile） | [`MSCATTER`](isa/MSCATTER_zh.md) | 使用逐元素索引将 Tile 中的元素散播存储到全局内存。 |
 | 矩阵乘 | [`TGEMV_MX`](isa/TGEMV_MX_zh.md) | 带缩放 Tile 的 GEMV 变体，支持混合精度/量化矩阵向量计算。 |
 | 矩阵乘 | [`TMATMUL_MX`](isa/TMATMUL_MX_zh.md) | 带额外缩放 Tile 的矩阵乘法 (GEMM)，用于支持目标上的混合精度/量化矩阵乘法。 |
+| 矩阵乘 | [`TMATMUL_MX_HIF4`](isa/TMATMUL_MX_HIF4_zh.md) | 用于混合精度 TMATMUL_MX 流程的 HiFloat4 Cube 矩阵乘变体。 |
 | 矩阵乘 | [`TMATMUL`](isa/TMATMUL_zh.md) | 矩阵乘法 (GEMM)，生成累加器/输出 Tile。 |
 | 矩阵乘 | [`TMATMUL_ACC`](isa/TMATMUL_ACC_zh.md) | 带累加器输入的矩阵乘法（融合累加）。 |
 | 矩阵乘 | [`TMATMUL_BIAS`](isa/TMATMUL_BIAS_zh.md) | 带偏置加法的矩阵乘法。 |
@@ -116,20 +118,20 @@
 | 矩阵乘 | [`TGEMV_ACC`](isa/TGEMV_ACC_zh.md) | 带显式累加器输入/输出 Tile 的 GEMV。 |
 | 矩阵乘 | [`TGEMV_BIAS`](isa/TGEMV_BIAS_zh.md) | 带偏置加法的 GEMV。 |
 | 数据搬运 / 布局 | [`TEXTRACT`](isa/TEXTRACT_zh.md) | 从源 Tile 中提取子 Tile。 |
-| 数据搬运 / 布局 | [`TEXTRACT_FP`](isa/TEXTRACT_FP_zh.md) | 带 fp/缩放 Tile 的提取（向量量化参数）。 |
+| 数据搬运 / 布局 | [`TEXTRACT_FP`](isa/TEXTRACT_FP_zh.md) | 历史 fp 量化提取形式的源码兼容 C++ 别名。 |
 | 数据搬运 / 布局 | [`TIMG2COL`](isa/TIMG2COL_zh.md) | 用于类卷积工作负载的图像到列变换。 |
 | 数据搬运 / 布局 | [`TINSERT`](isa/TINSERT_zh.md) | 在 (indexRow, indexCol) 偏移处将子 Tile 插入到目标 Tile 中。 |
-| 数据搬运 / 布局 | [`TINSERT_FP`](isa/TINSERT_FP_zh.md) | 带 fp/缩放 Tile 的插入（向量量化参数）。 |
+| 数据搬运 / 布局 | [`TINSERT_FP`](isa/TINSERT_FP_zh.md) | 历史 fp 量化插入形式的源码兼容 C++ 别名。 |
 | 数据搬运 / 布局 | [`TFILLPAD`](isa/TFILLPAD_zh.md) | 复制 Tile 并在有效区域外使用编译时填充值进行填充。 |
 | 数据搬运 / 布局 | [`TFILLPAD_INPLACE`](isa/TFILLPAD_INPLACE_zh.md) | 原地填充/填充变体。 |
 | 数据搬运 / 布局 | [`TFILLPAD_EXPAND`](isa/TFILLPAD_EXPAND_zh.md) | 填充/填充时允许目标大于源。 |
 | 数据搬运 / 布局 | [`TMOV`](isa/TMOV_zh.md) | 在 Tile 之间移动/复制，可选应用实现定义的转换模式。 |
-| 数据搬运 / 布局 | [`TMOV_FP`](isa/TMOV_FP_zh.md) | 使用缩放 (`fp`) Tile 作为向量量化参数，将累加器 Tile 移动/转换到目标 Tile。 |
+| 数据搬运 / 布局 | [`TMOV_FP`](isa/TMOV_FP_zh.md) | 历史 fp 量化移动形式的源码兼容 C++ 别名。 |
 | 数据搬运 / 布局 | [`TRESHAPE`](isa/TRESHAPE_zh.md) | 将 Tile 重新解释为另一种 Tile 类型/形状，同时保留底层字节。 |
 | 数据搬运 / 布局 | [`TTRANS`](isa/TTRANS_zh.md) | 使用实现定义的临时 Tile 进行转置。 |
-| 数据搬运 / 布局 | [`TSUBVIEW`](isa/TSUBVIEW_zh.md) | 表达一个tile是另一个tile的subview |
-| 数据搬运 / 布局 | [`TGET_SCALE_ADDR`](isa/TGET_SCALE_ADDR_zh.md) | 将输出tile的片上内存值绑定为扩展后的输入tile内存的值。 |
 | 数据搬运 / 布局 | [`TCONCAT`](isa/TCONCAT_zh.md) | 将两个 Tile 沿列维度水平拼接。 |
+| 数据搬运 / 布局 | [`TINTERLEAVE`](isa/TINTERLEAVE_zh.md) | 将两个源 Tile 交织为交替的偶/奇元素流，拆分为两个目标半部分。 |
+| 数据搬运 / 布局 | [`TDEINTERLEAVE`](isa/TDEINTERLEAVE_zh.md) | 将源 Tile 反交织为偶数位置和奇数位置的元素流（TINTERLEAVE 的逆操作）。 |
 | 复杂指令 | [`TPRINT`](isa/TPRINT_zh.md) | 调试/打印 Tile 中的元素（实现定义）。 |
 | 复杂指令 | [`TMRGSORT`](isa/TMRGSORT_zh.md) | 用于多个已排序列表的归并排序（实现定义的元素格式和布局）。 |
 | 复杂指令 | [`TSORT32`](isa/TSORT32_zh.md) | 对 `src` 的每个 32 元素块连同对应的 `idx` 条目一起排序，并输出排序后的 value-index 对。 |
@@ -146,8 +148,14 @@
 | 复杂指令 | [`TGATHERB`](isa/TGATHERB_zh.md) | 使用字节偏移量收集元素。 |
 | 复杂指令 | [`TSCATTER`](isa/TSCATTER_zh.md) | 使用逐元素行索引将源 Tile 的行散播到目标 Tile 中。 |
 | 复杂指令 | [`TQUANT`](isa/TQUANT_zh.md) | 量化 Tile（例如 FP32 到 FP8），生成指数/缩放/最大值输出。 |
+| 复杂指令 | [`TQUANT_DN`](isa/TQUANT_DN_zh.md) | Axis-0 分组量化与 DN 到 ZZ 指数布局转换。 |
+| 复杂指令 | [`TQUANT_HIF4`](isa/TQUANT_HIF4_zh.md) | BF16 到 HiFloat4 的量化算法与 CCE 映射。 |
 | 复杂指令 | [`TDEQUANT`](isa/TDEQUANT_zh.md) | 对量化 Tile 做仿射反量化（S8/S16 -> FP32）：dst = (src - offset) * scale。 |
 | 复杂指令 | [`THISTOGRAM`](isa/THISTOGRAM_zh.md) | 对源元素的某个字节统计直方图（256 桶），可按高位字节级联过滤；基数排序的桶计数原语。 |
+| 核间通信 | [`TALLOC`](isa/TALLOC_zh.md) | 将 TPipe FIFO 槽位分配为一个 GlobalTensor 视图。 |
+| 核间通信 | [`TPUSH`](isa/TPUSH_zh.md) | 将生产者 tile 推入 TPipe FIFO，用于 Cube-Vector 通信。 |
+| 核间通信 | [`TPOP`](isa/TPOP_zh.md) | 从 TPipe FIFO 弹出消费者 tile/globalTensor，用于 Cube-Vector 通信。 |
+| 核间通信 | [`TFREE`](isa/TFREE_zh.md) | 释放 TPipe 的 FIFO 空间；部分目标上对 TileData TPOP 流程为空操作。 |
 | 通信 | [`TPUT`](isa/comm/TPUT_zh.md) | 远程写：将本地数据传输到远端 NPU 内存（GM → UB → GM）。 |
 | 通信 | [`TGET`](isa/comm/TGET_zh.md) | 远程读：将远端 NPU 数据读取到本地内存（GM → UB → GM）。 |
 | 通信 | [`TPUT_ASYNC`](isa/comm/TPUT_ASYNC_zh.md) | 异步远程写（本地 GM → DMA 引擎 → 远端 GM）。 |

@@ -28,34 +28,23 @@ constexpr uint32_t kMergeMaxFanIn = 4U;
 constexpr float kSortNegInf = -3.4028235e38F;
 
 using SortKeyTile = pto::Tile<pto::TileType::Vec, float, 1, kSortMaxElems, pto::BLayout::RowMajor, -1, -1>;
-using SortPayloadTile =
-    pto::Tile<pto::TileType::Vec, uint32_t, 1, kSortMaxElems, pto::BLayout::RowMajor, -1, -1>;
-using PackedSortTile =
-    pto::Tile<pto::TileType::Vec, float, 1, kSortMaxElems * 2U, pto::BLayout::RowMajor, -1, -1>;
+using SortPayloadTile = pto::Tile<pto::TileType::Vec, uint32_t, 1, kSortMaxElems, pto::BLayout::RowMajor, -1, -1>;
+using PackedSortTile = pto::Tile<pto::TileType::Vec, float, 1, kSortMaxElems * 2U, pto::BLayout::RowMajor, -1, -1>;
 using PackedPayloadTile =
     pto::Tile<pto::TileType::Vec, uint32_t, 1, kSortMaxElems * 2U, pto::BLayout::RowMajor, -1, -1>;
 
-AICORE inline uint64_t AlignBytes(uint64_t value)
-{
-    return (value + UB_ALIGN - 1U) / UB_ALIGN * UB_ALIGN;
-}
+AICORE inline uint64_t AlignBytes(uint64_t value) { return (value + UB_ALIGN - 1U) / UB_ALIGN * UB_ALIGN; }
 
 AICORE inline uint32_t AlignSortBlock(uint32_t elemNum)
 {
     return (elemNum + kSortBlockElems - 1U) / kSortBlockElems * kSortBlockElems;
 }
 
-AICORE inline uint32_t PackedLen(uint32_t elemCount)
-{
-    return elemCount * 2U;
-}
+AICORE inline uint32_t PackedLen(uint32_t elemCount) { return elemCount * 2U; }
 
-AICORE inline uint32_t PackedOffset(uint32_t elemOffset)
-{
-    return elemOffset * 2U;
-}
+AICORE inline uint32_t PackedOffset(uint32_t elemOffset) { return elemOffset * 2U; }
 
-AICORE inline int32_t FillTailMergePlan(int32_t *mergePlan, int32_t validCols, int32_t blockLen)
+AICORE inline int32_t FillTailMergePlan(int32_t* mergePlan, int32_t validCols, int32_t blockLen)
 {
     int32_t planCount = 0;
     int32_t remainCols = validCols;
@@ -70,8 +59,8 @@ AICORE inline int32_t FillTailMergePlan(int32_t *mergePlan, int32_t validCols, i
     return planCount;
 }
 
-AICORE inline void MergeTailPackedRecords(PackedSortTile &packedTile, PackedSortTile &tmpTile, uint32_t validCols,
-                                           uint32_t blockLen)
+AICORE inline void MergeTailPackedRecords(
+    PackedSortTile& packedTile, PackedSortTile& tmpTile, uint32_t validCols, uint32_t blockLen)
 {
     int32_t mergePlan[15] = {0};
     const int32_t planCount =
@@ -99,7 +88,7 @@ AICORE inline void MergeTailPackedRecords(PackedSortTile &packedTile, PackedSort
     }
 }
 
-AICORE inline void MergePackedRecords(PackedSortTile &packedTile, PackedSortTile &tmpTile, uint32_t validCols)
+AICORE inline void MergePackedRecords(PackedSortTile& packedTile, PackedSortTile& tmpTile, uint32_t validCols)
 {
     uint32_t blockLen = kPackedSortBlockElems;
     const uint64_t packedAddr = reinterpret_cast<uint64_t>(packedTile.data());
@@ -122,9 +111,9 @@ AICORE inline void MergePackedRecords(PackedSortTile &packedTile, PackedSortTile
     }
 }
 
-AICORE inline void SortInt32ToPackedUb(uint64_t valueUb, uint64_t payloadUb, uint64_t packedUb,
-                                       uint64_t mergeTmpUb, uint64_t sortKeyUb, uint32_t elemNum,
-                                       uint32_t alignedElemNum)
+AICORE inline void SortInt32ToPackedUb(
+    uint64_t valueUb, uint64_t payloadUb, uint64_t packedUb, uint64_t mergeTmpUb, uint64_t sortKeyUb, uint32_t elemNum,
+    uint32_t alignedElemNum)
 {
     PtoCastUb<float, int32_t>(sortKeyUb, valueUb, elemNum, pto::RoundMode::CAST_ROUND);
     PtoMulScalarUb<float>(sortKeyUb, sortKeyUb, elemNum, -1.0F);
@@ -149,8 +138,8 @@ AICORE inline void SortInt32ToPackedUb(uint64_t valueUb, uint64_t payloadUb, uin
     MergePackedRecords(packedTile, tmpTile, alignedElemNum * 2U);
 }
 
-AICORE inline void ExtractPackedResult(uint64_t sortedValueUb, uint64_t sortedPayloadUb,
-                                       uint64_t valueScratchUb, uint64_t packedUb, uint32_t elemNum)
+AICORE inline void ExtractPackedResult(
+    uint64_t sortedValueUb, uint64_t sortedPayloadUb, uint64_t valueScratchUb, uint64_t packedUb, uint32_t elemNum)
 {
     PackedPayloadTile packedPayloadTile(1, elemNum * 2U);
     SortPayloadTile payloadTile(1, elemNum);
@@ -167,9 +156,9 @@ AICORE inline void ExtractPackedResult(uint64_t sortedValueUb, uint64_t sortedPa
     PtoCastUb<int32_t, float>(sortedValueUb, valueScratchUb, elemNum, pto::RoundMode::CAST_ROUND);
 }
 
-AICORE inline void MergePackedRecordsWithCounts(uint64_t dstUb, uint64_t tmpUb, const uint64_t *srcUb,
-                                                const uint16_t *elementCount, uint32_t listNum,
-                                                uint32_t *sortedCount)
+AICORE inline void MergePackedRecordsWithCounts(
+    uint64_t dstUb, uint64_t tmpUb, const uint64_t* srcUb, const uint16_t* elementCount, uint32_t listNum,
+    uint32_t* sortedCount)
 {
     const uint32_t src0Cols = PackedLen(elementCount[0]);
     const uint32_t src1Cols = listNum >= 2U ? PackedLen(elementCount[1]) : 0U;
@@ -201,8 +190,9 @@ AICORE inline void MergePackedRecordsWithCounts(uint64_t dstUb, uint64_t tmpUb, 
         pto::TMRGSORT<PackedSortTile, PackedSortTile, PackedSortTile, PackedSortTile, PackedSortTile, true>(
             dstTile, executedNumList, tmpTile, src0Tile, src1Tile, src2Tile);
     } else {
-        pto::TMRGSORT<PackedSortTile, PackedSortTile, PackedSortTile, PackedSortTile, PackedSortTile, PackedSortTile,
-                      true>(dstTile, executedNumList, tmpTile, src0Tile, src1Tile, src2Tile, src3Tile);
+        pto::TMRGSORT<
+            PackedSortTile, PackedSortTile, PackedSortTile, PackedSortTile, PackedSortTile, PackedSortTile, true>(
+            dstTile, executedNumList, tmpTile, src0Tile, src1Tile, src2Tile, src3Tile);
     }
     sortedCount[0] = executedNumList.mrgSortList0;
     sortedCount[1] = executedNumList.mrgSortList1;
@@ -212,23 +202,24 @@ AICORE inline void MergePackedRecordsWithCounts(uint64_t dstUb, uint64_t tmpUb, 
 
 class Sorter {
 public:
-    AICORE inline void Init(__gm__ int32_t *expertIdPtr, GM_ADDR workspaceGM,
-                            const __gm__ MegaMoeFrontReorderTiling *tiling, uint32_t coreIdx, uint32_t coreNum)
+    AICORE inline void Init(
+        __gm__ int32_t* expertIdPtr, GM_ADDR workspaceGM, const __gm__ MegaMoeFrontReorderTiling* tiling,
+        uint32_t coreIdx, uint32_t coreNum)
     {
         expertIdPtr_ = expertIdPtr;
-        sortedRouteSlotPtr_ = reinterpret_cast<__gm__ int32_t *>(workspaceGM + tiling->sortedRouteSlotOffset);
-        workspace0Ptr_ = reinterpret_cast<__gm__ float *>(workspaceGM + tiling->sortWorkspace0Offset);
-        workspace1Ptr_ = reinterpret_cast<__gm__ float *>(workspaceGM + tiling->sortWorkspace1Offset);
+        sortedRouteSlotPtr_ = reinterpret_cast<__gm__ int32_t*>(workspaceGM + tiling->sortedRouteSlotOffset);
+        workspace0Ptr_ = reinterpret_cast<__gm__ float*>(workspaceGM + tiling->sortWorkspace0Offset);
+        workspace1Ptr_ = reinterpret_cast<__gm__ float*>(workspaceGM + tiling->sortWorkspace1Offset);
         routeElems_ = tiling->routeElems;
         runElems_ = tiling->sortRunElems;
         runCount_ = tiling->sortRunCount;
-        mergeLoopElems_ = tiling->sortOutLoopElems;
+        mergeLoopElems_ = kMegaMoeFrontMetadataSortOutLoopElems;
         coreIdx_ = coreIdx;
         coreNum_ = coreNum;
     }
 
     template <typename GroupBarrier>
-    AICORE inline void Run(GroupBarrier &barrier) const
+    AICORE inline void Run(GroupBarrier& barrier) const
     {
         if (runCount_ == 1U) {
             BuildSingleRunOutput();
@@ -286,7 +277,7 @@ private:
         return MergeTmpUb(activeLists, perListElems);
     }
 
-    AICORE inline __gm__ float *Workspace(uint32_t index) const
+    AICORE inline __gm__ float* Workspace(uint32_t index) const
     {
         return index == 0U ? workspace0Ptr_ : workspace1Ptr_;
     }
@@ -349,9 +340,9 @@ private:
         }
     }
 
-    AICORE inline void MergeListGroup(__gm__ float *srcPtr, __gm__ float *dstPtr, uint32_t inputBaseElem,
-                                      uint32_t outputBaseElem, uint32_t listNum, uint32_t perListElems,
-                                      uint32_t lastListElems, bool finalOutput) const
+    AICORE inline void MergeListGroup(
+        __gm__ float* srcPtr, __gm__ float* dstPtr, uint32_t inputBaseElem, uint32_t outputBaseElem, uint32_t listNum,
+        uint32_t perListElems, uint32_t lastListElems, bool finalOutput) const
     {
         if (listNum == 0U || listNum > kMergeMaxFanIn || perListElems == 0U || lastListElems == 0U) {
             return;
@@ -399,8 +390,9 @@ private:
                 PtoMoveUb<float>(mergedUb, inputUb[0], PackedLen(elementCount[0]));
                 sortedCount[0] = elementCount[0];
             } else {
-                MergePackedRecordsWithCounts(mergedUb, MergeTmpUb(activeLists, mergeLoopElems_), inputUb, elementCount,
-                                             activeLists, sortedCount);
+                MergePackedRecordsWithCounts(
+                    mergedUb, MergeTmpUb(activeLists, mergeLoopElems_), inputUb, elementCount, activeLists,
+                    sortedCount);
             }
 
             uint32_t outputElems = 0U;
@@ -420,11 +412,12 @@ private:
             totalRemain -= outputElems;
 
             if (finalOutput) {
-                ExtractPackedResult(0U, FinalPayloadUb(activeLists, mergeLoopElems_),
-                                    FinalScratchUb(activeLists, mergeLoopElems_), mergedUb, outputElems);
+                ExtractPackedResult(
+                    0U, FinalPayloadUb(activeLists, mergeLoopElems_), FinalScratchUb(activeLists, mergeLoopElems_),
+                    mergedUb, outputElems);
                 pto::PtoSetWaitFlag<PIPE_V, PIPE_MTE3>();
-                PtoStoreVector<int32_t>(sortedRouteSlotPtr_ + outputOffset,
-                                        FinalPayloadUb(activeLists, mergeLoopElems_), outputElems);
+                PtoStoreVector<int32_t>(
+                    sortedRouteSlotPtr_ + outputOffset, FinalPayloadUb(activeLists, mergeLoopElems_), outputElems);
                 outputOffset += outputElems;
             } else {
                 const uint32_t packedLength = PackedLen(outputElems);
@@ -438,7 +431,7 @@ private:
     }
 
     template <typename GroupBarrier>
-    AICORE inline MergeState BuildIntermediateMerges(GroupBarrier &barrier) const
+    AICORE inline MergeState BuildIntermediateMerges(GroupBarrier& barrier) const
     {
         MergeState state{0U, runCount_, runElems_, routeElems_ - (runCount_ - 1U) * runElems_};
         while (state.listNum > kMergeMaxFanIn) {
@@ -446,11 +439,11 @@ private:
             const uint32_t lastGroupLists = state.listNum - (groupCount - 1U) * kMergeMaxFanIn;
             for (uint32_t group = coreIdx_; group < groupCount; group += coreNum_) {
                 const uint32_t listNum = group == groupCount - 1U ? lastGroupLists : kMergeMaxFanIn;
-                const uint32_t lastListElems =
-                    group == groupCount - 1U ? state.lastListElems : state.perListElems;
+                const uint32_t lastListElems = group == groupCount - 1U ? state.lastListElems : state.perListElems;
                 const uint32_t baseElem = group * kMergeMaxFanIn * state.perListElems;
-                MergeListGroup(Workspace(state.srcWorkspace), Workspace(1U - state.srcWorkspace), baseElem, baseElem,
-                               listNum, state.perListElems, lastListElems, false);
+                MergeListGroup(
+                    Workspace(state.srcWorkspace), Workspace(1U - state.srcWorkspace), baseElem, baseElem, listNum,
+                    state.perListElems, lastListElems, false);
             }
             state.lastListElems = state.perListElems * (lastGroupLists - 1U) + state.lastListElems;
             state.perListElems *= kMergeMaxFanIn;
@@ -461,19 +454,20 @@ private:
         return state;
     }
 
-    AICORE inline void BuildFinalOutput(const MergeState &state) const
+    AICORE inline void BuildFinalOutput(const MergeState& state) const
     {
         if (coreIdx_ != 0U) {
             return;
         }
-        MergeListGroup(Workspace(state.srcWorkspace), Workspace(state.srcWorkspace), 0U, 0U, state.listNum,
-                       state.perListElems, state.lastListElems, true);
+        MergeListGroup(
+            Workspace(state.srcWorkspace), Workspace(state.srcWorkspace), 0U, 0U, state.listNum, state.perListElems,
+            state.lastListElems, true);
     }
 
-    __gm__ int32_t *expertIdPtr_ = nullptr;
-    __gm__ int32_t *sortedRouteSlotPtr_ = nullptr;
-    __gm__ float *workspace0Ptr_ = nullptr;
-    __gm__ float *workspace1Ptr_ = nullptr;
+    __gm__ int32_t* expertIdPtr_ = nullptr;
+    __gm__ int32_t* sortedRouteSlotPtr_ = nullptr;
+    __gm__ float* workspace0Ptr_ = nullptr;
+    __gm__ float* workspace1Ptr_ = nullptr;
     uint32_t routeElems_ = 0U;
     uint32_t runElems_ = 0U;
     uint32_t runCount_ = 0U;

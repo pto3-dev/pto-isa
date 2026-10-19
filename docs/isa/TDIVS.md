@@ -1,4 +1,4 @@
-﻿# TDIVS
+# TDIVS
 
 
 ## Tile Operation Diagram

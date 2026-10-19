@@ -1,4 +1,4 @@
-﻿# SET_IMG2COL_RPT
+# SET_IMG2COL_RPT
 
 ## Tile Operation Diagram
 

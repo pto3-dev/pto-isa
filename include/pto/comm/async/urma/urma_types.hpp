@@ -20,9 +20,7 @@ namespace urma {
 // ============================================================================
 // Constants
 // ============================================================================
-constexpr uint32_t kUrmaPollCqThreshold = 10;
 constexpr uint32_t kUrmaMaxPollTimes = 1000000;
-constexpr uint32_t kNumCqePerPollCq = 100;
 constexpr uint64_t kCacheLineSize = 64;
 constexpr size_t kUrmaEidBytes = 16;
 
@@ -35,6 +33,29 @@ constexpr uint32_t kUrmaSqeRmtEidLOffset = 16;
 constexpr uint32_t kUrmaSqeRmtEidHOffset = 24;
 constexpr uint32_t kUrmaSqeRmtAddrLOffset = 40;
 constexpr uint32_t kUrmaSqeRmtAddrHOffset = 44;
+
+constexpr uint32_t kUrmaNotifySetSlotCount = 8U;
+constexpr uint32_t kUrmaNotifyResourceCachelineBytes = 64U;
+
+// One cache-line-aligned region is owned by one (peer, QP). SET sources are
+// reused in batches after draining the queue. FAA writes its ignored old value
+// to a fixed sink in the same cache line.
+struct alignas(kUrmaNotifyResourceCachelineBytes) UrmaNotifyResourceRegion {
+    int32_t setValues[kUrmaNotifySetSlotCount];
+    uint32_t nextSetSlot;
+    uint32_t setRingStarted;
+    int32_t faaResult;
+    uint8_t reserved
+        [kUrmaNotifyResourceCachelineBytes - sizeof(setValues) - sizeof(nextSetSlot) - sizeof(setRingStarted) -
+         sizeof(faaResult)];
+};
+
+static_assert(
+    sizeof(UrmaNotifyResourceRegion) == kUrmaNotifyResourceCachelineBytes,
+    "URMA notify resource region layout mismatch");
+static_assert(
+    alignof(UrmaNotifyResourceRegion) == kUrmaNotifyResourceCachelineBytes,
+    "URMA notify resource region must be cache-line aligned");
 
 // ============================================================================
 // UrmaOpcode — URMA operation codes (binary-compatible with hcomm UB ABI)
@@ -61,12 +82,14 @@ enum class UrmaOpcode : uint32_t {
 struct UrmaInfo {
     uint32_t qpNum;
     uint32_t localTokenId;
+    uint32_t notifyPoolTokenId;
     uint32_t rankCount;
     uint64_t sqPtr;
     uint64_t rqPtr;
     uint64_t scqPtr;
     uint64_t rcqPtr;
     uint64_t memPtr;
+    uint64_t notifyPoolPtr;
 };
 
 // ============================================================================
@@ -102,7 +125,11 @@ struct UrmaWQCtx {
     UrmaDbMode dbMode;
     uint64_t dbAddr;
     uint32_t sl;
+    // Software WQE sequence for CQ accounting; initialized from the CQ tail.
+    uint32_t submittedWqeCount;
 };
+
+static_assert(sizeof(UrmaWQCtx) == 64U, "URMA WQ context layout mismatch");
 
 // ============================================================================
 // UrmaCqCtx — completion queue context

@@ -367,6 +367,35 @@ PTO_INST AsyncEvent TPUT_ASYNC(
 #endif
 
 // ============================================================================
+// TPUT_ASYNC_NOTIFY: Remote write followed by an int32 signal update.
+// The architecture-specific implementation is selected at compile time:
+// - A2/A3 SDMA submits payload and signal to one SQ.
+// - A5 SDMA-named path uses synchronous MTE followed by Scalar SET/AtomicAdd
+//   and returns an already-completed event with handle 0.
+// - A5 URMA and RDMA use peer to select the target queue and registered memory.
+// ============================================================================
+/**
+ * @brief Asynchronous remote write and signal update with explicit peer.
+ *
+ * SDMA obtains the remote VA from GlobalTensor and ignores peer. URMA and RDMA
+ * use peer to select the per-peer queue and memory metadata; URMA additionally
+ * selects its notify resource region.
+ */
+#if defined(PTO_NPU_ARCH_A2A3) || defined(PTO_NPU_ARCH_A5)
+template <
+    DmaEngine engine = DmaEngine::SDMA, typename GlobalDstData, typename GlobalSrcData, typename GlobalSignalData,
+    typename... WaitEvents>
+PTO_INST AsyncEvent TPUT_ASYNC_NOTIFY(
+    GlobalDstData& dstGlobalData, GlobalSrcData& srcGlobalData, GlobalSignalData& dstSignalData, int32_t signalValue,
+    NotifyOp notifyOp, const AsyncSession& session, uint32_t peer, WaitEvents&... events)
+{
+    WaitAllEvents(events...);
+    return ::pto::comm::TPUT_ASYNC_NOTIFY_IMPL<engine>(
+        dstGlobalData, srcGlobalData, dstSignalData, signalValue, notifyOp, session, peer);
+}
+#endif
+
+// ============================================================================
 // TGET_ASYNC: Asynchronous remote read (GM-to-GM via DMA engine).
 // Build once with comm::BuildAsyncSession<engine>(), then pass to all calls.
 // ============================================================================

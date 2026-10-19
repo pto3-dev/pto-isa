@@ -18,6 +18,9 @@ TFILLPAD (Tile Fill Pad) is a PTO instruction that copies data from a source til
 | 8 | uint16 | 259×7 | 260×32 | Min | Max | Row expansion (259→260) |
 | 9 | int8 | 259×7 | 260×64 | Min | Max | Row expansion with int8 |
 | 10 | float | 128×64 | 128×128 | Null | Custom(-1.0f) | **Custom pad value** |
+| 11 | bfloat16 | 128×64 | 128×128 | Null | Custom(-1.0f) | bf16 custom pad (CPU_SIM_BFLOAT_ENABLED) |
+| 17 | bfloat16 | 128×64 | 128×128 | Null | Min | bf16 Min via numeric_limits (P2 fallback) |
+| 18 | bfloat16 | 128×64 | 128×128 | Null | Max | bf16 Max via numeric_limits (P2 fallback) |
 
 ## Standard Pad Values
 

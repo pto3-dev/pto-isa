@@ -36,6 +36,8 @@ def gen_golden_data(case_name, param):
     # Perform the operation
     golden = np.zeros([dst_tile_row, dst_tile_col]).astype(dtype)
     golden[0:h_valid, 0:w_valid] = input1[0:h_valid, 0:w_valid] + input2[0:h_valid, 0:w_valid]
+    if "inplace" in case_name and w_valid < dst_tile_col:
+        golden[0:h_valid, w_valid:dst_tile_col] = input1[0:h_valid, w_valid:dst_tile_col]
 
     # Save the input and golden data to binary files
     input1.tofile("input1.bin")
@@ -44,7 +46,8 @@ def gen_golden_data(case_name, param):
 
 
 class TAddParams:
-    def __init__(self, dtype, dstH, dstW, src0H, src0W, src1H, src1W, vRow, vCol):
+    def __init__(self, dtype, dstH, dstW, src0H, src0W, src1H, src1W, vRow, vCol, custom_name=None):
+        self.custom_name = custom_name
         self.dtype = dtype
         self.dst_tile_row = dstH
         self.dst_tile_col = dstW
@@ -57,6 +60,8 @@ class TAddParams:
 
 
 def generate_case_name(param):
+    if hasattr(param, 'custom_name') and param.custom_name:
+        return param.custom_name
     dtype_str = {
         np.float32: 'float',
         np.float16: 'half',
@@ -98,6 +103,11 @@ if __name__ == "__main__":
         TAddParams(np.int16, 32, 128, 32, 128, 32, 256, 32, 127),
         TAddParams(np.int32, 16, 32, 16, 64, 16, 32, 16, 31),
         TAddParams(np.float16, 2, 128, 2, 128, 2, 128, 1, 106),
+        TAddParams(np.int64, 1, 2048, 1, 2048, 1, 2048, 1, 2045, custom_name="TADDTest.case_int64_1x2048_2045_inplace"),
+        TAddParams(np.int64, 4, 32, 4, 32, 4, 32, 4, 32, custom_name="TADDTest.case_int64_4x32_inplace"),
+TAddParams(np.uint64, 4, 32, 4, 32, 4, 32, 4, 32, custom_name="TADDTest.case_uint64_4x32_inplace"),
+        TAddParams(np.int64, 1, 1024, 1, 1024, 1, 1024, 1, 1024, custom_name="TADDTest.case_int64_1x1024_inplace"),
+        TAddParams(np.int64, 4, 64, 4, 64, 4, 64, 4, 40, custom_name="TADDTest.case_int64_4x64_40_inplace"),
     ]
 
     for param in case_params_list:

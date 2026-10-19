@@ -237,7 +237,7 @@ using TileP = pto::Tile<pto::TileType::Vec, float, 16, PADDED,
 - [ ] 使用 `TPREFETCH` 将数据移动与计算重叠。
 
 **同步**
-- [ ] 使用 `Event<SrcOp, DstOp>` 进行细粒度排序；稳定循环中不使用全局 `TSYNC`。
+- [ ] 在稳定循环中使用 `Event<SrcOp, DstOp>` 进行细粒度排序。
 - [ ] 每个消费者只等待其对应的生产者事件。
 
 ---

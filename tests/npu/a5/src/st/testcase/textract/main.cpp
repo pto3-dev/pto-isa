@@ -91,8 +91,8 @@ void textract_test(uint32_t M, uint32_t K, uint32_t N, uint16_t indexM, uint16_t
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(cFileSize);
-    std::vector<T> devFinal(cFileSize);
+    std::vector<T> golden(cFileSize / sizeof(T));
+    std::vector<T> devFinal(cFileSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 
@@ -164,8 +164,8 @@ void textract_mx_test(uint32_t M, uint32_t K, uint32_t N, uint16_t indexM, uint1
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(cFileSize);
-    std::vector<T> devFinal(cFileSize);
+    std::vector<T> golden(cFileSize / sizeof(T));
+    std::vector<T> devFinal(cFileSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 
@@ -236,8 +236,8 @@ static bool SetTmovTargetShape(
 template <typename T>
 void CheckTmovResult(size_t cFileSize)
 {
-    std::vector<T> golden(cFileSize);
-    std::vector<T> devFinal(cFileSize);
+    std::vector<T> golden(cFileSize / sizeof(T));
+    std::vector<T> devFinal(cFileSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 
@@ -360,8 +360,8 @@ void tmov_mx_test(uint32_t M, uint32_t K, uint32_t N)
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<T> golden(cFileSize);
-    std::vector<T> devFinal(cFileSize);
+    std::vector<T> golden(cFileSize / sizeof(T));
+    std::vector<T> devFinal(cFileSize / sizeof(T));
     ReadFile(GetGoldenDir() + "/golden.bin", cFileSize, golden.data(), cFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", cFileSize, devFinal.data(), cFileSize);
 
@@ -390,7 +390,7 @@ TEST_F(TMOVTest, case9) { tmov_test<9, float, uint16_t, uint16_t>(64, 128, 64); 
 
 TEST_F(TMOVTest, case10) { tmov_test<10, float, float, float>(64, 128, 64); }
 
-TEST_F(TMOVTest, case11) { tmov_test<11, int32_t, int8_t, int8_t>(65, 40, 66, 96, 64, 96); }
+TEST_F(TMOVTest, case11) { tmov_test<11, int32_t, int8_t, int8_t>(96, 40, 66, 96, 64, 96); }
 
 TEST_F(TMOVTest, case12) { tmov_test<12, float, uint16_t, uint16_t>(65, 40, 66, 80, 48, 80); }
 

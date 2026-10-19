@@ -35,8 +35,8 @@ PTO_INTERNAL AsyncEvent TPUT_ASYNC_IMPL(GlobalDstData& dst, GlobalSrcData& src, 
 }
 
 template <DmaEngine engine, typename GlobalDstData, typename GlobalSrcData>
-PTO_INTERNAL AsyncEvent TPUT_ASYNC_IMPL(GlobalDstData& dst, GlobalSrcData& src, const AsyncSession& session,
-                                        uint32_t peer)
+PTO_INTERNAL AsyncEvent
+TPUT_ASYNC_IMPL(GlobalDstData& dst, GlobalSrcData& src, const AsyncSession& session, uint32_t peer)
 {
     return TPUT_ASYNC_IMPL<engine>(dst, src, session);
 }

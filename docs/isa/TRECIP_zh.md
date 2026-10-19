@@ -1,4 +1,4 @@
-﻿# TRECIP
+# TRECIP
 
 ## 指令示意图
 

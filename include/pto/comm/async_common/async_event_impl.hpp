@@ -115,7 +115,7 @@ PTO_INTERNAL bool AsyncEvent::Wait(const AsyncSession& session) const
             return sdma::detail::SdmaWaitEvent(handle, session);
 #ifdef PTO_URMA_SUPPORTED
         case DmaEngine::URMA:
-            return urma::detail::UrmaWaitEvent(handle, session);
+            return urma::detail::UrmaWaitEvent(handle, urmaTargetCqe, session);
 #endif
 #ifdef PTO_RDMA_SUPPORTED
         case DmaEngine::RDMA:
@@ -136,7 +136,7 @@ PTO_INTERNAL bool AsyncEvent::Test(const AsyncSession& session) const
             return sdma::detail::SdmaTestEvent(handle, session);
 #ifdef PTO_URMA_SUPPORTED
         case DmaEngine::URMA:
-            return urma::detail::UrmaTestEvent(handle, session);
+            return urma::detail::UrmaTestEvent(handle, urmaTargetCqe, session);
 #endif
 #ifdef PTO_RDMA_SUPPORTED
         case DmaEngine::RDMA:

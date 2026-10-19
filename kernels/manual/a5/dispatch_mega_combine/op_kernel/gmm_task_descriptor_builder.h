@@ -29,16 +29,16 @@ static_assert(kGmmDescriptorBuilderWords * sizeof(uint32_t) <= A5_MAIN_UB_SIZE);
 
 class ParallelGmmTaskDescriptorBuilder {
 public:
-    AICORE inline void Init(GM_ADDR workspaceGM, const __gm__ MegaMoeTilingData *tilingData, uint32_t workerIdx,
-                            uint32_t workerCount)
+    AICORE inline void Init(
+        GM_ADDR workspaceGM, const __gm__ MegaMoeTilingData* tilingData, uint32_t workerIdx, uint32_t workerCount)
     {
         workspaceGM_ = workspaceGM;
         tilingData_ = tilingData;
         workerIdx_ = workerIdx;
         workerCount_ = workerCount;
 
-        __gm__ int32_t *cumsumMMPtr =
-            reinterpret_cast<__gm__ int32_t *>(workspaceGM_ + tilingData_->frontReorderTiling.cumsumMMOffset);
+        __gm__ int32_t* cumsumMMPtr =
+            reinterpret_cast<__gm__ int32_t*>(workspaceGM_ + tilingData_->frontReorderTiling.cumsumMMOffset);
         const uint32_t rankSize = tilingData_->runtimeInfo.rankSize;
         expertPerRank_ = tilingData_->megaMoeInfo.expertPerRank;
         uint32_t expertBase = 0U;
@@ -46,10 +46,8 @@ public:
             const uint32_t currentM = MoeCurrentMRaw(cumsumMMPtr, rankSize, expertPerRank_, expert);
             currentM_[expert] = currentM;
             expertBase_[expert] = expertBase;
-            const GmmCommonTaskShape gmm1Shape =
-                GmmCommonBuildTaskShape(currentM, tilingData_->megaMoeInfo.N / 2U, kMegaMoeGmmTileM, kMegaMoeGmmTileN);
-            const GmmCommonTaskShape gmm2Shape =
-                GmmCommonBuildTaskShape(currentM, tilingData_->megaMoeInfo.K, kMegaMoeGmmTileM, kMegaMoeGmmTileN);
+            const GmmCommonTaskShape gmm1Shape = GmmCommonBuildTaskShape(currentM, tilingData_->megaMoeInfo.N / 2U);
+            const GmmCommonTaskShape gmm2Shape = GmmCommonBuildTaskShape(currentM, tilingData_->megaMoeInfo.K);
             gmm1TaskBase_[expert + 1U] = gmm1TaskBase_[expert] + gmm1Shape.taskCount;
             gmm2TaskBase_[expert + 1U] = gmm2TaskBase_[expert] + gmm2Shape.taskCount;
             expertBase += currentM;
@@ -61,24 +59,21 @@ public:
         return BuildStage<false>(tilingData_->gmmSchedulerTiling.gmm1, gmm1TaskBase_);
     }
 
-    AICORE inline uint32_t BuildGmm2()
-    {
-        return BuildStage<true>(tilingData_->gmmSchedulerTiling.gmm2, gmm2TaskBase_);
-    }
+    AICORE inline uint32_t BuildGmm2() { return BuildStage<true>(tilingData_->gmmSchedulerTiling.gmm2, gmm2TaskBase_); }
 
-    AICORE inline void PublishGeneratedTail(const __gm__ MegaMoeGmmQueueTiling &queue, uint32_t taskCount) const
+    AICORE inline void PublishGeneratedTail(const __gm__ MegaMoeGmmQueueTiling& queue, uint32_t taskCount) const
     {
-        volatile __gm__ int32_t *tail = &GmmQueueControl(workspaceGM_, queue)->generatedTail;
+        volatile __gm__ int32_t* tail = &GmmQueueControl(workspaceGM_, queue)->generatedTail;
         PublishScalarEpoch(tail, static_cast<int32_t>(taskCount));
     }
 
 private:
     template <bool IsGmm2>
-    AICORE inline uint32_t BuildStage(const __gm__ MegaMoeGmmQueueTiling &queue, const uint32_t *taskBase)
+    AICORE inline uint32_t BuildStage(const __gm__ MegaMoeGmmQueueTiling& queue, const uint32_t* taskBase)
     {
         const uint32_t totalTasks = taskBase[expertPerRank_];
-        if (workerCount_ == 0U || workerIdx_ >= workerCount_ || totalTasks == 0U) {
-            return totalTasks;
+        if (totalTasks == 0U) {
+            return 0U;
         }
 
         const uint32_t pairCount = (totalTasks + 1U) / 2U;
@@ -92,11 +87,10 @@ private:
             return totalTasks;
         }
 
-        __gm__ uint32_t *taskWords = reinterpret_cast<__gm__ uint32_t *>(GmmTaskTable(workspaceGM_, queue));
+        __gm__ uint32_t* taskWords = reinterpret_cast<__gm__ uint32_t*>(GmmTaskTable(workspaceGM_, queue));
         for (uint32_t batchBegin = firstTask; batchBegin < lastTask; batchBegin += kGmmDescriptorBuilderBatch) {
             const uint32_t remaining = lastTask - batchBegin;
-            const uint32_t batchTasks =
-                remaining < kGmmDescriptorBuilderBatch ? remaining : kGmmDescriptorBuilderBatch;
+            const uint32_t batchTasks = remaining < kGmmDescriptorBuilderBatch ? remaining : kGmmDescriptorBuilderBatch;
             GmmDescriptorBuilderTile descriptorTile(1, kGmmDescriptorBuilderWords);
             pto::TASSIGN(descriptorTile, kGmmDescriptorBuilderUbOffset);
 
@@ -112,8 +106,7 @@ private:
                 }
                 const uint32_t expertLoop = ticket - taskBase[expert];
                 const uint32_t problemN = IsGmm2 ? tilingData_->megaMoeInfo.K : tilingData_->megaMoeInfo.N / 2U;
-                const GmmCommonTileInfo tile = GmmCommonBuildTileInfo(
-                    currentM_[expert], problemN, kMegaMoeGmmTileM, kMegaMoeGmmTileN, expertLoop);
+                const GmmCommonTileInfo tile = GmmCommonBuildTileInfo(currentM_[expert], problemN, expertLoop);
                 MegaMoeGmmTask task;
                 task.flags = kGmmTaskFlagNormal;
                 task.expert = expert;
@@ -137,7 +130,7 @@ private:
     }
 
     GM_ADDR workspaceGM_ = nullptr;
-    const __gm__ MegaMoeTilingData *tilingData_ = nullptr;
+    const __gm__ MegaMoeTilingData* tilingData_ = nullptr;
     uint32_t workerIdx_ = 0U;
     uint32_t workerCount_ = 0U;
     uint32_t expertPerRank_ = 0U;

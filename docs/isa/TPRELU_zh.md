@@ -1,4 +1,4 @@
-﻿# TPRELU
+# TPRELU
 
 ## 指令示意图
 
@@ -67,7 +67,7 @@ PTO_INST RecordEvent TPRELU(TileDataDst &dst, TileDataSrc0 &src0, TileDataSrc1 &
 `tmp` **被使用**作为比较掩码存储。A2A3 实现将 PReLU 分解为：`dst = src0 > 0 ? src0 : src0 * src1`，使用 `TCMPS` 将比较掩码写入 `tmp`，然后使用 `TSEL` 在 `src0` 和 `dst`（= `src0 * src1`）之间进行选择。
 
 - `tmp` 的元素类型必须是 `uint8_t`。
-- `tmp.GetValidRow() > dst.GetValidRow()`（有效行之后的额外行区域通过 `TSUBVIEW` 用于 `TSEL` 掩码）。
+- `tmp.GetValidRow() > dst.GetValidRow()`（有效行之后的额外行区域通过 sub-tile aliasing 用于 `TSEL` 掩码）。
 - `tmp` 必须是行主序。
 - 在手动模式下，`tmp` 的内存区域不得与 `dst`、`src0` 或 `src1` 重叠。
 

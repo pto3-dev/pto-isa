@@ -14,8 +14,8 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #endif
 #include <pto/pto-inst.hpp>
 
-#if defined(PTO_A1_TEST_NON_FP16)
-using A1Element = float;
+#if defined(PTO_A1_TEST_NON_FLOAT)
+using A1Element = int32_t;
 #else
 using A1Element = half;
 #endif

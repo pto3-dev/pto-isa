@@ -44,7 +44,6 @@ Common test entry points:
 - `run_comm_test.sh`: Communication ST one-click script (see below)
 - `run_costmodel.py`: Cost model run script
 - `run_costmodel_tests.sh`: Cost model one-click script
-- `run_pipeline.sh`: Pipeline test script
 - `validate_op_coverage.py`: Operator coverage validation script
 - `validate_testcase_names.py`: Testcase name validation script
 

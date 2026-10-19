@@ -125,8 +125,8 @@ void test_tcvt()
     WriteFile(GetGoldenDir() + "/output_z.bin", res.dstHost, res.dstFileSize);
     CleanupTcvtTest(res);
 
-    std::vector<D> golden(res.dstFileSize);
-    std::vector<D> devFinal(res.dstFileSize);
+    std::vector<D> golden(res.dstFileSize / sizeof(D));
+    std::vector<D> devFinal(res.dstFileSize / sizeof(D));
     ReadFile(GetGoldenDir() + "/golden.bin", res.dstFileSize, golden.data(), res.dstFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", res.dstFileSize, devFinal.data(), res.dstFileSize);
 
@@ -271,8 +271,8 @@ void test_tcvt_s4_to_fp16()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<aclFloat16> golden(dstFileSize);
-    std::vector<aclFloat16> devFinal(dstFileSize);
+    std::vector<aclFloat16> golden(dstFileSize / sizeof(aclFloat16));
+    std::vector<aclFloat16> devFinal(dstFileSize / sizeof(aclFloat16));
     ReadFile(GetGoldenDir() + "/golden.bin", dstFileSize, golden.data(), dstFileSize);
     ReadFile(GetGoldenDir() + "/output_z.bin", dstFileSize, devFinal.data(), dstFileSize);
     EXPECT_TRUE(ResultCmp<aclFloat16>(golden, devFinal, 0.001f));
@@ -350,8 +350,8 @@ void test_tcvt_saturation()
     WriteFile(GetGoldenDir() + "/output_default.bin", dstDefaultHost, dstFileSize);
 
     // Compare truncated output (PyTorch only provides TRUNC mode golden data)
-    std::vector<D> goldenTrunc(dstFileSize);
-    std::vector<D> devTrunc(dstFileSize);
+    std::vector<D> goldenTrunc(dstFileSize / sizeof(D));
+    std::vector<D> devTrunc(dstFileSize / sizeof(D));
     ReadFile(GetGoldenDir() + "/golden_truncated.bin", dstFileSize, goldenTrunc.data(), dstFileSize);
     ReadFile(GetGoldenDir() + "/output_truncated.bin", dstFileSize, devTrunc.data(), dstFileSize);
     bool truncOk = ResultCmp<D>(goldenTrunc, devTrunc, 0.001f);
@@ -360,8 +360,8 @@ void test_tcvt_saturation()
     // PyTorch only provides truncated mode golden data, so we compare against that
     std::string goldenDefaultFile = GetGoldenDir() + "/golden_truncated.bin";
 
-    std::vector<D> goldenDefault(dstFileSize);
-    std::vector<D> devDefault(dstFileSize);
+    std::vector<D> goldenDefault(dstFileSize / sizeof(D));
+    std::vector<D> devDefault(dstFileSize / sizeof(D));
     ReadFile(goldenDefaultFile, dstFileSize, goldenDefault.data(), dstFileSize);
     ReadFile(GetGoldenDir() + "/output_default.bin", dstFileSize, devDefault.data(), dstFileSize);
     bool defaultOk = ResultCmp<D>(goldenDefault, devDefault, 0.001f);
@@ -417,8 +417,8 @@ void test_tcvt_nonsattorch()
     aclrtMemcpy(res.dstHost, res.dstFileSize, res.dstDevice, res.dstFileSize, ACL_MEMCPY_DEVICE_TO_HOST);
     WriteFile(GetGoldenDir() + "/output_truncated.bin", res.dstHost, res.dstFileSize);
 
-    std::vector<D> golden(res.dstFileSize);
-    std::vector<D> devFinal(res.dstFileSize);
+    std::vector<D> golden(res.dstFileSize / sizeof(D));
+    std::vector<D> devFinal(res.dstFileSize / sizeof(D));
     ReadFile(GetGoldenDir() + "/golden_truncated.bin", res.dstFileSize, golden.data(), res.dstFileSize);
     ReadFile(GetGoldenDir() + "/output_truncated.bin", res.dstFileSize, devFinal.data(), res.dstFileSize);
     CleanupTcvtTest(res);

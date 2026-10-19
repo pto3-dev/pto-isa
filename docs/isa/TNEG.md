@@ -1,4 +1,4 @@
-﻿# TNEG
+# TNEG
 
 
 ## Tile Operation Diagram

@@ -17,6 +17,9 @@ using namespace PtoTestCommon;
 template <int descending, int kCols>
 void LaunchTCI(int32_t* out, int32_t start, void* stream);
 
+template <int descending, int kCols>
+void LaunchTCIWithTmp(int32_t* out, int32_t start, void* stream);
+
 class TCI_Test : public testing::Test {};
 
 namespace {
@@ -35,8 +38,8 @@ static std::string GetGoldenDir()
     return "../" + std::string(testInfo->test_suite_name()) + "." + testInfo->name();
 }
 
-template <int descending>
-static void run_case(int32_t start)
+template <int descending, bool withTmp = false>
+static void run_case(int32_t start, const std::string& goldenDir = GetGoldenDir())
 {
     const size_t outSize = static_cast<size_t>(kCols) * sizeof(int32_t);
 
@@ -50,11 +53,15 @@ static void run_case(int32_t start)
     aclrtMallocHost((void**)(&dstHost), outSize);
     aclrtMalloc((void**)&dstDevice, outSize, ACL_MEM_MALLOC_HUGE_FIRST);
 
-    LaunchTCI<descending, kCols>(dstDevice, start, stream);
+    if constexpr (withTmp) {
+        LaunchTCIWithTmp<descending, kCols>(dstDevice, start, stream);
+    } else {
+        LaunchTCI<descending, kCols>(dstDevice, start, stream);
+    }
     aclrtSynchronizeStream(stream);
     aclrtMemcpy(dstHost, outSize, dstDevice, outSize, ACL_MEMCPY_DEVICE_TO_HOST);
 
-    WriteFile(GetGoldenDir() + "/output.bin", dstHost, outSize);
+    WriteFile(goldenDir + "/output.bin", dstHost, outSize);
 
     aclrtFree(dstDevice);
     aclrtFreeHost(dstHost);
@@ -65,11 +72,15 @@ static void run_case(int32_t start)
     std::vector<int32_t> golden(kCols);
     std::vector<int32_t> out(kCols);
     size_t readSize = 0;
-    CHECK_RESULT_GTEST(ReadFile(GetGoldenDir() + "/golden.bin", readSize, golden.data(), outSize));
-    CHECK_RESULT_GTEST(ReadFile(GetGoldenDir() + "/output.bin", readSize, out.data(), outSize));
+    CHECK_RESULT_GTEST(ReadFile(goldenDir + "/golden.bin", readSize, golden.data(), outSize));
+    CHECK_RESULT_GTEST(ReadFile(goldenDir + "/output.bin", readSize, out.data(), outSize));
     EXPECT_TRUE(ResultCmp<int32_t>(golden, out.data(), kEpsilon));
 }
 
 TEST_F(TCI_Test, case_i32_asc_S0) { run_case<0>(kStartS0); }
 
 TEST_F(TCI_Test, case_i32_desc_S100) { run_case<1>(kStartS100); }
+
+TEST_F(TCI_Test, case_i32_asc_S0_with_tmp) { run_case<0, true>(kStartS0, "../TCI_Test.case_i32_asc_S0"); }
+
+TEST_F(TCI_Test, case_i32_desc_S100_with_tmp) { run_case<1, true>(kStartS100, "../TCI_Test.case_i32_desc_S100"); }

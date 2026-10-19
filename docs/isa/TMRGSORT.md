@@ -1,4 +1,4 @@
-﻿# TMRGSORT
+# TMRGSORT
 
 ## Tile Operation Diagram
 

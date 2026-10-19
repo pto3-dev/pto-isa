@@ -85,8 +85,8 @@ void LaunchTest()
     aclrtResetDevice(0);
     aclFinalize();
 
-    std::vector<DType> golden(dstFileSize);
-    std::vector<DType> devFinal(dstFileSize);
+    std::vector<DType> golden(dstFileSize / sizeof(DType));
+    std::vector<DType> devFinal(dstFileSize / sizeof(DType));
     CHECK_RESULT_GTEST(ReadFile(GetGoldenDir() + "/golden.bin", dstFileSize, golden.data(), dstFileSize));
     CHECK_RESULT_GTEST(ReadFile(GetGoldenDir() + "/output_z.bin", dstFileSize, devFinal.data(), dstFileSize));
 
