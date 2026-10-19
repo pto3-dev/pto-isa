@@ -560,3 +560,11 @@ A1 `TCVT` 支持静态完整行主序 ND Vec tile 的 FP16 与 FP32 互转，限
 `TMATMUL_ACC(dst, acc, lhs, rhs)` 支持上述窄矩阵配置的原位累加。先用 `TMATMUL` 初始化；`dst` 与 `acc` 必须为同类型且指向同一 L0C 存储，否则 release 构建也会 trap。每次累加 MAD 前执行 PIPE_M barrier，保证 L0C 写后读依赖。暂不支持 AccPhase 参数。`tests/compile/a1_narrow_gemm_accumulation.cpp` 验证连续三次 MAD 累加。
 
 A1 Mat `TLOAD` 支持静态 Nx16 FP16 面板的跨步 ND 行，行跨度至少 16 且按 16 元素对齐。32 字节块间隔不超过 65535 时使用逐行 burst，否则分行拷贝以避免截断。目标仍是连续 ZZ/NZ 面板；测试包含非零对齐列偏移和大间隔。此路径可从更宽的输入矩阵中加载 K/N 面板，MAD 本身仍限定 K=N=16。
+
+A1 `TEXP` 和 `TDIV` 支持完整静态 ND FP16/FP32 Vec tile，使用默认精度（default precision）。两者共用算术掩码和 255 次重复分批路径，支持输入输出地址完全相同的原位执行，不支持部分重叠。高精度变体会被拒绝。`tests/compile/a1_exp_div_vector.cpp` 覆盖两种指令和原位变体。指数和除法使用硬件近似运算；除零及极端数值遵循目标行为，不承诺跨平台 IEEE 语义。
+
+A1 `TEXPANDS` 将 FP16/FP32 标量广播（scalar broadcast）到静态完整 ND Vec tile。它与逐元素运算共用尾部掩码及 255 次重复分批。`tests/compile/a1_scalar_broadcast.cpp` 和配套原生 pytest 覆盖标量逐位结果、带符号零和相邻缓冲区哨兵。
+
+A1 `TROWSUM`/`TROWMAX` 将完整静态行主序 FP16/FP32 输入归约为紧凑列主序（packed column-major）Mx1 Vec 结果，需要不重叠的同类型完整大小行主序临时缓冲区。M 须使紧凑结果满足 32 字节对齐，普通输入行仍须对齐。连续 Mx1 的 ND/DN 传输物理等价，支持对齐的分区偏移。m200 行最大值的数值/索引对经显式向量/标量同步后打包为数值。`TCOLSUM`/`TCOLMAX` 沿行维归约为同列宽的 1xN 行主序结果；列求和目前仅支持无临时缓冲区的顺序形式。行归约的输入、输出和临时缓冲区不得重叠。列归约结果可复用首个输入行的起始地址，但不允许部分重叠。求和保持 tile 数据类型，需要 FP32 累加时应使用 FP32 输入。原生回归使用有限数值，NaN 和带符号零的并列值行为取决于目标硬件。暂不支持动态形状和未对齐尾部。
+
+A1 `TROWEXPAND` 将紧凑列主序 Mx1 FP16/FP32 值广播到目标各行；`TCOLEXPAND` 将行主序 1xN 源广播到目标各行。目标必须是完整、静态、对齐的行主序 Vec 分块。行广播要求缓冲区不重叠；列广播还允许与目标首行精确同址。部分重叠触发 trap。行广播通过预留事件 7 同步向量和标量消费者。已验证有限数值；NaN 载荷和正负零相等时的行为由目标决定。暂不支持动态或未对齐形状。
