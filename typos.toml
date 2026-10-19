@@ -32,3 +32,7 @@ compatiable = "compatiable"  # external cann-cmake filename version_compatiable.
 [default.extend-identifiers]
 SUBTILE = "SUBTILE"
 SUBTILES = "SUBTILES"
+
+# External CANN runtime API spellings.
+schemMode = "schemMode"
+RT_SCHEM_MODE_BATCH = "RT_SCHEM_MODE_BATCH"
