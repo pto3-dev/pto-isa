@@ -72,6 +72,12 @@ PTO_INST RecordEvent TMAX(TileDataDst &dst, TileDataSrc0 &src0, TileDataSrc1 &sr
 
 ## Target-Profile 限制
 
+### A1
+
+- 完整静态、行主序 FP16/FP32 Vec 分块，输入输出形状和类型匹配，行按 32 字节对齐且存储不超出 UB。
+- 目标可与任一输入精确同址；偏移重叠在执行前被拒绝。
+- 每组最多 255 次 repeat，尾部 mask 保留相邻数据。CPU/原生测试验证包括非正规数和正常范围边界的有限值，尚未验证 NaN 的选择语义。
+
 ### A2A3
 
 - 支持类型：`int32_t`、`int16_t`、`half`、`float`

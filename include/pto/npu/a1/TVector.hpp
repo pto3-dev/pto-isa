@@ -272,6 +272,20 @@ PTO_INTERNAL void TMUL_IMPL(DstTile& dst, Src0Tile& src0, Src1Tile& src1)
     A1ElementwiseVector<Op::TMUL>(dst, src0, src1);
 }
 
+template <typename DstTile, typename Src0Tile, typename Src1Tile>
+PTO_INTERNAL void TMAX_IMPL(DstTile& dst, Src0Tile& src0, Src1Tile& src1)
+{
+    // Exact operand aliases are safe; shifted aliases can overwrite values
+    // that a later vector repeat has not consumed yet.
+    const auto address = reinterpret_cast<uintptr_t>(dst.data());
+    if ((detail::A1BuffersOverlap(dst, src0) && address != reinterpret_cast<uintptr_t>(src0.data())) ||
+        (detail::A1BuffersOverlap(dst, src1) && address != reinterpret_cast<uintptr_t>(src1.data()))) {
+        trap();
+        return;
+    }
+    A1ElementwiseVector<Op::TMAX>(dst, src0, src1);
+}
+
 template <typename TileData>
 PTO_INTERNAL void TEXPANDS_IMPL(TileData& dst, typename TileData::DType scalar)
 {
