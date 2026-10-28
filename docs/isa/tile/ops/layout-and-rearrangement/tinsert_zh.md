@@ -187,6 +187,17 @@ PTO_INST RecordEvent TINSERT(DstTileData &dst, SrcTileData &src,
     - `validRow` 对齐到 `FRACTAL_NZ_ROW`（16）用于burst计算。
     - 将 `copy_ubuf_to_cbuf` 的总burst拆分为2或4个子传输，每个处理 `totalBurstNum / SplitCount` 列块。
 
+### Ascend310P Mat 到 Left
+
+A1 `TINSERT(left, mat, row, column)` 通过 MTE1 将完整 FP16 C16 Mat 面板插入
+完整 FP16 ZZ Left 块中的对齐区域，K16 Left 也可使用旧 NZ 布局。源/目标维度
+为 `[16,2048]` 内的静态 16 的倍数，目标须满足 64 KiB L0A 容量限制。偏移须按
+16 对齐，完整面板必须位于目标范围内；原生运行时参数违规会在 DMA 前触发 trap，
+发布构建同样检查。Left 中的其他值保持不变，不支持量化和激活形式。
+
+MTE1 前需等待 L1 生产者，Cube 消费前需等待 MTE1；复用 L1 前等待 MTE1，重写
+Left 前等待 Cube 消费者。本指令不自动插入这些跨流水线依赖。
+
 ## 示例
 
 ### 自动（Auto）

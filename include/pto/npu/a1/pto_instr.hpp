@@ -78,6 +78,15 @@ PTO_INST RecordEvent TMOV(DstTile& dst, SrcTile& src, WaitEvents&... events)
     return {};
 }
 
+template <typename DstTile, typename SrcTile, typename... WaitEvents>
+PTO_INST RecordEvent
+TINSERT(DstTile& dst, SrcTile& src, uint16_t indexRow = 0, uint16_t indexCol = 0, WaitEvents&... events)
+{
+    TSYNC(events...);
+    TINSERT_IMPL(dst, src, indexRow, indexCol);
+    return {};
+}
+
 template <typename AccTile, typename LeftTile, typename RightTile, typename... WaitEvents>
 PTO_INST RecordEvent TMATMUL(AccTile& dst, LeftTile& lhs, RightTile& rhs, WaitEvents&... events)
 {
