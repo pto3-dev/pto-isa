@@ -175,6 +175,20 @@ PTO_INST RecordEvent TINSERT(DstTileData &dst, SrcTileData &src,
     - **A5 Acc→Vec dual mode**: For 32-bit destination types (`float`/`int32_t`), when using `DualModeSplitN` the `ValidCol` before the split must be a multiple of `32`
     - **Cpu simulator**: `TINSERT_FP` accepts the interface but ignores the `fp` parameter, falling back to standard `TINSERT`
 
+### Ascend310P Mat to Left
+
+A1 `TINSERT(left, mat, row, column)` inserts one full FP16 C16 Mat panel
+into an aligned region of a full FP16 ZZ Left tile through MTE1. K16 Left
+may also use the legacy NZ layout. Source/destination dimensions are static
+multiples of sixteen in `[16,2048]`, and the destination must fit 64 KiB L0A.
+Offsets must be multiples of sixteen and the complete panel must fit; native
+runtime violations trap before DMA, including release builds. Other Left
+values are preserved. Quantization and activation forms are not supported.
+
+Fence the L1 producer before MTE1 and MTE1 before Cube consumption. Before
+reusing L1 wait for MTE1; before rewriting Left wait for its Cube consumer.
+The instruction itself does not insert these cross-pipeline dependencies.
+
 ## Common Patterns
 
 ### Pattern 1: Accumulator Insert into Matrix

@@ -274,5 +274,98 @@ extern "C" __global__ AICORE void Unsupported(__gm__ int64_t* args) {{
         simpler.KernelCompiler("a1").compile_single_launch(str(path), str(root))
 
 
+@pytest.mark.parametrize(
+    "rows,reduction,panel_rows,gap,mode",
+    [
+        (32, 64, 16, 32, "copy"),
+        (112, 64, 16, 0, "replicate"),
+        (112, 256, 112, 32, "replicate"),
+        (224, 144, 32, 32, "copy"),
+        (16, 2048, 16, 0, "copy"),
+        (32, 64, 16, 32, "patch"),
+        (32, 16, 16, 0, "copy"),
+    ],
+)
+def test_a1_left_panel_insert_native(tmp_path, rows, reduction, panel_rows, gap, mode):
+    root = Path(__file__).resolve().parents[2]
+    definitions = f"#define PTO_TEST_M {rows}\n#define PTO_TEST_K {reduction}\n"
+    definitions += f"#define PTO_TEST_PANEL_ROWS {panel_rows}\n#define PTO_TEST_GAP {gap}\n"
+    if mode != "copy":
+        definitions += f"#define PTO_TEST_{mode.upper()}\n"
+    source = definitions + (root / "tests/compile/a1_panel_insert.cpp").read_text()
+    _run_cpu_oracle(root, tmp_path, source)
+    source = source.replace('extern "C" __global__ AICORE void A1PanelInsert', "AICORE void A1PanelInsert")
+    wrapper = r"""
+#include "tensor.h"
+extern "C" __global__ AICORE void NativePanelInsert(__gm__ int64_t* args) {
+    auto* a=reinterpret_cast<__gm__ Tensor*>(args[0]);
+    auto* b=reinterpret_cast<__gm__ Tensor*>(args[1]);
+    auto* out=reinterpret_cast<__gm__ Tensor*>(args[2]);
+    A1PanelInsert(reinterpret_cast<__gm__ float*>(out->buffer.addr)+16,
+                  reinterpret_cast<__gm__ half*>(a->buffer.addr)+16,
+                  reinterpret_cast<__gm__ half*>(b->buffer.addr)+16);
+}
+"""
+    path = tmp_path / "native.cpp"
+    path.write_text(source + wrapper)
+    image = simpler.KernelCompiler("a1").compile_single_launch(str(path), str(root))
+    input_k = reduction // 4 if mode == "replicate" else reduction
+    with simpler.A1SingleLaunch(image, device_id=0) as runner:
+        for seed in (953, 957):
+            generator = torch.Generator().manual_seed(seed)
+            a = (torch.randint(-8, 9, (rows, input_k), generator=generator).float() / 16).half()
+            b = (torch.randint(-8, 9, (reduction, 16), generator=generator).float() / 16).half()
+            ga = torch.full((rows * (input_k + gap) + 32,), 7, dtype=torch.float16)
+            ga[16:-16].reshape(rows, input_k + gap)[:, :input_k] = a
+            gb = torch.full((b.numel() + 32,), 7, dtype=torch.float16)
+            gb[16:-16] = b.flatten()
+            before_a, before_b = ga.clone(), gb.clone()
+            output = torch.full((rows * 16 + 32,), 7, dtype=torch.float32)
+            if mode == "replicate":
+                indices = torch.arange(reduction) // 64 * 16 + torch.arange(reduction) % 16
+                logical_a = a[:, indices]
+            else:
+                logical_a = a.clone()
+                if mode == "patch":
+                    logical_a[16 : 16 + panel_rows, 16:32] = a[:panel_rows, :16]
+            expected = logical_a.float() @ b.float()
+            runner(ga, gb, output)
+            assert torch.equal(output[16:-16].reshape(rows, 16), expected)
+            assert torch.all(output[:16] == 7) and torch.all(output[-16:] == 7)
+            assert torch.equal(ga, before_a) and torch.equal(gb, before_b)
+
+
+@pytest.mark.parametrize(
+    "source_cols,dest_rows,dest_cols,legacy,diagnostic",
+    [
+        (32, 32, 64, False, "C16 Mat panels"),
+        (16, 16, 64, False, "matching full aligned"),
+        (16, 32, 64, True, "requires ZZ layout"),
+        (16, 256, 256, False, "64 KiB L0A budget"),
+    ],
+)
+def test_a1_left_panel_insert_rejects_unsupported(tmp_path, source_cols, dest_rows, dest_cols, legacy, diagnostic):
+    root = Path(__file__).resolve().parents[2]
+    layout = "ColMajor" if legacy else "RowMajor"
+    source = f"""
+#include <pto/pto-inst.hpp>
+using Source = pto::Tile<pto::TileType::Mat, half, 32, {source_cols}, pto::BLayout::ColMajor,
+                         32, {source_cols}, pto::SLayout::RowMajor, 512>;
+using Destination = pto::Tile<pto::TileType::Left, half, {dest_rows}, {dest_cols}, pto::BLayout::{layout},
+                              {dest_rows}, {dest_cols}, pto::SLayout::RowMajor, 512>;
+extern "C" __global__ AICORE void Unsupported(__gm__ int64_t* args) {{
+    Source source;
+    Destination destination;
+    pto::TASSIGN<0>(source);
+    pto::TASSIGN<0>(destination);
+    pto::TINSERT(destination, source, 0, 0);
+}}
+"""
+    path = tmp_path / "unsupported.cpp"
+    path.write_text(source)
+    with pytest.raises(RuntimeError, match=diagnostic):
+        simpler.KernelCompiler("a1").compile_single_launch(str(path), str(root))
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
