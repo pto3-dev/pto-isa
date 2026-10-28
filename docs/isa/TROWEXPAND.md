@@ -40,6 +40,26 @@ Implementation checks (NPU):
 - 64-bit input (A5): an ND source may use physical `[64,4]`, valid `[64,1]`; a DN source may use compact `[64,1]`. Each row broadcasts `src[i,0]` using the physical `RowStride`.
 - Unlike binary row-broadcast instructions such as [TROWEXPANDADD](TROWEXPANDADD.md), this instruction uses one scalar per row for ND sources as well, without repeating a 32-byte block.
 
+## Ascend 310P (A1)
+
+A1 accepts matching FP16/FP32 Vec tiles with a full static packed column-major
+`M x 1` source and row-major `M x N` destination. Rows and storage obey the A1
+32-byte alignment and UB-budget checks; source and destination must be disjoint.
+
+For N >= 16 and row stride at most 255 blocks of 32 bytes, native b16/b32
+transposition replicates packed input values into the first output blocks.
+Bitwise OR copies those blocks across each remaining row. This path does not
+read UB values through the scalar pipeline or reserve temporary UB storage;
+it preserves all input bits, including signed zeros and NaN payloads.
+Transpose repeats use zero strides for a single repeat; copy repeat counts and
+masks are bounded, including partial final rows of repeats and column tails.
+Narrower FP32 rows and larger strides retain the existing scalar implementation.
+The caller remains responsible for producer/consumer pipeline synchronization.
+
+`tests/compile/test_a1_row_broadcast_bits_native.py` runs a CPU oracle before
+the device and checks exact output/input bits, adjacent UB/GM guards, all 65,536
+FP16 patterns, FP32 special/random patterns, and stride/repeat boundaries.
+
 ## Examples
 
 ### Auto
