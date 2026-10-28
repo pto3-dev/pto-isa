@@ -120,3 +120,5 @@ pto.tcolexpand ins(%src : !pto.tile_buf<...>) outs(%dst : !pto.tile_buf<...>)
 - Instruction set overview: [Reduce And Expand](../../reduce-and-expand.md)
 - Previous op in instruction set: [pto.tcolmin](./tcolmin.md)
 - Next op in instruction set: [pto.tcolexpanddiv](./tcolexpanddiv.md)
+
+A1 broadcasts full FP16/FP32 rows with repeat-strided bitwise copies. The zero source repeat stride avoids per-destination-row mask/scalar setup while preserving signed zeros, subnormals and NaN payloads. Repeat groups are limited to 255 rows; wider-than-255-block destination strides use one-row copies. Same-base aliases retain their source row; other partial overlaps remain rejected.

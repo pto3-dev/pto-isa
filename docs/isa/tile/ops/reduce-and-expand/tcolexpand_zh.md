@@ -91,3 +91,5 @@ void example() {
 - 指令集总览：[归约与扩展](../../reduce-and-expand_zh.md)
 - 上一条指令：[pto.tcolmin](./tcolmin_zh.md)
 - 下一条指令：[pto.tcolexpanddiv](./tcolexpanddiv_zh.md)
+
+A1 使用 repeat 跨步的按位复制广播完整 FP16/FP32 行。源 repeat 跨步为零，避免逐目标行设置 mask 和标量循环，同时保留正负零、非正规数及 NaN 载荷。每组最多 255 行；目标行跨度超过 255 block 时改用单行复制。同基址别名保留源行，其他部分重叠仍被拒绝。
