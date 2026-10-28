@@ -125,6 +125,14 @@ PTO_INST RecordEvent TMUL(DstTile& dst, Src0Tile& src0, Src1Tile& src1, WaitEven
     return {};
 }
 
+template <typename DstTile, typename Src0Tile, typename Src1Tile, typename... WaitEvents>
+PTO_INST RecordEvent TMAX(DstTile& dst, Src0Tile& src0, Src1Tile& src1, WaitEvents&... events)
+{
+    TSYNC(events...);
+    TMAX_IMPL(dst, src0, src1);
+    return {};
+}
+
 template <
     auto PrecisionType = DivAlgorithm::DEFAULT, typename DstTile, typename Src0Tile, typename Src1Tile,
     typename... WaitEvents>

@@ -78,6 +78,11 @@ No architectural side effects beyond producing the destination tile. Does not im
 ## Target-Profile Restrictions
 
 ??? info "Target-Profile Restrictions"
+    - **Implementation checks (A1)**:
+        - Full static row-major FP16/FP32 Vec tiles with matching shapes/types, 32-byte-aligned rows and bounded UB storage.
+        - Exact destination aliases of either input are supported; shifted overlaps are rejected before execution.
+        - Repeat groups are limited to 255 and masked tails preserve adjacent data. CPU/native tests qualify finite values including subnormals and normal limits; NaN selection is not qualified.
+
     - **Implementation checks (A2A3)**:
         - `TileData::DType` must be one of: `int32_t`, `int16_t`, `half`, `float`.
         - Tile layout must be row-major (`TileData::isRowMajor`).
