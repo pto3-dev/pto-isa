@@ -40,6 +40,21 @@ PTO_INST RecordEvent TROWEXPAND(TileDataDst &dst, TileDataSrc &src, WaitEvents &
 - 64 位输入（Ascend 950PR/Ascend 950DT）：ND 源可使用物理 `[64,4]`、有效 `[64,1]`，DN 源可使用紧凑 `[64,1]`。每行广播 `src[i,0]`，地址使用物理 `RowStride`。
 - 与 [TROWEXPANDADD](TROWEXPANDADD_zh.md) 等二元行广播不同，本指令的 ND 源仍提供每行单标量，不重复广播 32 字节块。
 
+## Ascend 310P（A1）
+
+A1 支持同类型 FP16/FP32 Vec，源为完整静态列主序紧凑 `M x 1`，目标为行主序
+`M x N`，遵循 A1 的 32 字节对齐和 UB 容量检查，源与目标必须互不重叠。
+
+当 N >= 16 且行步长不超过 255 个 32 字节块时，原生 b16/b32 转置将输入值复制到
+各输出行的前若干块，再通过按位 OR 复制到该行剩余列。该路径无需标量流水读取 UB
+数值，也不额外分配 UB 临时空间；包括正负零和 NaN payload 在内，所有位模式均保持。
+单次转置 repeat 使用零 stride；复制的 repeat 数与掩码受限，包含末组 repeat 和列尾。
+更窄的 FP32 行及更大行步长继续使用既有标量实现。生产者与消费者的流水同步仍由调用方负责。
+
+`tests/compile/test_a1_row_broadcast_bits_native.py` 先运行 CPU oracle，再检查设备
+输出及输入的原始位模式、相邻 UB/GM 守卫、全部 65,536 种 FP16 模式、FP32 特殊及
+随机模式，以及 stride/repeat 边界。
+
 ## 示例
 
 ### 自动（Auto）
