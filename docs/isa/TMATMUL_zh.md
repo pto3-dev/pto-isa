@@ -74,6 +74,26 @@ PTO_INST RecordEvent TMATMUL(TileRes &cMatrix, TileLeft &aMatrix, TileRight &bMa
       [选择模拟目标架构](../coding/cpu_sim_zh.md)。
     - 输入转换为 `float` 后进行融合乘加累加，结果不保证与 NPU 硬件逐位一致。
 
+## Ascend 310P（A1）多 K 支持范围
+
+A1 支持 FP16 `M x K` Left 与 FP16 `K x 16` Right 相乘，输出 FP32
+`M x 16` NZ Acc。M/K 为 [16, 2048] 内的静态 16 对齐维度，有效形状必须完整，
+两路操作数各自不超过 64 KiB L0A/L0B。N 仍为 16；暂不支持更宽 N 或部分有效 tile。
+
+- 多 K Left 使用 **ZZ**（外层、内层均为行主序，512 字节 fractal）。
+  K=16 时两种外层顺序等价，兼容既有 NZ Left。Right 使用 ZN，Acc 使用
+  1024 字节 FP32 fractal 的 NZ 布局。
+- 公共 `TLOAD` 接受形状匹配、行对齐的静态 FP16 ND 矩阵，生成 ZZ 或 NZ L1 Mat。
+  `TMOV` 将任一布局转换为所需 Left 顺序，并转置 Right 的内部 fractal。
+  存活的 L1 分配必须互不重叠，且合计不超过 1 MiB。
+- `TMATMUL_ACC` 要求输入和输出累加器地址相同，保留既有依赖 MAD 前的矩阵流水屏障。
+- FP32 Acc→Vec 写回仍为 N16 路径，需显式指定
+  `AccToVecMode::SingleModeVec0`。DMA、操作数搬运和写回同步由调用方负责。
+
+硬件 `TIMG2COL` 生成同样的 ZZ Left。组合回归以 K144 操作数覆盖 padding=1 的
+3x3 C16 卷积，包括 M 窗口偏移和依赖累加。输入为二进制分数，CPU 与设备逐值精确
+检查，不使用容差。这些测试验证基础指令契约，不代表整模精度或性能收益。
+
 ## 示例
 
 ### 自动（Auto）
