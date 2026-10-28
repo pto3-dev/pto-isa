@@ -77,6 +77,32 @@ PTO_INST RecordEvent TMATMUL(TileRes &cMatrix, TileLeft &aMatrix, TileRight &bMa
     - Inputs are converted to `float` and accumulated using fused multiply-add; results are not
       guaranteed to match NPU hardware bit for bit.
 
+## Ascend 310P (A1) multi-K profile
+
+A1 supports FP16 `M x K` Left times FP16 `K x 16` Right with an FP32
+`M x 16` NZ accumulator. M and K are static multiples of 16 in [16, 2048],
+with full valid shapes; each operand must fit its 64 KiB L0A/L0B allocation.
+N remains 16. Wider N and partial tiles are not part of this profile.
+
+- Multi-K Left uses **ZZ** (row-major outer and inner fractals, 512 bytes).
+  The legacy NZ Left encoding remains accepted at K=16, where outer orders
+  coincide. Right uses ZN; Acc uses NZ with 1024-byte FP32 fractals.
+- Public `TLOAD` accepts matching, aligned static FP16 ND matrix rows and
+  constructs ZZ or NZ L1 Mat panels. `TMOV` converts either to the required
+  Left order and transposes the Right inner fractals. Live L1 allocations
+  must remain disjoint and fit the 1 MiB budget.
+- `TMATMUL_ACC` requires the same input/output accumulator address. It keeps
+  the existing matrix-pipeline barrier before the dependent MAD.
+- FP32 Acc-to-Vec writeback remains the N16 path, with explicit
+  `AccToVecMode::SingleModeVec0`. DMA, operand and writeback synchronization
+  remain the caller's responsibility.
+
+Hardware `TIMG2COL` produces the same ZZ Left format. The composed im2col →
+GEMM regression covers a padded 3x3 C16 convolution using a K144 operand,
+including an M-window offset and dependent accumulation. Binary-fraction
+inputs make CPU and device checks exact without a tolerance. These checks
+establish the primitive contract, not whole-model accuracy or a speedup.
+
 ## Examples
 
 ### Auto

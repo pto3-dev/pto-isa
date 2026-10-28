@@ -28,13 +28,34 @@ PTO_INTERNAL void CheckA1NarrowMatrixTile()
 template <typename TileData>
 PTO_INTERNAL void CheckA1MatrixInput()
 {
-    CheckA1NarrowMatrixTile<TileData>();
+    PTO_STATIC_ASSERT(
+        (TileData::Rows >= 16 && TileData::Rows <= 2048 && TileData::Rows % 16 == 0 && TileData::Cols >= 16 &&
+         TileData::Cols <= 2048 && TileData::Cols % 16 == 0 && TileData::ValidRow == TileData::Rows &&
+         TileData::ValidCol == TileData::Cols && uint64_t(TileData::Rows) * TileData::Cols * sizeof(half) <= 1048576),
+        "A1 matrix inputs require full aligned M/K dimensions and at most 1 MiB L1.");
     PTO_STATIC_ASSERT(
         (TileData::Loc == TileType::Mat && std::is_same<typename TileData::DType, half>::value &&
          TileData::SFractal == SLayout::RowMajor && TileData::SFractalSize == 512),
         "A1 matrix input requires an FP16 ZZ or NZ Mat tile.");
 }
 } // namespace detail
+
+// Each panel is contiguous in L1. Wide ND rows are split into C16 panels;
+// ZZ stores [M1,K1,M0,K0], while NZ stores [K1,M1,M0,K0].
+template <unsigned Rows, uint64_t GlobalStride>
+PTO_INTERNAL void A1LoadMatrixPanel(__cbuf__ half* dst, __gm__ half* src)
+{
+    constexpr uint64_t gap = (GlobalStride - 16) / 16;
+    if constexpr (gap == 0) {
+        copy_gm_to_cbuf(dst, src, 0, 1, Rows, 0, 0, (pad_t)0);
+    } else if constexpr (gap <= UINT16_MAX) {
+        copy_gm_to_cbuf(dst, src, 0, Rows, 1, gap, 0, (pad_t)0);
+    } else {
+        // Preserve full GM strides rather than truncating the DMA field.
+        for (unsigned row = 0; row < Rows; ++row)
+            copy_gm_to_cbuf(dst + row * 16, src + row * GlobalStride, 0, 1, 1, 0, 0, (pad_t)0);
+    }
+}
 
 template <typename TileData, typename GlobalData>
 PTO_INTERNAL void TLOAD_IMPL(TileData& dst, GlobalData& src)
@@ -48,22 +69,19 @@ PTO_INTERNAL void TLOAD_IMPL(TileData& dst, GlobalData& src)
         PTO_STATIC_ASSERT(
             ((std::is_same<typename GlobalData::RawDType, half>::value && GlobalData::layout == Layout::ND &&
               GlobalData::staticShape[0] == 1 && GlobalData::staticShape[1] == 1 && GlobalData::staticShape[2] == 1 &&
-              GlobalData::staticShape[3] == TileData::Rows && GlobalData::staticShape[4] == 16 &&
-              GlobalData::staticStride[3] >= 16 && GlobalData::staticStride[3] % 16 == 0 &&
+              GlobalData::staticShape[3] == TileData::Rows && GlobalData::staticShape[4] == TileData::Cols &&
+              GlobalData::staticStride[3] >= TileData::Cols && GlobalData::staticStride[3] % 16 == 0 &&
               GlobalData::staticStride[4] == 1)),
-            "A1 matrix load requires a matching static FP16 Nx16 ND tensor with aligned rows.");
-        // One outer column of ZZ/NZ fractals has the same element order as ND.
-        constexpr uint64_t globalGap = (GlobalData::staticStride[3] - 16) / 16;
-        if constexpr (globalGap == 0) {
-            copy_gm_to_cbuf(dst.data(), src.data(), 0, 1, TileData::Rows, 0, 0, (pad_t)0);
-        } else if constexpr (globalGap <= UINT16_MAX) {
-            // At most 2048 rows fit the 12-bit burst count; each row is one 32-byte block.
-            copy_gm_to_cbuf(dst.data(), src.data(), 0, TileData::Rows, 1, globalGap, 0, (pad_t)0);
-        } else {
-            // Do not truncate wide GM gaps to the DMA instruction's 16-bit stride.
-            for (unsigned row = 0; row < TileData::Rows; ++row)
-                copy_gm_to_cbuf(
-                    dst.data() + row * 16, src.data() + row * GlobalData::staticStride[3], 0, 1, 1, 0, 0, (pad_t)0);
+            "A1 matrix load requires a matching static FP16 ND tensor with aligned rows.");
+        constexpr uint64_t stride = GlobalData::staticStride[3];
+        for (unsigned column = 0; column < TileData::Cols; column += 16) {
+            if constexpr (TileData::isRowMajor && TileData::Cols > 16) {
+                for (unsigned row = 0; row < TileData::Rows; row += 16)
+                    A1LoadMatrixPanel<16, stride>(
+                        dst.data() + row * TileData::Cols + column * 16, src.data() + row * stride + column);
+            } else {
+                A1LoadMatrixPanel<TileData::Rows, stride>(dst.data() + column * TileData::Rows, src.data() + column);
+            }
         }
     }
 }
@@ -72,22 +90,33 @@ template <typename DstTile, typename SrcTile>
 PTO_INTERNAL void TMOV_IMPL(DstTile& dst, SrcTile& src)
 {
     detail::CheckA1MatrixInput<SrcTile>();
-    detail::CheckA1NarrowMatrixTile<DstTile>();
-    PTO_STATIC_ASSERT(DstTile::Rows == SrcTile::Rows, "A1 matrix operand moves require matching shapes.");
     PTO_STATIC_ASSERT(
-        (std::is_same<typename DstTile::DType, half>::value && DstTile::SFractalSize == 512),
-        "A1 matrix operand moves require FP16 512-byte fractals.");
+        (DstTile::Rows == SrcTile::Rows && DstTile::Cols == SrcTile::Cols && DstTile::ValidRow == DstTile::Rows &&
+         DstTile::ValidCol == DstTile::Cols),
+        "A1 matrix operand moves require matching full shapes.");
+    PTO_STATIC_ASSERT(
+        (std::is_same<typename DstTile::DType, half>::value && DstTile::SFractalSize == 512 &&
+         uint64_t(DstTile::Rows) * DstTile::Cols * sizeof(half) <= 65536),
+        "A1 matrix operand moves require FP16 fractals within 64 KiB L0A/L0B.");
     if constexpr (DstTile::Loc == TileType::Left) {
         PTO_STATIC_ASSERT(
-            (!DstTile::isRowMajor && DstTile::SFractal == SLayout::RowMajor),
-            "A1 left operand requires an NZ Left tile.");
-        load_cbuf_to_ca(dst.data(), src.data(), 0, SrcTile::Rows / 16, 1, 0, 0, false, addr_cal_mode_t(0));
+            ((DstTile::isRowMajor || DstTile::Cols == 16) && DstTile::SFractal == SLayout::RowMajor),
+            "A1 multi-K left operand requires ZZ; the legacy NZ layout is valid for K16 only.");
+        if constexpr (SrcTile::isRowMajor || SrcTile::Cols == 16) {
+            load_cbuf_to_ca(
+                dst.data(), src.data(), 0, SrcTile::Rows * SrcTile::Cols / 256, 1, 0, 0, false, addr_cal_mode_t(0));
+        } else {
+            for (unsigned row = 0; row < SrcTile::Rows / 16; ++row)
+                load_cbuf_to_ca(
+                    dst.data() + row * SrcTile::Cols * 16, src.data() + row * 256, 0, SrcTile::Cols / 16,
+                    SrcTile::Rows / 16, 0, 0, false, addr_cal_mode_t(0));
+        }
     } else {
         PTO_STATIC_ASSERT(
-            (DstTile::Loc == TileType::Right && DstTile::Rows == 16 && DstTile::isRowMajor &&
+            (DstTile::Loc == TileType::Right && DstTile::Cols == 16 && DstTile::isRowMajor &&
              DstTile::SFractal == SLayout::ColMajor),
-            "A1 right operand requires a ZN Right tile.");
-        load_cbuf_to_cb(dst.data(), src.data(), 0, 1, 1, 0, 0, true, addr_cal_mode_t(0));
+            "A1 right operand requires a Kx16 ZN Right tile.");
+        load_cbuf_to_cb(dst.data(), src.data(), 0, SrcTile::Rows / 16, 1, 0, 0, true, addr_cal_mode_t(0));
     }
 }
 
@@ -95,11 +124,14 @@ template <bool Initialize, typename AccTile, typename LeftTile, typename RightTi
 PTO_INTERNAL void A1MatrixMultiply(AccTile& dst, LeftTile& lhs, RightTile& rhs)
 {
     detail::CheckA1NarrowMatrixTile<AccTile>();
-    detail::CheckA1NarrowMatrixTile<LeftTile>();
-    detail::CheckA1NarrowMatrixTile<RightTile>();
     PTO_STATIC_ASSERT(
-        AccTile::Rows == LeftTile::Rows && RightTile::Rows == 16,
-        "A1 narrow GEMM requires matching M rows with K=N=16.");
+        (LeftTile::Rows >= 16 && LeftTile::Rows <= 2048 && LeftTile::Rows % 16 == 0 && LeftTile::Cols >= 16 &&
+         LeftTile::Cols <= 2048 && LeftTile::Cols % 16 == 0 && LeftTile::ValidRow == LeftTile::Rows &&
+         LeftTile::ValidCol == LeftTile::Cols && uint64_t(LeftTile::Rows) * LeftTile::Cols * sizeof(half) <= 65536 &&
+         RightTile::Rows == LeftTile::Cols && RightTile::Cols == 16 && RightTile::ValidRow == RightTile::Rows &&
+         RightTile::ValidCol == 16 && uint64_t(RightTile::Rows) * 16 * sizeof(half) <= 65536),
+        "A1 GEMM requires aligned full M/K, N16 and operands within 64 KiB L0A/L0B.");
+    PTO_STATIC_ASSERT(AccTile::Rows == LeftTile::Rows, "A1 GEMM requires matching M rows.");
     PTO_STATIC_ASSERT(
         (AccTile::Loc == TileType::Acc && std::is_same<typename AccTile::DType, float>::value && !AccTile::isRowMajor &&
          AccTile::SFractal == SLayout::RowMajor && AccTile::SFractalSize == 1024),
@@ -107,10 +139,11 @@ PTO_INTERNAL void A1MatrixMultiply(AccTile& dst, LeftTile& lhs, RightTile& rhs)
     PTO_STATIC_ASSERT(
         (LeftTile::Loc == TileType::Left && RightTile::Loc == TileType::Right &&
          std::is_same<typename LeftTile::DType, half>::value && std::is_same<typename RightTile::DType, half>::value &&
-         !LeftTile::isRowMajor && LeftTile::SFractal == SLayout::RowMajor && LeftTile::SFractalSize == 512 &&
-         RightTile::isRowMajor && RightTile::SFractal == SLayout::ColMajor && RightTile::SFractalSize == 512),
-        "A1 matrix multiplication requires FP16 NZ Left and ZN Right operands.");
-    mad(dst.data(), lhs.data(), rhs.data(), AccTile::Rows, 16, 16, Initialize);
+         (LeftTile::isRowMajor || LeftTile::Cols == 16) && LeftTile::SFractal == SLayout::RowMajor &&
+         LeftTile::SFractalSize == 512 && RightTile::isRowMajor && RightTile::SFractal == SLayout::ColMajor &&
+         RightTile::SFractalSize == 512),
+        "A1 GEMM requires FP16 ZZ Left (legacy NZ at K16) and ZN Right operands.");
+    mad(dst.data(), lhs.data(), rhs.data(), AccTile::Rows, LeftTile::Cols, 16, Initialize);
 }
 
 template <typename AccTile, typename LeftTile, typename RightTile>
