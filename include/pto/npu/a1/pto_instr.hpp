@@ -14,6 +14,7 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #include <pto/common/arch_cce_intrinsic.hpp>
 #include <pto/common/tassign_check.hpp>
 #include <pto/npu/a1/TExpand.hpp>
+#include <pto/npu/a1/TImg2col.hpp>
 #include <pto/npu/a1/TMatrix.hpp>
 #include <pto/npu/a1/TReduce.hpp>
 #include <pto/npu/a1/TSync.hpp>
@@ -209,6 +210,31 @@ template <bool NeedSetCtrl = true, typename DstTile, typename SrcTile, typename.
 PTO_INST RecordEvent TCVT(DstTile& dst, SrcTile& src, RoundMode mode, WaitEvents&... events)
 {
     return TCVT<NeedSetCtrl>(dst, src, mode, SaturationMode::OFF, events...);
+}
+
+// Same public image instruction surface as the other architectures; A1's
+// implementation keeps coupled-core geometry and native LoadData3DV2 ABI.
+template <typename Left, typename Conv, SetFmatrixMode Mode = SetFmatrixMode::FMATRIX_A_MANUAL, typename... WaitEvents>
+PTO_INST RecordEvent TIMG2COL(Left& dst, Conv& src, uint16_t posM = 0, uint16_t posK = 0, WaitEvents&... events)
+{
+    TSYNC(events...);
+    A1Img2col<Left, Conv, Mode>(dst, src, posM, posK);
+    return {};
+}
+
+template <typename Conv, SetFmatrixMode Mode = SetFmatrixMode::FMATRIX_A_MANUAL, typename... WaitEvents>
+PTO_INST RecordEvent SETFMATRIX(Conv& src, WaitEvents&... events)
+{
+    TSYNC(events...);
+    detail::CheckA1ConvImage<Conv>();
+    static_assert(Mode == SetFmatrixMode::FMATRIX_A_AUTO || Mode == SetFmatrixMode::FMATRIX_A_MANUAL);
+    if (!detail::ValidA1ConvGeometry(src)) {
+        trap();
+        return {};
+    }
+    if constexpr (Mode == SetFmatrixMode::FMATRIX_A_AUTO)
+        detail::SetA1Fmatrix(src);
+    return {};
 }
 
 } // namespace pto
