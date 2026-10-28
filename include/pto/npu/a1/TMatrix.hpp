@@ -11,6 +11,7 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #ifndef PTO_NPU_A1_TMATRIX_HPP
 #define PTO_NPU_A1_TMATRIX_HPP
 
+#include <pto/npu/a1/TImg2col.hpp>
 #include <pto/npu/a1/TVector.hpp>
 
 namespace pto {
@@ -38,7 +39,9 @@ PTO_INTERNAL void CheckA1MatrixInput()
 template <typename TileData, typename GlobalData>
 PTO_INTERNAL void TLOAD_IMPL(TileData& dst, GlobalData& src)
 {
-    if constexpr (TileData::Loc == TileType::Vec) {
+    if constexpr (is_conv_tile_v<TileData>) {
+        A1LoadConvImage(dst, src);
+    } else if constexpr (TileData::Loc == TileType::Vec) {
         TLOAD_VEC_IMPL(dst, src);
     } else {
         detail::CheckA1MatrixInput<TileData>();

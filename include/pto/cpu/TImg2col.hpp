@@ -44,8 +44,9 @@ inline void Timg2colCheck()
         (ConvTileData::layout == Layout::NC1HWC0) || (ConvTileData::layout == Layout::NDC1HWC0),
         "TImg2col: Source layout only support NC1HWC0/NDC1HWC0.");
     static_assert(
-        TileData::SFractal == SLayout::RowMajor && !TileData::isRowMajor,
-        "TImg2col: Destination layout only support SLayout RowMajor + BLayout ColMajor.");
+        TileData::SFractal == SLayout::RowMajor, "TImg2col: Destination layout requires row-major inner fractals.");
+    // A1/A2 use M-major ZZ while A5 uses K-major NZ. The CPU offset helper
+    // models both outer layouts; rejecting ZZ made the common oracle A5-only.
     static_assert(
         std::is_same_v<typename ConvTileData::DType, typename TileData::DType>,
         "TImg2col: Destination and source tile data types must match.");
