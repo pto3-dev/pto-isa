@@ -86,8 +86,40 @@ PTO_INTERNAL void TLOAD_IMPL(TileData& dst, GlobalData& src)
     }
 }
 
+// UB is ND, whereas Cube Mat operands are boxed into C16 panels. Repack
+// through MTE3 without scalar reads or a GM round trip. The caller fences
+// V/MTE2 -> MTE3, MTE3 -> MTE1, and MTE1 -> MTE3 before reusing L1.
 template <typename DstTile, typename SrcTile>
-PTO_INTERNAL void TMOV_IMPL(DstTile& dst, SrcTile& src)
+PTO_INTERNAL void A1VectorToMatrix(DstTile& dst, SrcTile& src)
+{
+    detail::CheckA1VectorTile<SrcTile>();
+    detail::CheckA1MatrixInput<DstTile>();
+    PTO_STATIC_ASSERT(
+        (std::is_same<typename SrcTile::DType, half>::value), "A1 Vec-to-Mat moves require FP16 source data.");
+    PTO_STATIC_ASSERT(
+        (DstTile::Rows == SrcTile::Rows && DstTile::Cols == SrcTile::Cols),
+        "A1 Vec-to-Mat moves require matching full shapes.");
+    if constexpr (DstTile::Cols == 16) {
+        // One C16 panel is already contiguous in both representations.
+        copy_ubuf_to_cbuf(dst.data(), src.data(), 0, 1, DstTile::Rows, 0, 0);
+    } else if constexpr (DstTile::isRowMajor) {
+        // ZZ: [M1,K1,M0,K0]. Each DMA boxes sixteen ND rows.
+        for (unsigned row = 0; row < DstTile::Rows; row += 16)
+            for (unsigned column = 0; column < DstTile::Cols; column += 16)
+                copy_ubuf_to_cbuf(
+                    dst.data() + row * DstTile::Cols + column * 16, src.data() + row * SrcTile::Cols + column, 0, 16, 1,
+                    SrcTile::Cols / 16 - 1, 0);
+    } else {
+        // NZ: [K1,M1,M0,K0]. Each DMA collects one complete C16 panel.
+        for (unsigned column = 0; column < DstTile::Cols; column += 16)
+            copy_ubuf_to_cbuf(
+                dst.data() + column * DstTile::Rows, src.data() + column, 0, DstTile::Rows, 1, SrcTile::Cols / 16 - 1,
+                0);
+    }
+}
+
+template <typename DstTile, typename SrcTile>
+PTO_INTERNAL void A1MatrixToOperand(DstTile& dst, SrcTile& src)
 {
     detail::CheckA1MatrixInput<SrcTile>();
     PTO_STATIC_ASSERT(
@@ -117,6 +149,16 @@ PTO_INTERNAL void TMOV_IMPL(DstTile& dst, SrcTile& src)
              DstTile::SFractal == SLayout::ColMajor),
             "A1 right operand requires a Kx16 ZN Right tile.");
         load_cbuf_to_cb(dst.data(), src.data(), 0, SrcTile::Rows / 16, 1, 0, 0, true, addr_cal_mode_t(0));
+    }
+}
+
+template <typename DstTile, typename SrcTile>
+PTO_INTERNAL void TMOV_IMPL(DstTile& dst, SrcTile& src)
+{
+    if constexpr (SrcTile::Loc == TileType::Vec && DstTile::Loc == TileType::Mat) {
+        A1VectorToMatrix(dst, src);
+    } else {
+        A1MatrixToOperand(dst, src);
     }
 }
 

@@ -4,6 +4,7 @@
 
 ![TMOV tile operation](../../../../figures/isa/TMOV.svg)
 
+
 ## 简介
 
 在 Tile 之间移动/复制，可选通过模板参数和重载选择实现定义的转换模式。
@@ -13,6 +14,16 @@
 - Vec -> Vec 移动
 - Mat -> Left/Right/Bias/Scaling/Scale(Microscaling) 移动（目标相关）
 - Acc -> Mat/Vec 移动（目标相关）
+
+### Ascend310P Vec 到 Mat
+
+在 A1 上，`TMOV(mat, vec)` 通过 MTE3 将完整行主序 FP16 Vec 块从 UB 直接复制到
+FP16 ZZ 或 NZ Mat 块。两侧维度必须一致，均为 `[16,2048]` 内的 16 的倍数，并满足
+配置的 UB 和 L1 容量限制。复制保持元素值不变，按 C16 面板重排，不使用标量 UB 读取、
+临时块或 GM 中转。FP32 输入、部分有效形状及带填充的 Vec 行会被拒绝。
+
+MTE3 读取 UB 前需等待生产流水线（V 或 MTE2），MTE1 消费 L1 前需等待 MTE3。
+复用 UB 前需等待 MTE3，覆盖 L1 前需等待 MTE1；本指令不自动插入这些跨流水线依赖。
 
 ## 数学语义
 

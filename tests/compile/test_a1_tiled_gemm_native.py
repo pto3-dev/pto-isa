@@ -47,27 +47,33 @@ def _run_cpu_oracle(root, tmp_path, source):
 
 
 @pytest.mark.parametrize(
-    "rows,reduction,zz,gap,accumulate,legacy",
+    "rows,reduction,zz,gap,accumulate,legacy,ub_input",
     [
-        (16, 16, False, 0, False, True),
-        (16, 16, True, 0, True, False),
-        (32, 32, True, 32, False, False),
-        (32, 64, False, 0, True, False),
-        (112, 144, True, 0, False, False),
-        (224, 144, False, 32, True, False),
-        (32, 512, True, 32, True, False),
-        (16, 1024, False, 0, False, False),
-        (16, 2048, False, 0, True, False),
-        (64, 256, False, 0, False, False),
-        (2048, 16, False, 0, True, True),
-        (16, 32, False, 1048576, False, False),
+        (16, 16, False, 0, False, True, False),
+        (16, 16, True, 0, True, False, False),
+        (32, 32, True, 32, False, False, False),
+        (32, 64, False, 0, True, False, False),
+        (112, 144, True, 0, False, False, False),
+        (224, 144, False, 32, True, False, False),
+        (32, 512, True, 32, True, False, False),
+        (16, 1024, False, 0, False, False, False),
+        (16, 2048, False, 0, True, False, False),
+        (64, 256, False, 0, False, False, False),
+        (2048, 16, False, 0, True, True, False),
+        (16, 32, False, 1048576, False, False, False),
+        (16, 16, False, 0, False, True, True),
+        (32, 32, True, 32, False, False, True),
+        (32, 64, False, 0, True, False, True),
+        (112, 144, True, 0, False, False, True),
+        (224, 144, False, 32, True, False, True),
+        (16, 2048, False, 0, False, False, True),
     ],
 )
-def test_a1_tiled_gemm_native(tmp_path, rows, reduction, zz, gap, accumulate, legacy):
+def test_a1_tiled_gemm_native(tmp_path, rows, reduction, zz, gap, accumulate, legacy, ub_input):
     root = Path(__file__).resolve().parents[2]
     source = (root / "tests/compile/a1_tiled_gemm.cpp").read_text()
     definitions = f"#define PTO_TEST_M {rows}\n#define PTO_TEST_K {reduction}\n#define PTO_TEST_GAP {gap}\n"
-    for name, enabled in [("ZZ", zz), ("ACCUMULATE", accumulate), ("LEGACY_LEFT", legacy)]:
+    for name, enabled in [("ZZ", zz), ("ACCUMULATE", accumulate), ("LEGACY_LEFT", legacy), ("UB_INPUT", ub_input)]:
         if enabled:
             definitions += f"#define PTO_TEST_{name}\n"
     _run_cpu_oracle(root, tmp_path, definitions + source)
@@ -104,6 +110,8 @@ extern "C" __global__ AICORE void NativeTiledGemm(__gm__ int64_t* args) {
             # Binary fractions keep every product and partial exactly representable;
             # this checks every output without a tolerance or a reduction-order assumption.
             expected = a.float() @ b.float()
+            if ub_input:
+                expected *= 2
             if accumulate:
                 expected *= 2
             assert torch.equal(output[16:-16].reshape(rows, 16), expected)
@@ -232,6 +240,38 @@ extern "C" __global__ AICORE void NativeImageGemm(__gm__ int64_t* args) {
             assert torch.equal(gb[16:-16], b.flatten())
             assert torch.all(ga[:16] == 7) and torch.all(ga[-16:] == 7)
             assert torch.all(gb[:16] == 7) and torch.all(gb[-16:] == 7)
+
+
+@pytest.mark.parametrize(
+    "dtype,rows,columns,valid_rows,dst_rows,diagnostic",
+    [
+        ("float", 16, 16, 16, 16, "FP16 source data"),
+        ("half", 32, 32, 16, 32, "static full valid shape"),
+        ("half", 16, 16, 16, 32, "matching full shapes"),
+        ("half", 64, 2048, 64, 64, "UB budget"),
+    ],
+)
+def test_a1_vec_to_mat_rejects_unsupported(tmp_path, dtype, rows, columns, valid_rows, dst_rows, diagnostic):
+    root = Path(__file__).resolve().parents[2]
+    source = f"""
+#include <pto/pto-inst.hpp>
+using Source = pto::Tile<pto::TileType::Vec, {dtype}, {rows}, {columns},
+                         pto::BLayout::RowMajor, {valid_rows}, {columns}>;
+using Destination = pto::Tile<pto::TileType::Mat, half, {dst_rows}, {columns},
+                              pto::BLayout::RowMajor, {dst_rows}, {columns},
+                              pto::SLayout::RowMajor, 512>;
+extern "C" __global__ AICORE void Unsupported(__gm__ int64_t* args) {{
+    Source source;
+    Destination destination;
+    pto::TASSIGN<0>(source);
+    pto::TASSIGN<0>(destination);
+    pto::TMOV(destination, source);
+}}
+"""
+    path = tmp_path / "unsupported.cpp"
+    path.write_text(source)
+    with pytest.raises(RuntimeError, match=diagnostic):
+        simpler.KernelCompiler("a1").compile_single_launch(str(path), str(root))
 
 
 if __name__ == "__main__":
