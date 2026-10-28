@@ -8,6 +8,7 @@
 
 ![TMOV tile operation](../../../../figures/isa/TMOV.svg)
 
+
 ## Introduction
 
 Move/copy between tiles, optionally applying implementation-defined conversion modes selected by template parameters and overloads.
@@ -17,6 +18,19 @@ Move/copy between tiles, optionally applying implementation-defined conversion m
 - Vec -> Vec moves
 - Mat -> Left/Right/Bias/Scaling/Scale(Microscaling) moves (target-dependent)
 - Acc -> Mat/Vec moves (target-dependent)
+
+### Ascend310P Vec to Mat
+
+On A1, `TMOV(mat, vec)` copies full row-major FP16 Vec tiles directly from UB
+into FP16 ZZ or NZ Mat tiles through MTE3. Both dimensions must match, be
+multiples of sixteen in `[16,2048]`, and fit the configured UB and L1 budgets.
+The copy preserves element values and repacks C16 panels without scalar UB
+reads, temporary tiles or GM staging. FP32 inputs, partial valid shapes and
+padded Vec rows are rejected.
+
+Fence the producer (V or MTE2) before MTE3 reads UB, and MTE3 before MTE1
+consumes L1. Before reusing UB, wait for MTE3; before overwriting L1, wait for
+MTE1. This instruction does not insert these cross-pipeline dependencies.
 
 ## Math Interpretation
 

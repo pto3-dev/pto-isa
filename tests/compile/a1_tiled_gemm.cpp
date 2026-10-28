@@ -63,8 +63,36 @@ extern "C" __global__ AICORE void A1TiledGemm(__gm__ float* output, __gm__ half*
     GA ga(a);
     GB gb(b);
     GC gc(output);
+#ifdef PTO_TEST_UB_INPUT
+    // Build the operands in UB first. Doubling A makes the V->MTE3 edge
+    // observable; the result reuses UB only after the Cube pipeline completes.
+    using InputA = pto::Tile<pto::TileType::Vec, half, Rows, Reduction>;
+    using InputB = pto::Tile<pto::TileType::Vec, half, Reduction, 16>;
+    InputA va;
+    InputB vb;
+    pto::TASSIGN<0>(va);
+    pto::TASSIGN<Rows * Reduction * sizeof(half)>(vb);
+    pto::TLOAD(va, ga);
+    pto::TLOAD(vb, gb);
+#ifndef __CPU_SIM
+    set_flag(PIPE_MTE2, PIPE_V, EVENT_ID0);
+    wait_flag(PIPE_MTE2, PIPE_V, EVENT_ID0);
+#endif
+    pto::TADD(va, va, va);
+#ifndef __CPU_SIM
+    set_flag(PIPE_V, PIPE_MTE3, EVENT_ID0);
+    wait_flag(PIPE_V, PIPE_MTE3, EVENT_ID0);
+#endif
+    pto::TMOV(ma, va);
+    pto::TMOV(mb, vb);
+#ifndef __CPU_SIM
+    set_flag(PIPE_MTE3, PIPE_MTE1, EVENT_ID0);
+    wait_flag(PIPE_MTE3, PIPE_MTE1, EVENT_ID0);
+#endif
+#else
     pto::TLOAD(ma, ga);
     pto::TLOAD(mb, gb);
+#endif
 #ifndef __CPU_SIM
     set_flag(PIPE_MTE2, PIPE_MTE1, EVENT_ID0);
     wait_flag(PIPE_MTE2, PIPE_MTE1, EVENT_ID0);
@@ -109,6 +137,9 @@ int main()
             float expected = 0;
             for (int k = 0; k < Reduction; ++k)
                 expected += float(a[16 + row * AStride + k]) * float(b[16 + k * BStride + col]);
+#ifdef PTO_TEST_UB_INPUT
+            expected *= 2;
+#endif
 #ifdef PTO_TEST_ACCUMULATE
             expected *= 2;
 #endif
