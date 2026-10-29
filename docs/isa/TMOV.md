@@ -394,3 +394,10 @@ void example_manual() {
   TMOV(left, mat);
 }
 ```
+
+### Ascend 310P Vec-to-Vec profile
+
+`TMOV` copies matching full FP16 or FP32 contiguous row-major Vec tiles bitwise.
+Each row must be 32-byte aligned. Identical source and destination addresses are
+a no-op; partial overlap is rejected at runtime. Use `TMOV_V2V` for vector-pipe
+events when synchronizing loads and stores.
