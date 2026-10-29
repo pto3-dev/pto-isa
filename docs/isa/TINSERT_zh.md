@@ -298,3 +298,10 @@ void example_unit_flag() {
   // TINSERT<STPhase::Final>(l1, c, /*indexRow=*/0, /*indexCol=*/0);
 }
 ```
+
+### Ascend 310P Vec 到 Vec 配置
+
+A1 `TINSERT` 将完整连续行主序 FP16 或 FP32 Vec 块复制到同类型的完整行主序
+Vec 目标。源行数不超过 2048，行列区间须落在目标范围内，且每行和目标列偏移
+须按 32 字节对齐。源和目标存储须互不重叠；原生调用的偏移无效或存储重叠时
+会触发 trap。同步使用向量流水线的 `TINSERT_V2V` 事件。
