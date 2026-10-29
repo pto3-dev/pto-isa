@@ -14,7 +14,7 @@ Insert a source sub-tile into a destination tile at `(indexRow, indexCol)`. Conc
 - Acc → Mat insertion (with optional relu, scalar-quant, or vector-quant)
 - Acc → Vec insertion (with optional `AccToVecMode`, relu, scalar-quant, or vector-quant) *(A5)*
 - Vec → Mat insertion (ND, NZ, and ZN layouts) *(A5)*
-- Vec → Vec insertion (ND and NZ layouts) *(A5)*
+- Vec → Vec insertion (target-dependent layouts; A5 and bounded A1 ND profile)
 - NZ split insertion (`SPLIT2`, `SPLIT4`), also exposed in CPU simulation
 
 ## Math Interpretation
@@ -302,3 +302,12 @@ void example_unit_flag() {
   // TINSERT<STPhase::Final>(l1, c, /*indexRow=*/0, /*indexCol=*/0);
 }
 ```
+
+### Ascend 310P Vec-to-Vec profile
+
+A1 `TINSERT` copies a full contiguous row-major FP16 or FP32 Vec tile into
+a same-type full row-major Vec destination. Source rows are limited to 2048;
+rows and columns must fit the destination, and each row and destination column
+offset must be 32-byte aligned. Source and destination storage must be disjoint.
+Native callers with invalid offsets or overlapping storage trap. Use
+`TINSERT_V2V` for vector-pipe events.

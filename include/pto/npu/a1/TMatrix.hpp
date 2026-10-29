@@ -192,30 +192,51 @@ PTO_INTERNAL void TMOV_IMPL(DstTile& dst, SrcTile& src)
 template <typename DstTile, typename SrcTile>
 PTO_INTERNAL void TINSERT_IMPL(DstTile& dst, SrcTile& src, uint16_t indexRow = 0, uint16_t indexCol = 0)
 {
-    detail::CheckA1MatrixInput<SrcTile>();
-    PTO_STATIC_ASSERT(SrcTile::Cols == 16, "A1 Left insertion requires full C16 Mat panels.");
-    PTO_STATIC_ASSERT(
-        (DstTile::Loc == TileType::Left && std::is_same<typename DstTile::DType, half>::value && DstTile::Rows >= 16 &&
-         DstTile::Rows <= 2048 && DstTile::Rows % 16 == 0 && DstTile::Cols >= 16 && DstTile::Cols <= 2048 &&
-         DstTile::Cols % 16 == 0 && DstTile::Rows == DstTile::ValidRow && DstTile::Cols == DstTile::ValidCol &&
-         SrcTile::Rows <= DstTile::Rows),
-        "A1 Left insertion requires a matching full aligned FP16 Left destination.");
-    PTO_STATIC_ASSERT(
-        ((DstTile::isRowMajor || DstTile::Cols == 16) && DstTile::SFractal == SLayout::RowMajor &&
-         DstTile::SFractalSize == 512),
-        "A1 Left insertion requires ZZ layout; legacy NZ is valid for K16 only.");
-    PTO_STATIC_ASSERT(
-        uint64_t(DstTile::Rows) * DstTile::Cols * sizeof(half) <= 65536,
-        "A1 Left insertion destination exceeds the 64 KiB L0A budget.");
-    // Native callers can pass runtime offsets. Keep release builds safe even
-    // when they bypass the compiler's aligned-offset and bounds proof.
-    if (indexRow % 16 || indexCol % 16 || indexRow + SrcTile::Rows > DstTile::Rows || indexCol + 16 > DstTile::Cols) {
-        trap();
-        return;
+    if constexpr (SrcTile::Loc == TileType::Vec && DstTile::Loc == TileType::Vec) {
+        detail::CheckA1VectorTile<SrcTile>();
+        detail::CheckA1VectorTile<DstTile>();
+        PTO_STATIC_ASSERT(
+            (std::is_same<typename SrcTile::DType, typename DstTile::DType>::value && SrcTile::Rows <= DstTile::Rows &&
+             SrcTile::Cols <= DstTile::Cols && SrcTile::Rows <= 2048),
+            "A1 Vec insertion requires matching data types and a bounded source tile.");
+        constexpr unsigned elementBytes = sizeof(typename SrcTile::DType);
+        if ((uint32_t(indexCol) * elementBytes) % 32 || indexRow > DstTile::Rows - SrcTile::Rows ||
+            indexCol > DstTile::Cols - SrcTile::Cols || detail::A1BuffersOverlap(dst, src)) {
+            trap();
+            return;
+        }
+        constexpr uint16_t rowBlocks = SrcTile::Cols * elementBytes / 32;
+        constexpr uint16_t destinationGap = (DstTile::Cols - SrcTile::Cols) * elementBytes / 32;
+        copy_ubuf_to_ubuf(
+            dst.data() + uint32_t(indexRow) * DstTile::Cols + indexCol, src.data(), 0, SrcTile::Rows, rowBlocks, 0,
+            destinationGap);
+    } else {
+        detail::CheckA1MatrixInput<SrcTile>();
+        PTO_STATIC_ASSERT(SrcTile::Cols == 16, "A1 Left insertion requires full C16 Mat panels.");
+        PTO_STATIC_ASSERT(
+            (DstTile::Loc == TileType::Left && std::is_same<typename DstTile::DType, half>::value &&
+             DstTile::Rows >= 16 && DstTile::Rows <= 2048 && DstTile::Rows % 16 == 0 && DstTile::Cols >= 16 &&
+             DstTile::Cols <= 2048 && DstTile::Cols % 16 == 0 && DstTile::Rows == DstTile::ValidRow &&
+             DstTile::Cols == DstTile::ValidCol && SrcTile::Rows <= DstTile::Rows),
+            "A1 Left insertion requires a matching full aligned FP16 Left destination.");
+        PTO_STATIC_ASSERT(
+            ((DstTile::isRowMajor || DstTile::Cols == 16) && DstTile::SFractal == SLayout::RowMajor &&
+             DstTile::SFractalSize == 512),
+            "A1 Left insertion requires ZZ layout; legacy NZ is valid for K16 only.");
+        PTO_STATIC_ASSERT(
+            uint64_t(DstTile::Rows) * DstTile::Cols * sizeof(half) <= 65536,
+            "A1 Left insertion destination exceeds the 64 KiB L0A budget.");
+        // Native callers can pass runtime offsets. Keep release builds safe even
+        // when they bypass the compiler's aligned-offset and bounds proof.
+        if (indexRow % 16 || indexCol % 16 || indexRow + SrcTile::Rows > DstTile::Rows ||
+            indexCol + 16 > DstTile::Cols) {
+            trap();
+            return;
+        }
+        load_cbuf_to_ca(
+            dst.data() + uint32_t(indexRow) * DstTile::Cols + uint32_t(indexCol) * 16, src.data(), 0,
+            SrcTile::Rows / 16, 1, DstTile::Cols / 16 - 1, 0, false, addr_cal_mode_t(0));
     }
-    load_cbuf_to_ca(
-        dst.data() + uint32_t(indexRow) * DstTile::Cols + uint32_t(indexCol) * 16, src.data(), 0, SrcTile::Rows / 16, 1,
-        DstTile::Cols / 16 - 1, 0, false, addr_cal_mode_t(0));
 }
 
 template <bool Initialize, typename AccTile, typename LeftTile, typename RightTile>
