@@ -64,6 +64,12 @@ PTO_INST RecordEvent TRESHAPE(TileDataOut &dst, TileDataIn &src, WaitEvents &...
       - 都是浮点，或
       - 都是整数
 
+    ### A1（Ascend310P）
+
+    - 仅支持手工分配的 FP16/FP32 Vec，输入输出的类型和元素数必须相同。
+    - 两端必须是满有效区域、连续行主序、无盒式布局的静态 Tile；每行按 32 字节对齐，容量不超过 UB。
+    - 输出直接别名到输入地址，不发起 DMA 或向量复制；不支持类型重解释、带填充或部分有效区域。
+
     ### A2/A3 / A5 / Kirin9030
 
     - NPU 路径没有 CPU 那么强的“元素类别兼容”检查。

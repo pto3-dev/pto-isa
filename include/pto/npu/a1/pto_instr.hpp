@@ -17,6 +17,7 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #include <pto/npu/a1/TImg2col.hpp>
 #include <pto/npu/a1/TMatrix.hpp>
 #include <pto/npu/a1/TReduce.hpp>
+#include <pto/npu/a1/TReshape.hpp>
 #include <pto/npu/a1/TSync.hpp>
 #include <pto/npu/a1/TVector.hpp>
 // This assignment helper only assigns typed addresses and has no A2/A3 instructions.
@@ -54,6 +55,14 @@ PTO_INST RecordEvent TLOAD(TileData& dst, GlobalData& src, WaitEvents&... events
 {
     TSYNC(events...);
     TLOAD_IMPL(dst, src);
+    return {};
+}
+
+template <typename DstTile, typename SrcTile, typename... WaitEvents>
+PTO_INST RecordEvent TRESHAPE(DstTile& dst, SrcTile& src, WaitEvents&... events)
+{
+    TSYNC(events...);
+    TRESHAPE_IMPL(dst, src);
     return {};
 }
 

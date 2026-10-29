@@ -91,6 +91,8 @@ No architectural side effects beyond producing the destination tile. Does not im
 ??? info "Target-Profile Restrictions"
     - `pto.treshape` preserves PTO-visible semantics across CPU simulation, A2/A3-class targets, and A5-class targets, but concrete support subsets may differ by profile.
 
+    - A1 (Ascend310P), manual allocation: FP16/FP32 Vec tiles only, with identical element types and element counts. Both views must be full static, contiguous row-major, unboxed and have 32-byte-aligned rows within the UB budget. The destination aliases the source; no DMA or vector copy is issued. Boxed storage, padding, partial valid regions and dtype reinterpretation are not supported by this profile.
+
     - Portable code must rely only on the documented type, layout, shape, and mode combinations that the selected target profile guarantees.
 
 ## Examples
