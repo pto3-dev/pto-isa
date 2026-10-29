@@ -145,10 +145,19 @@ PTO_INTERNAL void A1MatrixToOperand(DstTile& dst, SrcTile& src)
         }
     } else {
         PTO_STATIC_ASSERT(
-            (DstTile::Loc == TileType::Right && DstTile::Cols == 16 && DstTile::isRowMajor &&
+            (DstTile::Loc == TileType::Right && (DstTile::Cols == 16 || DstTile::Cols == 32) && DstTile::isRowMajor &&
              DstTile::SFractal == SLayout::ColMajor),
-            "A1 right operand requires a Kx16 ZN Right tile.");
-        load_cbuf_to_cb(dst.data(), src.data(), 0, SrcTile::Rows / 16, 1, 0, 0, true, addr_cal_mode_t(0));
+            "A1 right operand requires a Kx16 or Kx32 ZN Right tile.");
+        constexpr unsigned panels = DstTile::Cols / 16;
+        for (unsigned panel = 0; panel < panels; ++panel) {
+            // ZN L0B is K-major with adjacent N16 panels. ZZ Mat has the
+            // same outer ordering; NZ Mat stores complete K panels together.
+            constexpr unsigned srcStride = SrcTile::isRowMajor ? panels : 1;
+            const unsigned srcOffset = SrcTile::isRowMajor ? panel * 256 : panel * SrcTile::Rows * 16;
+            load_cbuf_to_cb(
+                dst.data() + panel * 256, src.data() + srcOffset, 0, SrcTile::Rows / 16, srcStride, panels - 1, 0, true,
+                addr_cal_mode_t(0));
+        }
     }
 }
 
