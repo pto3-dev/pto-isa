@@ -76,9 +76,10 @@ PTO_INST RecordEvent TMATMUL(TileRes &cMatrix, TileLeft &aMatrix, TileRight &bMa
 
 ## Ascend 310P（A1）多 K 支持范围
 
-A1 支持 FP16 `M x K` Left 与 FP16 `K x 16` Right 相乘，输出 FP32
-`M x 16` NZ Acc。M/K 为 [16, 2048] 内的静态 16 对齐维度，有效形状必须完整，
-两路操作数各自不超过 64 KiB L0A/L0B。N 仍为 16；暂不支持更宽 N 或部分有效 tile。
+A1 ISA 支持 FP16 `M x K` Left 与 FP16 `K x N` Right 相乘，输出 FP32
+`M x N` NZ Acc，N 可为 16 或 32。M/K 为 [16, 2048] 内的静态 16 对齐维度，
+有效形状必须完整；两路操作数各自不超过 64 KiB L0A/L0B，累加器不超过 256 KiB
+L0C。暂不支持部分有效 tile；编译器和前端的 N32 支持可能尚未跟上 ISA。
 
 - 多 K Left 使用 **ZZ**（外层、内层均为行主序，512 字节 fractal）。
   K=16 时两种外层顺序等价，兼容既有 NZ Left。Right 使用 ZN，Acc 使用

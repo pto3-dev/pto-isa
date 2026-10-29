@@ -79,10 +79,11 @@ PTO_INST RecordEvent TMATMUL(TileRes &cMatrix, TileLeft &aMatrix, TileRight &bMa
 
 ## Ascend 310P (A1) multi-K profile
 
-A1 supports FP16 `M x K` Left times FP16 `K x 16` Right with an FP32
-`M x 16` NZ accumulator. M and K are static multiples of 16 in [16, 2048],
-with full valid shapes; each operand must fit its 64 KiB L0A/L0B allocation.
-N remains 16. Wider N and partial tiles are not part of this profile.
+The A1 ISA supports FP16 `M x K` Left times FP16 `K x N` Right with an FP32
+`M x N` NZ accumulator for N=16 or N=32. M and K are static multiples of 16
+in [16, 2048], with full valid shapes. Each operand must fit its 64 KiB
+L0A/L0B allocation, and the accumulator must fit 256 KiB L0C. Partial tiles
+are not supported. Compiler and frontend support for N32 may lag this ISA.
 
 - Multi-K Left uses **ZZ** (row-major outer and inner fractals, 512 bytes).
   The legacy NZ Left encoding remains accepted at K=16, where outer orders
