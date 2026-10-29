@@ -80,17 +80,39 @@ PTO_INTERNAL void A1LoadConvImage(Conv& dst, Global& src)
             trap();
             return;
         }
+    // The descriptor always describes logical NC1HWC0. Its strides can
+    // additionally represent a C16-aligned channel slice of a physical NHWC
+    // tensor, avoiding a temporary global layout conversion.
     uint64_t expected = 1;
+    bool contiguous = true;
     for (int dim = 4; dim >= 0; --dim) {
-        if (Global::staticStride[dim] != expected) {
-            trap();
-            return;
-        }
+        if (Global::staticStride[dim] != expected)
+            contiguous = false;
         expected *= Global::staticShape[dim];
     }
-    // A 1 MiB image has at most 32768 contiguous 32-byte blocks, below the
-    // 16-bit burst-length limit. No image transpose or UB staging is issued.
-    copy_gm_to_cbuf(dst.data(), src.data(), 0, 1, elements / 16, 0, 0, (pad_t)0);
+    if (contiguous) {
+        // A 1 MiB image has at most 32768 contiguous 32-byte blocks.
+        copy_gm_to_cbuf(dst.data(), src.data(), 0, 1, elements / 16, 0, 0, (pad_t)0);
+        return;
+    }
+    constexpr int64_t rowStride = Global::staticStride[3];
+    constexpr int64_t pixels = Conv::staticShape[2] * Conv::staticShape[3];
+    if (rowStride < Conv::staticShape[1] * 16 || rowStride % 16 != 0 || rowStride / 16 - 1 > 65535 ||
+        Global::staticStride[4] != 1 || Global::staticStride[1] != 16 ||
+        Global::staticStride[2] != Conv::staticShape[3] * rowStride || Global::staticStride[0] < pixels * rowStride) {
+        trap();
+        return;
+    }
+    // Each C0 plane is stored contiguously in L1. Split the source gather
+    // into at most 4095 bursts, matching the native DMA descriptor limit.
+    for (int64_t channel = 0; channel < Conv::staticShape[1]; ++channel) {
+        for (int64_t first = 0; first < pixels; first += 4095) {
+            const int64_t count = pixels - first < 4095 ? pixels - first : 4095;
+            copy_gm_to_cbuf(
+                dst.data() + (channel * pixels + first) * 16, src.data() + first * rowStride + channel * 16, 0, count,
+                1, rowStride / 16 - 1, 0, (pad_t)0);
+        }
+    }
 }
 
 template <typename Left, typename Conv, SetFmatrixMode Mode>
