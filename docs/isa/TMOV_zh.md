@@ -335,3 +335,9 @@ void example_manual() {
   TMOV(left, mat);
 }
 ```
+
+### Ascend 310P Vec 到 Vec 配置
+
+`TMOV` 逐位复制同形状、完整有效的 FP16 或 FP32 连续行主序 Vec 块；
+每行须按 32 字节对齐。源和目标完全同址时为空操作，部分重叠在运行时拒绝。
+与加载、存储同步时使用向量流水线的 `TMOV_V2V` 事件。

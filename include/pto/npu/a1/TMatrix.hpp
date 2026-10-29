@@ -164,7 +164,22 @@ PTO_INTERNAL void A1MatrixToOperand(DstTile& dst, SrcTile& src)
 template <typename DstTile, typename SrcTile>
 PTO_INTERNAL void TMOV_IMPL(DstTile& dst, SrcTile& src)
 {
-    if constexpr (SrcTile::Loc == TileType::Vec && DstTile::Loc == TileType::Mat) {
+    if constexpr (SrcTile::Loc == TileType::Vec && DstTile::Loc == TileType::Vec) {
+        detail::CheckA1VectorTile<SrcTile>();
+        detail::CheckA1VectorTile<DstTile>();
+        PTO_STATIC_ASSERT(
+            (std::is_same<typename SrcTile::DType, typename DstTile::DType>::value && SrcTile::Rows == DstTile::Rows &&
+             SrcTile::Cols == DstTile::Cols),
+            "A1 Vec-to-Vec moves require matching data types and shapes.");
+        if (dst.data() == src.data())
+            return;
+        if (detail::A1BuffersOverlap(dst, src)) {
+            trap();
+            return;
+        }
+        constexpr uint16_t blocks = SrcTile::Numel * sizeof(typename SrcTile::DType) / 32;
+        copy_ubuf_to_ubuf(dst.data(), src.data(), 0, 1, blocks, 0, 0);
+    } else if constexpr (SrcTile::Loc == TileType::Vec && DstTile::Loc == TileType::Mat) {
         A1VectorToMatrix(dst, src);
     } else {
         A1MatrixToOperand(dst, src);
