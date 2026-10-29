@@ -50,8 +50,11 @@ PTO_INST RecordEvent TMULA(TileDataDst &dst, TileDataSrc0 &src0, TileDataSrc1 &s
 - **Valid region**:
     - The op iterates over `dst.GetValidRow()` / `dst.GetValidCol()`.
     - CPU_SIM asserts that `dst`, `src0`, and `src1` have identical valid row and column counts.
+- For FP32, CPU_SIM uses fused multiply-add (one final rounding), matching A1 `vmla`.
 - In CPU_SIM, `half` multiplication is rounded to `half` before accumulation, and the accumulated result is rounded to
   `half` again.
+- A1 currently supports only full, contiguous row-major FP32 Vec tiles with matching shapes. Exact destination/source
+  aliases are allowed; shifted overlaps are rejected. The final vector repeat is masked.
 
 ## Examples
 

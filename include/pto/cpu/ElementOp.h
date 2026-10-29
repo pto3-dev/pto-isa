@@ -134,12 +134,22 @@ struct ElementOpCal<DType, ElementOp::OP_DIV> {
 
 template <typename DType>
 struct ElementOpCal<DType, ElementOp::OP_MULA> {
-    static void apply(DType& dst, DType& src0, DType& src1, size_t) { dst = static_cast<DType>(src0 * src1) + dst; }
+    static void apply(DType& dst, DType& src0, DType& src1, size_t)
+    {
+        if constexpr (std::is_same_v<DType, float>)
+            dst = std::fma(src0, src1, dst);
+        else
+            dst = static_cast<DType>(src0 * src1) + dst;
+    }
 
     static void apply(DType& dst, const DType& src0, const DType& src1)
     {
-        const DType product = CpuSimRoundElement<DType>(src0 * src1);
-        dst = CpuSimRoundElement<DType>(product + dst);
+        if constexpr (std::is_same_v<DType, float>) {
+            dst = std::fma(src0, src1, dst);
+        } else {
+            const DType product = CpuSimRoundElement<DType>(src0 * src1);
+            dst = CpuSimRoundElement<DType>(product + dst);
+        }
     }
 };
 

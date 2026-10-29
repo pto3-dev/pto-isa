@@ -55,7 +55,10 @@ PTO_INST RecordEvent TMULA(TileDataDst &dst, TileDataSrc0 &src0, TileDataSrc1 &s
     - 运行时：`dst`、`src0` 和 `src1` 的有效行列数必须相同。
     - 标量类型必须与 Tile 数据类型一致。
 - 该操作在 `dst.GetValidRow()` / `dst.GetValidCol()` 上迭代。
+- FP32 的 CPU_SIM 使用融合乘加（仅最后一次舍入），与 A1 `vmla` 一致。
 - CPU_SIM 的 `half` 路径先将乘积舍入为 `half`，再执行累加，并将累加结果再次舍入为 `half`。
+- A1 当前仅支持完整、连续的行主序 FP32 Vec tile，且形状必须一致。允许目标与源完全别名，
+  拒绝错位重叠；最后一次向量重复使用掩码。
 
 ## 示例
 
