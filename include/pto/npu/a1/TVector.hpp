@@ -114,6 +114,8 @@ PTO_INTERNAL void A1VectorRepeat(
         vdiv(dst, src0, src1, repeats, 1, 1, 1, 8, 8, 8);
     } else if constexpr (Operation == Op::TMAX) {
         vmax(dst, src0, src1, repeats, 1, 1, 1, 8, 8, 8);
+    } else if constexpr (Operation == Op::TMULA) {
+        vmla(dst, src0, src1, repeats, 1, 1, 1, 8, 8, 8);
     } else if constexpr (Operation == Op::TEXPANDS) {
         vector_dup(dst, scalar, repeats, 1, 1, 8, 8);
     } else if constexpr (Operation == Op::TEXP) {
@@ -270,6 +272,20 @@ template <typename DstTile, typename Src0Tile, typename Src1Tile>
 PTO_INTERNAL void TMUL_IMPL(DstTile& dst, Src0Tile& src0, Src1Tile& src1)
 {
     A1ElementwiseVector<Op::TMUL>(dst, src0, src1);
+}
+
+template <typename DstTile, typename Src0Tile, typename Src1Tile>
+PTO_INTERNAL void TMULA_IMPL(DstTile& dst, Src0Tile& src0, Src1Tile& src1)
+{
+    PTO_STATIC_ASSERT((std::is_same<typename DstTile::DType, float>::value), "A1 TMULA requires FP32 tiles.");
+    // Exact aliases are safe; shifted overlaps can corrupt a subsequent repeat.
+    const auto address = reinterpret_cast<uintptr_t>(dst.data());
+    if ((detail::A1BuffersOverlap(dst, src0) && address != reinterpret_cast<uintptr_t>(src0.data())) ||
+        (detail::A1BuffersOverlap(dst, src1) && address != reinterpret_cast<uintptr_t>(src1.data()))) {
+        trap();
+        return;
+    }
+    A1ElementwiseVector<Op::TMULA>(dst, src0, src1);
 }
 
 template <typename DstTile, typename Src0Tile, typename Src1Tile>
