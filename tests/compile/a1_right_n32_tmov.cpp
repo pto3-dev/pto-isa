@@ -65,7 +65,14 @@ AICORE void TestRightN32(__gm__ float* out, __gm__ half* a, __gm__ half* b)
 #if !defined(__CPU_SIM)
     set_flag(PIPE_MTE1, PIPE_M, EVENT_ID0);
     wait_flag(PIPE_MTE1, PIPE_M, EVENT_ID0);
+#if defined(TEST_PUBLIC_N32)
+    pto::TMATMUL(acc, left, right);
+#if defined(TEST_ACCUMULATE)
+    pto::TMATMUL_ACC(acc, acc, left, right);
+#endif
+#else
     mad(acc.data(), left.data(), right.data(), M, K, 32, true);
+#endif
     set_flag(PIPE_M, PIPE_V, EVENT_ID0);
     wait_flag(PIPE_M, PIPE_V, EVENT_ID0);
     copy_matrix_cc_to_ubuf(first.data(), acc.data(), 0, 1, (M / 16) * 2, 0, 0, CRMODE_NONE);
@@ -76,6 +83,9 @@ AICORE void TestRightN32(__gm__ float* out, __gm__ half* a, __gm__ half* b)
     pto::TSTORE(out1, second);
 #else
     pto::TMATMUL(acc, left, right);
+#if defined(TEST_ACCUMULATE)
+    pto::TMATMUL_ACC(acc, acc, left, right);
+#endif
     for (int row = 0; row < M; ++row)
         for (int col = 0; col < 32; ++col)
             out[row * 32 + col] = acc.data()[pto::GetTileElementOffset<ACC>(row, col)];
@@ -98,6 +108,9 @@ int main()
             float expected = 0;
             for (int k = 0; k < K; ++k)
                 expected += float(a[16 + row * K + k]) * float(b[16 + k * Stride + col]);
+#if defined(TEST_ACCUMULATE)
+            expected *= 2;
+#endif
             if (out[16 + row * 32 + col] != expected)
                 return 1;
         }

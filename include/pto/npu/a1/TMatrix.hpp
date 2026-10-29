@@ -206,14 +206,19 @@ PTO_INTERNAL void TINSERT_IMPL(DstTile& dst, SrcTile& src, uint16_t indexRow = 0
 template <bool Initialize, typename AccTile, typename LeftTile, typename RightTile>
 PTO_INTERNAL void A1MatrixMultiply(AccTile& dst, LeftTile& lhs, RightTile& rhs)
 {
-    detail::CheckA1NarrowMatrixTile<AccTile>();
+    PTO_STATIC_ASSERT(
+        (AccTile::Rows >= 16 && AccTile::Rows <= 2048 && AccTile::Rows % 16 == 0 &&
+         (AccTile::Cols == 16 || AccTile::Cols == 32) && AccTile::ValidRow == AccTile::Rows &&
+         AccTile::ValidCol == AccTile::Cols && uint64_t(AccTile::Rows) * AccTile::Cols * sizeof(float) <= 262144),
+        "A1 GEMM requires a full aligned N16 or N32 accumulator within 256 KiB L0C.");
     PTO_STATIC_ASSERT(
         (LeftTile::Rows >= 16 && LeftTile::Rows <= 2048 && LeftTile::Rows % 16 == 0 && LeftTile::Cols >= 16 &&
          LeftTile::Cols <= 2048 && LeftTile::Cols % 16 == 0 && LeftTile::ValidRow == LeftTile::Rows &&
          LeftTile::ValidCol == LeftTile::Cols && uint64_t(LeftTile::Rows) * LeftTile::Cols * sizeof(half) <= 65536 &&
-         RightTile::Rows == LeftTile::Cols && RightTile::Cols == 16 && RightTile::ValidRow == RightTile::Rows &&
-         RightTile::ValidCol == 16 && uint64_t(RightTile::Rows) * 16 * sizeof(half) <= 65536),
-        "A1 GEMM requires aligned full M/K, N16 and operands within 64 KiB L0A/L0B.");
+         RightTile::Rows == LeftTile::Cols && RightTile::Cols == AccTile::Cols &&
+         RightTile::ValidRow == RightTile::Rows && RightTile::ValidCol == RightTile::Cols &&
+         uint64_t(RightTile::Rows) * RightTile::Cols * sizeof(half) <= 65536),
+        "A1 GEMM requires aligned full M/K, N16 or N32 and operands within 64 KiB L0A/L0B.");
     PTO_STATIC_ASSERT(AccTile::Rows == LeftTile::Rows, "A1 GEMM requires matching M rows.");
     PTO_STATIC_ASSERT(
         (AccTile::Loc == TileType::Acc && std::is_same<typename AccTile::DType, float>::value && !AccTile::isRowMajor &&
@@ -226,7 +231,7 @@ PTO_INTERNAL void A1MatrixMultiply(AccTile& dst, LeftTile& lhs, RightTile& rhs)
          LeftTile::SFractalSize == 512 && RightTile::isRowMajor && RightTile::SFractal == SLayout::ColMajor &&
          RightTile::SFractalSize == 512),
         "A1 GEMM requires FP16 ZZ Left (legacy NZ at K16) and ZN Right operands.");
-    mad(dst.data(), lhs.data(), rhs.data(), AccTile::Rows, LeftTile::Cols, 16, Initialize);
+    mad(dst.data(), lhs.data(), rhs.data(), AccTile::Rows, LeftTile::Cols, AccTile::Cols, Initialize);
 }
 
 template <typename AccTile, typename LeftTile, typename RightTile>

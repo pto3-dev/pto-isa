@@ -360,8 +360,8 @@ TMOV<0>(e8ZzTile, e8DnTile, tmpTile);
 
 For FP16, `TMOV` can move a full aligned K×16 or K×32 `Mat` tile in ZZ or NZ
 layout to a matching ZN `Right` tile. The Right allocation must fit the 64 KiB
-L0B budget. K×32 packs adjacent N16 panels for the Cube; this move alone does
-not enable a K×32 `TMATMUL` or accumulator writeback on 310P.
+L0B budget. K×32 packs adjacent N16 panels for the Cube and requires the
+matching N32 `TMATMUL` implementation; Acc-to-Vec writeback remains N16-only.
 
 ### Auto
 
