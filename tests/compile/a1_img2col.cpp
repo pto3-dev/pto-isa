@@ -41,7 +41,19 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #ifndef PTO_A1_IMG_PAD_VALUE
 #define PTO_A1_IMG_PAD_VALUE 0.0f
 #endif
-constexpr int Height = 8, Width = 8, C1 = 2, Rows = PTO_A1_IMG_M, Cols = PTO_A1_IMG_K;
+#ifndef PTO_A1_IMG_HEIGHT
+#define PTO_A1_IMG_HEIGHT 8
+#endif
+#ifndef PTO_A1_IMG_WIDTH
+#define PTO_A1_IMG_WIDTH 8
+#endif
+#ifndef PTO_A1_IMG_ROW_STRIDE
+#define PTO_A1_IMG_ROW_STRIDE 0
+#endif
+#ifndef PTO_A1_IMG_CHANNEL_OFFSET
+#define PTO_A1_IMG_CHANNEL_OFFSET 0
+#endif
+constexpr int Height = PTO_A1_IMG_HEIGHT, Width = PTO_A1_IMG_WIDTH, C1 = 2, Rows = PTO_A1_IMG_M, Cols = PTO_A1_IMG_K;
 constexpr int ImageElements = C1 * Height * Width * 16;
 constexpr int Filter = PTO_A1_IMG_FILTER, Stride = PTO_A1_IMG_STRIDE, Pad = PTO_A1_IMG_PAD;
 constexpr int PosM = PTO_A1_IMG_POS_M, PosK = PTO_A1_IMG_POS_K;
@@ -51,20 +63,30 @@ using Image = pto::ConvTile<
 // a single-K16 identity case cannot distinguish those physical layouts.
 using Left =
     pto::Tile<pto::TileType::Left, half, Rows, Cols, pto::BLayout::RowMajor, Rows, Cols, pto::SLayout::RowMajor, 512>;
+#if PTO_A1_IMG_ROW_STRIDE
+using Input = pto::GlobalTensor<
+    half, pto::Shape<1, C1, Height, Width, 16>,
+    pto::Stride<Height * Width * PTO_A1_IMG_ROW_STRIDE, 16, Width * PTO_A1_IMG_ROW_STRIDE, PTO_A1_IMG_ROW_STRIDE, 1>,
+    pto::Layout::NC1HWC0>;
+#else
 using Input = pto::GlobalTensor<
     half, pto::Shape<1, C1, Height, Width, 16>, pto::Stride<ImageElements, Height * Width * 16, Width * 16, 16, 1>,
     pto::Layout::NC1HWC0>;
+#endif
 
 extern "C" __global__ AICORE void A1Img2col(__gm__ float* output, __gm__ half* input, __gm__ half* identity)
 {
     Image image;
     Left left;
 #if defined(__CPU_SIM)
-    image.data() = input;
+    std::vector<half> imageStorage(ImageElements);
+    image.data() = imageStorage.data();
 #else
     pto::TASSIGN<0>(image);
+#endif
     Input global(input);
     pto::TLOAD(image, global);
+#if !defined(__CPU_SIM)
     set_flag(PIPE_MTE2, PIPE_MTE1, EVENT_ID0);
     wait_flag(PIPE_MTE2, PIPE_MTE1, EVENT_ID0);
 #endif
@@ -141,11 +163,12 @@ extern "C" __global__ AICORE void A1Img2col(__gm__ float* output, __gm__ half* i
 #if defined(__CPU_SIM)
 int main()
 {
-    std::vector<half> input(ImageElements), identity(256);
+    constexpr int InputElements = PTO_A1_IMG_ROW_STRIDE ? Height * Width * PTO_A1_IMG_ROW_STRIDE : ImageElements;
+    std::vector<half> input(InputElements), identity(256);
     std::vector<float> output(Rows * Cols + 16, 7.0f);
-    for (int i = 0; i < ImageElements; ++i)
+    for (int i = 0; i < InputElements; ++i)
         input[i] = half((i % 127 - 63) * 0.125f);
-    A1Img2col(output.data(), input.data(), identity.data());
+    A1Img2col(output.data(), input.data() + PTO_A1_IMG_CHANNEL_OFFSET, identity.data());
     constexpr int outWidth = (Width + 2 * Pad - PTO_A1_IMG_DILATION * (Filter - 1) - 1) / Stride + 1;
     for (int r = 0; r < Rows; ++r) {
         for (int c = 0; c < Cols; ++c) {
@@ -153,9 +176,14 @@ int main()
             const int channel = k / (Filter * Filter * 16), pos = (k / 16) % (Filter * Filter);
             const int inputRow = m / outWidth * Stride - Pad + pos / Filter * PTO_A1_IMG_DILATION;
             const int inputCol = m % outWidth * Stride - Pad + pos % Filter * PTO_A1_IMG_DILATION;
-            const float expected = inputRow < 0 || inputRow >= Height || inputCol < 0 || inputCol >= Width ?
-                                       float(half(PTO_A1_IMG_PAD_VALUE)) :
-                                       float(input[((channel * Height + inputRow) * Width + inputCol) * 16 + k % 16]);
+            const float expected =
+                inputRow < 0 || inputRow >= Height || inputCol < 0 || inputCol >= Width ?
+                    float(half(PTO_A1_IMG_PAD_VALUE)) :
+                    float(
+                        input
+                            [PTO_A1_IMG_ROW_STRIDE ? (inputRow * Width + inputCol) * PTO_A1_IMG_ROW_STRIDE +
+                                                         PTO_A1_IMG_CHANNEL_OFFSET + channel * 16 + k % 16 :
+                                                     ((channel * Height + inputRow) * Width + inputCol) * 16 + k % 16]);
             if (output[r * Cols + c] != expected)
                 return 1;
         }

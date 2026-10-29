@@ -38,7 +38,12 @@ created. The first profile accepts:
 - One complete static FP16 `NC1HWC0` image (`N=1`, `C0=16`) with identical
   valid and allocation shapes. The image must fit its allocation and 1 MiB L1;
   the caller must also reserve space for other live L1 tiles. `TLOAD` requires
-  a matching contiguous global tensor.
+  a matching contiguous global tensor or a C16-aligned NHWC channel slice.
+  For a slice, the logical descriptor remains NC1HWC0, with strides
+  `[H*W*row_stride, 16, W*row_stride, row_stride, 1]`. The physical row
+  stride must be a multiple of 16 and cover all C1 blocks; the caller passes
+  the slice's aligned base address and bounds its storage. The DMA gathers
+  each C0 plane directly into L1 in chunks of at most 4095 pixels.
 - An FP16 Left tile with row-major outer **and** inner fractals (ZZ, 512-byte
   fractals), full K in multiples of 16, and a positive static valid M in
   multiples of 16. Allocation must fit 64 KiB L0A. A5's NZ Left layout is

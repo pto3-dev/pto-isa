@@ -32,17 +32,35 @@ def require_310p_hardware():
 
 
 @pytest.mark.parametrize(
-    "filter_size,stride,pad,dilation,rows,cols,pos_m,pos_k,pad_value,manual",
+    "filter_size,stride,pad,dilation,rows,cols,pos_m,pos_k,pad_value,manual,height,width,row_stride,channel_offset",
     [
-        (1, 1, 0, 1, 32, 16, 0, 0, 0.0, False),
-        (1, 1, 0, 1, 32, 16, 16, 16, 0.0, True),
-        (3, 1, 1, 1, 32, 144, 0, 0, 0.0, False),
-        (3, 1, 1, 1, 32, 144, 16, 144, 0.25, True),
-        (3, 2, 1, 1, 16, 16, 0, 64, 0.0, False),
-        (3, 1, 1, 2, 32, 144, 0, 0, -0.5, False),
+        (1, 1, 0, 1, 32, 16, 0, 0, 0.0, False, 8, 8, 0, 0),
+        (1, 1, 0, 1, 32, 16, 16, 16, 0.0, True, 8, 8, 0, 0),
+        (3, 1, 1, 1, 32, 144, 0, 0, 0.0, False, 8, 8, 0, 0),
+        (3, 1, 1, 1, 32, 144, 16, 144, 0.25, True, 8, 8, 0, 0),
+        (3, 2, 1, 1, 16, 16, 0, 64, 0.0, False, 8, 8, 0, 0),
+        (3, 1, 1, 2, 32, 144, 0, 0, -0.5, False, 8, 8, 0, 0),
+        (3, 1, 1, 1, 32, 144, 16, 144, 0.25, True, 8, 8, 64, 16),
+        (3, 1, 1, 1, 32, 144, 0, 0, 0.0, False, 64, 80, 64, 16),
     ],
 )
-def test_a1_img2col_native(tmp_path, filter_size, stride, pad, dilation, rows, cols, pos_m, pos_k, pad_value, manual):
+def test_a1_img2col_native(
+    tmp_path,
+    filter_size,
+    stride,
+    pad,
+    dilation,
+    rows,
+    cols,
+    pos_m,
+    pos_k,
+    pad_value,
+    manual,
+    height,
+    width,
+    row_stride,
+    channel_offset,
+):
     root = Path(__file__).resolve().parents[2]
     original = root / "tests/compile/a1_img2col.cpp"
     settings = {
@@ -55,6 +73,10 @@ def test_a1_img2col_native(tmp_path, filter_size, stride, pad, dilation, rows, c
         "POS_M": pos_m,
         "POS_K": pos_k,
         "PAD_VALUE": pad_value,
+        "HEIGHT": height,
+        "WIDTH": width,
+        "ROW_STRIDE": row_stride,
+        "CHANNEL_OFFSET": channel_offset,
     }
     definitions = "".join(f"#define PTO_A1_IMG_{name} {value}\n" for name, value in settings.items())
     if manual:
@@ -82,7 +104,7 @@ extern "C" __global__ AICORE void NativeImageColumns(__gm__ int64_t* args) {
     auto* weights = reinterpret_cast<__gm__ Tensor*>(args[1]);
     auto* dst = reinterpret_cast<__gm__ Tensor*>(args[2]);
     A1Img2col(reinterpret_cast<__gm__ float*>(dst->buffer.addr) + 16,
-              reinterpret_cast<__gm__ half*>(src->buffer.addr) + 16,
+              reinterpret_cast<__gm__ half*>(src->buffer.addr) + 16 + PTO_A1_IMG_CHANNEL_OFFSET,
               reinterpret_cast<__gm__ half*>(weights->buffer.addr));
 }
 """
@@ -91,10 +113,15 @@ extern "C" __global__ AICORE void NativeImageColumns(__gm__ int64_t* args) {
     image = simpler.KernelCompiler("a1").compile_single_launch(str(path), str(root))
     with simpler.A1SingleLaunch(image, device_id=0) as runner:
         for seed in (829, 839):
-            x = (torch.randn((1, 32, 8, 8), generator=torch.Generator().manual_seed(seed)) * 3).half()
-            packed = x.reshape(1, 2, 16, 8, 8).permute(0, 1, 3, 4, 2).contiguous()
+            x = (torch.randn((1, 32, height, width), generator=torch.Generator().manual_seed(seed)) * 3).half()
+            if row_stride:
+                packed = torch.full((height, width, row_stride), -6.0, dtype=torch.float16)
+                packed[:, :, channel_offset : channel_offset + 32] = x[0].permute(1, 2, 0)
+            else:
+                packed = x.reshape(1, 2, 16, height, width).permute(0, 1, 3, 4, 2).contiguous()
             guarded = torch.full((packed.numel() + 32,), 7.0, dtype=torch.float16)
             guarded[16:-16] = packed.reshape(-1)
+            original_input = guarded.clone()
             output = torch.full((rows * cols + 32,), 7.0, dtype=torch.float32)
             runner(guarded, torch.eye(16, dtype=torch.float16), output)
             padded = torch.nn.functional.pad(x.float(), (pad, pad, pad, pad), value=pad_value)
@@ -105,7 +132,7 @@ extern "C" __global__ AICORE void NativeImageColumns(__gm__ int64_t* args) {
             expected = expected[pos_m : pos_m + rows, pos_k : pos_k + cols]
             assert torch.equal(output[16:-16].reshape(rows, cols), expected)
             assert torch.all(output[:16] == 7) and torch.all(output[-16:] == 7)
-            assert torch.all(guarded[:16] == 7) and torch.all(guarded[-16:] == 7)
+            assert torch.equal(guarded, original_input)
 
 
 @pytest.mark.parametrize(
