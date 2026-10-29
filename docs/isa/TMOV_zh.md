@@ -298,6 +298,12 @@ TMOV(fp8NzTile, fp8Tile);
 TMOV<0>(e8ZzTile, e8DnTile, tmpTile);
 ```
 
+### Ascend 310P Mat 到 Right 配置
+
+FP16 `TMOV` 支持将完整对齐的 K×16 或 K×32 ZZ/NZ `Mat` 块搬到同形状的 ZN
+`Right` 块；Right 分配必须满足 64 KiB L0B 容量。K×32 搬运为 Cube 打包相邻的
+N16 面板；仅支持该搬运并不代表 310P 已支持 K×32 `TMATMUL` 或累加器回写。
+
 ### Auto
 
 ```cpp

@@ -356,6 +356,13 @@ TMOV(fp8NzTile, fp8Tile);
 TMOV<0>(e8ZzTile, e8DnTile, tmpTile);
 ```
 
+### Ascend 310P Mat-to-Right profile
+
+For FP16, `TMOV` can move a full aligned K×16 or K×32 `Mat` tile in ZZ or NZ
+layout to a matching ZN `Right` tile. The Right allocation must fit the 64 KiB
+L0B budget. K×32 packs adjacent N16 panels for the Cube; this move alone does
+not enable a K×32 `TMATMUL` or accumulator writeback on 310P.
+
 ### Auto
 
 ```cpp
