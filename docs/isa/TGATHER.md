@@ -76,6 +76,35 @@ For each row `i` in `src0`, compare each element `src0[i, j]` against threshold 
     - `TileDataS1::DType` must be `uint16_t` or `uint32_t`.
     - `cmpMode` must be `CmpMode::GT` or `CmpMode::EQ`.
 
+### Ascend310P (A1) indexed gather
+
+A1 supports the existing four-tile index form in manual mode. Source and
+destination must have the same dtype: FP16, FP32, INT32 or UINT32. All four
+tiles must be full static contiguous row-major Vec tiles with 32-byte-aligned
+rows, no padding, and each tile within the configured UB budget. Destination
+and index shapes must match; source rows and columns may differ.
+
+Indices and scratch must have the same INT32 or UINT32 dtype. Indices remain
+flat **element** offsets, including across source rows. Scratch needs at least
+`dst.Numel * sizeof(src element) / 2` 32-bit elements. A1's 16-bit `vgather`
+copies both halves of each 32-bit value without conversion. Only the required
+scratch prefix is written; this uses caller-provided storage, without a hidden
+UB allocation. Mask-pattern and comparison forms are not implemented on A1.
+
+Destination and scratch must not overlap each other or either read-only input;
+the implementation traps before writing on such overlap. The two read-only
+inputs may alias. Index bounds remain the caller's responsibility. The caller
+must make DMA inputs visible to both S (indices) and V (values). The helper
+orders vector producers before scalar offset generation, publishes offsets to
+V, and completes V before returning scratch for scalar reuse, using reserved
+local event ID 7. The vector mask is restored to normal/full on return. As with
+other manual instructions, the caller must synchronize the output consumer.
+
+These restrictions are backend limitations, not changes to the virtual ISA or
+public C++ signature. CPU/native-intrinsic-model checks and offline CCEC
+compilation are available in `tests/compile/test_a1_indexed_gather_host.py`;
+they do not establish device correctness or performance.
+
 ## Constraints
 
 - **Index-based gather: implementation checks (A2A3)**:

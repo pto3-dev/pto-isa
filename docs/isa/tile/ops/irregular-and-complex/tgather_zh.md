@@ -92,6 +92,29 @@ PTO_INST RecordEvent TGATHER(TileDataD &dst, TileDataS &src0, TileDataS1 &k_valu
     - `TileDataS1::DType` 必须是 `uint16_t` 或 `uint32_t`。
     - `cmpMode` 必须是 `CmpMode::GT` 或 `CmpMode::EQ`。
 
+### Ascend310P（A1）索引 gather
+
+A1 的手动模式支持既有四 Tile 索引形式。源与目标类型必须相同，支持 FP16、
+FP32、INT32 和 UINT32。四个 Tile 必须均为完整静态、连续行主序 Vec，行按
+32 字节对齐、无 padding，且每个 Tile 均在配置的 UB 容量内。目标与索引形状
+必须相同；源 Tile 的行列形状可以不同。
+
+索引与 scratch 必须使用相同的 INT32 或 UINT32 类型。索引仍为展平的**元素**
+偏移，可跨越源行。scratch 至少需要 `dst.Numel * sizeof(src element) / 2`
+个 32 位元素。A1 的 16 位 `vgather` 对每个 32 位值复制相邻两个半字，不做数值
+转换。仅写入实际需要的 scratch 前缀，使用调用方显式提供的缓冲区，无隐藏 UB
+分配。A1 尚未实现掩码模式和比较形式。
+
+目标与 scratch 彼此不得重叠，也不得与任一只读输入重叠；实现会在写入前 trap。
+两个只读输入可以别名。索引范围仍由调用方保证。调用方须让 DMA 输入对 S
+（索引）和 V（值）均可见。helper 使用保留的本地事件 ID 7：先等待向量生产者，
+再生成标量偏移并发布给 V，最后等待 V 完成，才将 scratch 交回标量使用者。
+返回时向量掩码恢复为 normal/full；后续输出消费者仍由调用方同步。
+
+这些是后端限制，不改变虚拟 ISA 或公共 C++ 签名。CPU、原生指令模型和离线
+CCEC 检查位于 `tests/compile/test_a1_indexed_gather_host.py`，不代表设备正确性
+或性能已经验证。
+
 ## 约束
 
 !!! warning "约束"
