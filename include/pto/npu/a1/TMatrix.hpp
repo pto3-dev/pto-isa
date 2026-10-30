@@ -121,7 +121,17 @@ PTO_INTERNAL void A1VectorToMatrix(DstTile& dst, SrcTile& src)
 template <typename DstTile, typename SrcTile>
 PTO_INTERNAL void A1MatrixToOperand(DstTile& dst, SrcTile& src)
 {
-    detail::CheckA1MatrixInput<SrcTile>();
+    constexpr bool transposeView =
+        SrcTile::Loc == TileType::Mat && SrcTile::isRowMajor && SrcTile::SFractal == SLayout::ColMajor;
+    if constexpr (transposeView) {
+        PTO_STATIC_ASSERT(
+            (DstTile::Loc == TileType::Right && SrcTile::Rows == 16 && SrcTile::Cols == 16 && SrcTile::ValidRow == 16 &&
+             SrcTile::ValidCol == 16 && SrcTile::SFractalSize == 512 &&
+             std::is_same<typename SrcTile::DType, half>::value),
+            "A1 transposed Mat view requires a full FP16 16x16 source and Right destination.");
+    } else {
+        detail::CheckA1MatrixInput<SrcTile>();
+    }
     PTO_STATIC_ASSERT(
         (DstTile::Rows == SrcTile::Rows && DstTile::Cols == SrcTile::Cols && DstTile::ValidRow == DstTile::Rows &&
          DstTile::ValidCol == DstTile::Cols),
@@ -154,9 +164,17 @@ PTO_INTERNAL void A1MatrixToOperand(DstTile& dst, SrcTile& src)
             // same outer ordering; NZ Mat stores complete K panels together.
             constexpr unsigned srcStride = SrcTile::isRowMajor ? panels : 1;
             const unsigned srcOffset = SrcTile::isRowMajor ? panel * 256 : panel * SrcTile::Rows * 16;
-            load_cbuf_to_cb(
-                dst.data() + panel * 256, src.data() + srcOffset, 0, SrcTile::Rows / 16, srcStride, panels - 1, 0, true,
-                addr_cal_mode_t(0));
+            // A ZN Mat view already reinterprets an NZ panel as K-transposed;
+            // CCEC requires a literal for the hardware transpose argument.
+            if constexpr (transposeView) {
+                load_cbuf_to_cb(
+                    dst.data() + panel * 256, src.data() + srcOffset, 0, SrcTile::Rows / 16, srcStride, panels - 1, 0,
+                    false, addr_cal_mode_t(0));
+            } else {
+                load_cbuf_to_cb(
+                    dst.data() + panel * 256, src.data() + srcOffset, 0, SrcTile::Rows / 16, srcStride, panels - 1, 0,
+                    true, addr_cal_mode_t(0));
+            }
         }
     }
 }
