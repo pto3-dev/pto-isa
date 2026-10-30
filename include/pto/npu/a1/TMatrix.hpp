@@ -228,6 +228,35 @@ PTO_INTERNAL void TINSERT_IMPL(DstTile& dst, SrcTile& src, uint16_t indexRow = 0
         copy_ubuf_to_ubuf(
             dst.data() + uint32_t(indexRow) * DstTile::Cols + indexCol, src.data(), 0, SrcTile::Rows, rowBlocks, 0,
             destinationGap);
+    } else if constexpr (SrcTile::Loc == TileType::Vec && DstTile::Loc == TileType::Mat) {
+        detail::CheckA1VectorTile<SrcTile>();
+        detail::CheckA1MatrixInput<DstTile>();
+        PTO_STATIC_ASSERT(
+            (std::is_same<typename SrcTile::DType, half>::value && !DstTile::isRowMajor && SrcTile::Rows >= 16 &&
+             SrcTile::Rows % 16 == 0 && SrcTile::Cols % 16 == 0 && SrcTile::Rows <= DstTile::Rows &&
+             SrcTile::Cols <= DstTile::Cols),
+            "A1 Vec-to-Mat insertion requires aligned FP16 ND into a bounded NZ Mat tile.");
+        if (indexRow % 16 || indexCol % 16 || indexRow > DstTile::Rows - SrcTile::Rows ||
+            indexCol > DstTile::Cols - SrcTile::Cols) {
+            trap();
+            return;
+        }
+        // NZ stores complete C16 planes. The destination byte origin is
+        // (indexCol * DstRows + indexRow * 16) * sizeof(half).
+        if constexpr (SrcTile::Cols == 16) {
+            // A C16-wide ND panel is already contiguous in one NZ plane;
+            // use one long burst instead of a burst for every source row.
+            copy_ubuf_to_cbuf(
+                dst.data() + uint32_t(indexCol) * DstTile::Rows + uint32_t(indexRow) * 16, src.data(), 0, 1,
+                SrcTile::Rows, 0, 0);
+        } else {
+            // Wider ND rows need one C16 gather per plane. Source row gaps
+            // are measured in 32-byte blocks; the L1 plane is contiguous.
+            for (unsigned column = 0; column < SrcTile::Cols; column += 16)
+                copy_ubuf_to_cbuf(
+                    dst.data() + uint32_t(indexCol + column) * DstTile::Rows + uint32_t(indexRow) * 16,
+                    src.data() + column, 0, SrcTile::Rows, 1, SrcTile::Cols / 16 - 1, 0);
+        }
     } else {
         detail::CheckA1MatrixInput<SrcTile>();
         PTO_STATIC_ASSERT(SrcTile::Cols == 16, "A1 Left insertion requires full C16 Mat panels.");

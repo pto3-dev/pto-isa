@@ -256,3 +256,18 @@ TINSERT(outMat, accQ4, 32, 32);  // Bottom-right
 - [pto.textract](./textract.md) — the inverse operation (read from a source tile)
 - [pto.tmov](./tmov.md) — full tile-to-tile movement including `TMOV_FP` fix-pipe variant
 - [Assembly Spelling And Operands](../../../syntax-and-operands/assembly-model.md)
+
+
+## Ascend 310P Vec-to-Mat profile
+
+A1 accepts a full FP16 contiguous ND Vec panel into a full FP16 NZ Mat tile.
+Both dimensions and insertion offsets must be C16-aligned, and the source
+window must fit the destination. MTE3 scatters ND rows into the destination's
+C16 planes, preserving every element outside the insertion window. Invalid
+native offsets trap. Use `TINSERT_V2M` events for MTE3-to-consumer and UB
+buffer-reuse dependencies. This event tag is specific to A1; other backends
+retain their existing insertion paths. CPU simulation proves logical copy
+semantics, not A1 DMA overlap or native throughput.
+
+C16-wide sources use one contiguous DMA burst. Wider ND sources use strided
+C16 gathers; performance comparisons must measure these routes separately.
