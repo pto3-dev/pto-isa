@@ -150,6 +150,7 @@ enum class Op : uint16_t {
     TINTERLEAVE,
     TDEINTERLEAVE,
     TINSERT_V2V, /* Vec to Vec */
+    TINSERT_V2M, /* Vec to Mat */
     OP_COUNT,    // The Total number of operations, please add new operations before OP_COUNT
 };
 
@@ -229,6 +230,7 @@ PTO_DEFINE_OP_PIPE(Op::TPRELU, PIPE_V);
 PTO_DEFINE_OP_PIPE(Op::TMOV_V2V, PIPE_V);
 PTO_DEFINE_OP_PIPE(Op::TINSERT_V2V, PIPE_V);
 #if defined(PTO_NPU_ARCH_A1)
+PTO_DEFINE_OP_PIPE(Op::TINSERT_V2M, PIPE_MTE3);
 PTO_DEFINE_OP_PIPE(Op::TMOV_V2M, PIPE_MTE3);
 PTO_DEFINE_OP_PIPE(Op::TEXTRACT_V2M, PIPE_MTE3);
 #else

@@ -261,3 +261,16 @@ void example_manual() {
 # AS Level 2 (DPS)
 pto.tinsert ins(%src, %idxrow, %idxcol : !pto.tile_buf<...>, dtype, dtype) outs(%dst : !pto.tile_buf<...>)
 ```
+
+
+## Ascend 310P Vec 到 Mat 配置
+
+A1 支持将完整 FP16 连续 ND Vec 面板写入完整 FP16 NZ Mat 块。
+维度及插入偏移必须按 C16 对齐，源窗口必须完全落在目标范围内。
+MTE3 将 ND 行分散到目标的 C16 平面，保留插入窗口外的全部元素。
+无效原生偏移触发 trap。使用 `TINSERT_V2M` 事件表达 MTE3 到消费者以及
+UB 缓冲复用的依赖。该事件标签专用于 A1；其他后端保持已有插入路径。
+CPU 模拟仅证明逻辑复制语义，不能证明 A1 DMA 重叠或原生吞吐。
+
+C16 宽的源使用一次连续 DMA burst；更宽的 ND 源使用 C16 跨步搬运。
+性能对比需分别测量这两条路径。

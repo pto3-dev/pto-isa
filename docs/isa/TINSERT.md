@@ -13,7 +13,7 @@ Insert a source sub-tile into a destination tile at `(indexRow, indexCol)`. Conc
 
 - Acc → Mat insertion (with optional relu, scalar-quant, or vector-quant)
 - Acc → Vec insertion (with optional `AccToVecMode`, relu, scalar-quant, or vector-quant) *(A5)*
-- Vec → Mat insertion (ND, NZ, and ZN layouts) *(A5)*
+- Vec → Mat insertion (A5; bounded FP16 ND-to-NZ profile on A1)
 - Vec → Vec insertion (target-dependent layouts; A5 and bounded A1 ND profile)
 - NZ split insertion (`SPLIT2`, `SPLIT4`), also exposed in CPU simulation
 
@@ -311,3 +311,15 @@ rows and columns must fit the destination, and each row and destination column
 offset must be 32-byte aligned. Source and destination storage must be disjoint.
 Native callers with invalid offsets or overlapping storage trap. Use
 `TINSERT_V2V` for vector-pipe events.
+
+
+### Ascend 310P Vec-to-Mat profile
+
+A1 `TINSERT` copies a full contiguous FP16 ND Vec tile into an NZ FP16 Mat
+tile using MTE3, repacking each C16 plane. Tile dimensions and both offsets
+must be multiples of 16; the complete source must fit within the destination.
+Invalid native offsets trap. The destination's untouched elements are preserved.
+Use `TINSERT_V2M` for MTE3 pipeline events and fence consumers and buffer reuse.
+
+C16-wide sources use one contiguous DMA burst. Wider ND sources use strided
+C16 gathers; performance comparisons must measure these routes separately.
