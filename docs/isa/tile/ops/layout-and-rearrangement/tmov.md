@@ -32,6 +32,21 @@ Fence the producer (V or MTE2) before MTE3 reads UB, and MTE3 before MTE1
 consumes L1. Before reusing UB, wait for MTE3; before overwriting L1, wait for
 MTE1. This instruction does not insert these cross-pipeline dependencies.
 
+### Ascend310P transposed Mat view to Right
+
+On A1, `TMOV(right, transposedMat)` accepts a full FP16 16x16 Mat view with
+`BLayout::RowMajor`, `SLayout::ColMajor` and a 512-byte fractal. The view
+aliases the same L1 storage as an NZ Mat tile and represents its logical
+transpose. MTE1 moves it directly to the matching ZN Right tile in L0B;
+no GM or UB staging is introduced. Larger tiles, partial valid shapes,
+FP32 sources and Left destinations are rejected.
+
+This extends the existing `TMOV` instruction; it does not transpose or
+modify the aliased L1 buffer. Fence the L1 producer before MTE1 reads,
+MTE1 before Cube consumes L0B, and Cube before reusing L0B. Keep the
+source L1 buffer alive until MTE1 completes. CPU simulation checks logical
+elements and does not validate the A1 hardware layout or asynchronous DMA.
+
 ## Math Interpretation
 
 Conceptually copies or transforms elements from `src` into `dst` over the valid region. Exact transformation depends on the selected mode and target.

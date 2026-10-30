@@ -25,6 +25,17 @@ FP16 ZZ 或 NZ Mat 块。两侧维度必须一致，均为 `[16,2048]` 内的 16
 MTE3 读取 UB 前需等待生产流水线（V 或 MTE2），MTE1 消费 L1 前需等待 MTE3。
 复用 UB 前需等待 MTE3，覆盖 L1 前需等待 MTE1；本指令不自动插入这些跨流水线依赖。
 
+### Ascend310P 转置 Mat 视图到 Right
+
+在 A1 上，`TMOV(right, transposedMat)` 接受完整 FP16 16x16 Mat 视图，布局为
+`BLayout::RowMajor`、`SLayout::ColMajor`，fractal 大小为 512 字节。视图与原 NZ
+Mat 块共享 L1 存储，表达其逻辑转置。MTE1 直接将它搬入 L0B 中匹配的 ZN Right
+块，不引入 GM 或 UB 中转。更大的块、部分有效形状、FP32 源和 Left 目的会被拒绝。
+
+该能力扩展现有 `TMOV` 指令，不转置或修改共享的 L1 缓冲。MTE1 读取前须等待 L1
+生产流水线，Cube 消费 L0B 前须等待 MTE1，复用 L0B 前须等待 Cube；源 L1 缓冲
+必须保留至 MTE1 完成。CPU 模拟仅校验逻辑元素，不能验证 A1 硬件布局或异步 DMA。
+
 ## 数学语义
 
 在有效区域内将元素从 `src` 复制或转换到 `dst`。具体转换取决于所选模式和目标。
