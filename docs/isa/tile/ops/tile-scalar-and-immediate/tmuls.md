@@ -163,3 +163,7 @@ pto.tmuls ins(%src, %scalar : !pto.tile_buf<...>, dtype) outs(%dst : !pto.tile_b
 - Instruction set overview: [Tile Scalar And Immediate](../../tile-scalar-and-immediate.md)
 - Previous op in instruction set: [pto.tdivs](./tdivs.md)
 - Next op in instruction set: [pto.tfmods](./tfmods.md)
+
+## Ascend310P / A1 profile
+
+A1 accepts matching FP16/FP32 static full row-major Vec tiles with no layout padding and 32-byte-aligned rows. The scalar uses the source element type. Exact aliases and disjoint buffers are supported; shifted overlaps trap. Native `vmuls` masks a final partial 256-byte repeat and batches at most 255 repeats per instruction. Integer/BF16, packed-column and dynamic-valid tiles are unsupported in this profile. Hardware execution is validated separately from CPU semantics and offline compilation.

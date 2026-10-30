@@ -114,6 +114,8 @@ PTO_INTERNAL void A1VectorRepeat(
         vdiv(dst, src0, src1, repeats, 1, 1, 1, 8, 8, 8);
     } else if constexpr (Operation == Op::TMAX) {
         vmax(dst, src0, src1, repeats, 1, 1, 1, 8, 8, 8);
+    } else if constexpr (Operation == Op::TMULS) {
+        vmuls(dst, src0, scalar, repeats, 1, 1, 8, 8);
     } else if constexpr (Operation == Op::TEXPANDS) {
         vector_dup(dst, scalar, repeats, 1, 1, 8, 8);
     } else if constexpr (Operation == Op::TEXP) {
@@ -270,6 +272,19 @@ template <typename DstTile, typename Src0Tile, typename Src1Tile>
 PTO_INTERNAL void TMUL_IMPL(DstTile& dst, Src0Tile& src0, Src1Tile& src1)
 {
     A1ElementwiseVector<Op::TMUL>(dst, src0, src1);
+}
+
+template <typename DstTile, typename SrcTile>
+PTO_INTERNAL void TMULS_IMPL(DstTile& dst, SrcTile& src, typename SrcTile::DType scalar)
+{
+    // A shifted destination can overwrite source lanes consumed by a later
+    // repeat. Exact aliases and disjoint spans preserve the scalar operation.
+    if (detail::A1BuffersOverlap(dst, src) &&
+        reinterpret_cast<uintptr_t>(dst.data()) != reinterpret_cast<uintptr_t>(src.data())) {
+        trap();
+        return;
+    }
+    A1ElementwiseVector<Op::TMULS>(dst, src, src, scalar);
 }
 
 template <typename DstTile, typename Src0Tile, typename Src1Tile>

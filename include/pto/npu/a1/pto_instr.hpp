@@ -134,6 +134,14 @@ PTO_INST RecordEvent TMUL(DstTile& dst, Src0Tile& src0, Src1Tile& src1, WaitEven
     return {};
 }
 
+template <typename DstTile, typename SrcTile, typename... WaitEvents>
+PTO_INST RecordEvent TMULS(DstTile& dst, SrcTile& src, typename SrcTile::DType scalar, WaitEvents&... events)
+{
+    TSYNC(events...);
+    TMULS_IMPL(dst, src, scalar);
+    return {};
+}
+
 template <typename DstTile, typename Src0Tile, typename Src1Tile, typename... WaitEvents>
 PTO_INST RecordEvent TMAX(DstTile& dst, Src0Tile& src0, Src1Tile& src1, WaitEvents&... events)
 {
