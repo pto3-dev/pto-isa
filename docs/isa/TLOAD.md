@@ -60,6 +60,12 @@ On A5 all listed values are passed through to DMA. CPU / costmodel accept the te
 
 ## Constraints
 
+- **Implementation checks (A1 / Ascend310P)**:
+    - Full static row-major ND Vec storage supports matching FP16, FP32, INT32 or UINT32 tensor/tile types.
+    - Rows are 32-byte aligned and fit the configured UB budget; GM row strides are static, aligned and non-overlapping.
+    - INT32/UINT32 transfers preserve raw bits and do not enable integer vector arithmetic, packed-column DMA or matrix operands.
+    - Strided transfers split at 4095 row bursts; GM gaps beyond the 16-bit DMA field use complete per-row transfers.
+
 - **Implementation checks (A2A3)**:
     - `TileData::DType` must be one of: `int8_t`, `uint8_t`, `int16_t`, `uint16_t`, `int32_t`, `uint32_t`, `int64_t`, `uint64_t`, `half`, `bfloat16_t`, `float`.
     - Destination tile location must be `TileType::Vec` or `TileType::Mat`.

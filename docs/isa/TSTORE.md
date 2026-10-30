@@ -88,6 +88,12 @@ On A2/A3, L2 hints have **no effect** (all values are no-ops; no store L2 contro
 
 ## Constraints
 
+- **Implementation checks (A1 / Ascend310P)**:
+    - Full static row-major ND Vec storage supports matching FP16, FP32, INT32 or UINT32 tensor/tile types.
+    - Rows are 32-byte aligned and fit the configured UB budget; GM row strides are static, aligned and non-overlapping.
+    - INT32/UINT32 transfers preserve raw bits and do not enable integer vector arithmetic, packed-column DMA or matrix operands.
+    - Strided transfers split at 4095 row bursts; GM gaps beyond the 16-bit DMA field use complete per-row transfers.
+
 - **Implementation checks (A2A3)**:
     - Source tile location must be one of: `TileType::Vec`, `TileType::Mat`, `TileType::Acc`.
     - Runtime: all `dst.GetShape(dim)` values and `src.GetValidRow()/GetValidCol()` must be `> 0`.

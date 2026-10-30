@@ -71,6 +71,12 @@ Reads from global memory and writes to the tile buffer. Does not implicitly fenc
 
 ## Constraints
 
+- **Implementation checks (A1 / Ascend310P)**:
+    - Full static row-major ND Vec storage supports matching FP16, FP32, INT32 or UINT32 tensor/tile types.
+    - Rows are 32-byte aligned and fit the configured UB budget; GM row strides are static, aligned and non-overlapping.
+    - INT32/UINT32 transfers preserve raw bits and do not enable integer vector arithmetic, packed-column DMA or matrix operands.
+    - Strided transfers split at 4095 row bursts; GM gaps beyond the 16-bit DMA field use complete per-row transfers.
+
 !!! warning "Constraints"
     - **Valid region**: The transfer size is `dst.GetValidRow()` × `dst.GetValidCol()`.
     - **Element size match**: `sizeof(tile.dtype) == sizeof(gtensor.dtype)`.

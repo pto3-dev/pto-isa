@@ -60,6 +60,12 @@ A5 上表内取值均透传给 DMA。CPU / costmodel 接受该模板并忽略。
 
 ## 约束
 
+- **实现检查（A1 / Ascend310P）**：
+    - 完整静态行主序 ND Vec 存储支持类型匹配的 FP16、FP32、INT32 或 UINT32 张量与 Tile。
+    - 每行按 32 字节对齐并满足配置的 UB 容量；GM 行步长必须静态、对齐且无重叠。
+    - INT32/UINT32 搬运保留原始位，不开放整数向量计算、紧凑列 DMA 或矩阵操作数。
+    - 跨步搬运按最多 4095 行拆分；GM 行间隔超过 DMA 的 16 位字段时，逐行完整搬运。
+
 - **实现检查 （Atlas A2/A3 训练系列产品/Atlas A2/A3 推理系列产品）**:
     - `TileData::DType` 必须是以下之一：`int8_t`、`uint8_t`、`int16_t`、`uint16_t`、`int32_t`、`uint32_t`、`int64_t`、`uint64_t`、`half`、`bfloat16_t`、`float`。
     - 目标tile位置必须是 `TileType::Vec` 或 `TileType::Mat`。
