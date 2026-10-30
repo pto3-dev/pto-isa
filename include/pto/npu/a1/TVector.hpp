@@ -31,13 +31,12 @@ PTO_INTERNAL bool A1BuffersOverlap(First& first, Second& second)
            b < a + First::Numel * sizeof(typename First::DType);
 }
 
+// Layout and byte capacity are shared by floating arithmetic and raw DMA.
+// Integer index buffers need identical storage rules, without granting them
+// access to floating vector instructions.
 template <typename TileData>
-PTO_INTERNAL void CheckA1VectorTile()
+PTO_INTERNAL void CheckA1VectorStorageLayout()
 {
-    PTO_STATIC_ASSERT(TileData::Loc == TileType::Vec, "A1 vector instructions require a Vec tile.");
-    PTO_STATIC_ASSERT(
-        (std::is_same<typename TileData::DType, half>::value || std::is_same<typename TileData::DType, float>::value),
-        "A1 vector instructions require FP16 or FP32.");
     PTO_STATIC_ASSERT(
         TileData::isRowMajor && TileData::SFractal == SLayout::NoneBox,
         "A1 vector instructions require contiguous row-major tiles.");
@@ -50,6 +49,16 @@ PTO_INTERNAL void CheckA1VectorTile()
     PTO_STATIC_ASSERT(
         TileData::Numel * sizeof(typename TileData::DType) <= PTO_UBUF_SIZE_BYTES,
         "A1 vector tile exceeds the configured UB budget.");
+}
+
+template <typename TileData>
+PTO_INTERNAL void CheckA1VectorTile()
+{
+    PTO_STATIC_ASSERT(TileData::Loc == TileType::Vec, "A1 vector instructions require a Vec tile.");
+    PTO_STATIC_ASSERT(
+        (std::is_same<typename TileData::DType, half>::value || std::is_same<typename TileData::DType, float>::value),
+        "A1 vector instructions require FP16 or FP32.");
+    CheckA1VectorStorageLayout<TileData>();
 }
 
 template <typename TileData>
@@ -87,7 +96,13 @@ PTO_INTERNAL void CheckA1PackedColumnTransfer()
 template <typename TileData, typename GlobalData>
 PTO_INTERNAL void CheckA1VectorTransfer()
 {
-    CheckA1VectorTile<TileData>();
+    PTO_STATIC_ASSERT(TileData::Loc == TileType::Vec, "A1 vector DMA requires a Vec tile.");
+    PTO_STATIC_ASSERT(
+        (std::is_same<typename TileData::DType, half>::value || std::is_same<typename TileData::DType, float>::value ||
+         std::is_same<typename TileData::DType, int32_t>::value ||
+         std::is_same<typename TileData::DType, uint32_t>::value),
+        "A1 vector DMA requires FP16, FP32, INT32 or UINT32.");
+    CheckA1VectorStorageLayout<TileData>();
     PTO_STATIC_ASSERT(
         (std::is_same<typename GlobalData::RawDType, typename TileData::DType>::value),
         "A1 DMA requires tensor and tile data types to match.");

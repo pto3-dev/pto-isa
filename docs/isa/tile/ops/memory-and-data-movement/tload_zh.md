@@ -57,6 +57,12 @@ PTO_INST RecordEvent TLOAD(TileData &dst, GlobalData &src, WaitEvents &... event
 
 ## 约束
 
+- **实现检查（A1 / Ascend310P）**：
+    - 完整静态行主序 ND Vec 存储支持类型匹配的 FP16、FP32、INT32 或 UINT32 张量与 Tile。
+    - 每行按 32 字节对齐并满足配置的 UB 容量；GM 行步长必须静态、对齐且无重叠。
+    - INT32/UINT32 搬运保留原始位，不开放整数向量计算、紧凑列 DMA 或矩阵操作数。
+    - 跨步搬运按最多 4095 行拆分；GM 行间隔超过 DMA 的 16 位字段时，逐行完整搬运。
+
 !!! warning "约束"
     - `sizeof(TileData::DType)` 必须与 `sizeof(GlobalData::DType)` 一致
     - 搬运范围由 `dst.GetValidRow()` / `dst.GetValidCol()` 决定
