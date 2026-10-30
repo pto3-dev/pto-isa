@@ -119,3 +119,7 @@ void example_auto() {
 - 指令集总览：[Tile-标量与立即数](../../tile-scalar-and-immediate_zh.md)
 - 上一条指令：[pto.tdivs](./tdivs_zh.md)
 - 下一条指令：[pto.tfmods](./tfmods_zh.md)
+
+## Ascend310P / A1 约束
+
+A1 接受同类型 FP16/FP32、静态完整行主序、无布局填充且每行按 32 字节对齐的 Vec tile。标量采用源元素类型。支持完全同址或互不重叠的缓冲区；偏移重叠会 trap。原生 `vmuls` 对末尾不足 256 字节的重复使用掩码，每条指令最多批量重复 255 次。此路径不支持整数/BF16、列主序打包或动态有效形状。硬件执行验证与 CPU 语义和离线编译分开进行。

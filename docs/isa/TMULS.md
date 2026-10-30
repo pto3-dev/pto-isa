@@ -72,3 +72,7 @@ void example_manual() {
   TMULS(dst, src, 2.0f);
 }
 ```
+
+## Ascend310P / A1 profile
+
+A1 supports matching FP16/FP32 source and destination Vec tiles with static full row-major shapes, no layout padding, and 32-byte-aligned rows. The scalar has the source element type. Storage must be disjoint or an exact alias; shifted overlap traps before execution. The native `vmuls` path masks the final incomplete 256-byte repeat and splits larger work into at most 255 repeats per instruction. Integer/BF16, packed-column and dynamic-valid tiles are outside this A1 profile. Device execution remains a separate validation step.
