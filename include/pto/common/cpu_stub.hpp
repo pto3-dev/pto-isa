@@ -151,6 +151,9 @@ inline uint64_t sbitset0(uint64_t value, int bit) { return value & ~(1ULL << bit
 #endif
 #define __cce_get_tile_ptr(x) x
 #define set_mask_norm(...)
+// High-level CPU operators ignore hardware mask modes; intrinsic models
+// replace these stubs to check the actual mode transitions.
+#define set_mask_count(...)
 #define set_vector_mask(...)
 
 inline uint32_t get_block_idx();

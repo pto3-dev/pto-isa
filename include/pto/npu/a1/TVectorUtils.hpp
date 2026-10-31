@@ -56,6 +56,30 @@ PTO_INTERNAL void CheckA1VectorTile()
     CheckA1VectorStorageLayout<TileData>();
 }
 
+// Copy raw halfword rows with explicit repeat strides (in 32-byte blocks).
+// A zero input stride broadcasts one row; eight blocks copy contiguous repeats.
+// Shared by column expansion and identity mask-gather, without float arithmetic.
+template <unsigned Halfwords, typename Word>
+PTO_INTERNAL void A1CopyBitRows(
+    __ubuf__ Word* output, __ubuf__ Word* input, uint8_t repeat, uint8_t outputStride, uint8_t inputStride = 0)
+{
+    PTO_STATIC_ASSERT((std::is_same<Word, uint16_t>::value), "A1 bit rows require raw halfword storage.");
+    constexpr unsigned full = Halfwords / 128, tail = Halfwords % 128;
+    if constexpr (full > 0) {
+        set_vector_mask(UINT64_MAX, UINT64_MAX);
+        for (unsigned chunk = 0; chunk < full; ++chunk)
+            vor(output + chunk * 128, input + chunk * 128, input + chunk * 128, repeat, 1, 1, 1, outputStride,
+                inputStride, inputStride);
+    }
+    if constexpr (tail > 0) {
+        constexpr uint64_t low = tail >= 64 ? UINT64_MAX : (uint64_t(1) << (tail % 64)) - 1;
+        constexpr uint64_t high = tail > 64 ? (uint64_t(1) << (tail % 64)) - 1 : 0;
+        set_vector_mask(high, low);
+        vor(output + full * 128, input + full * 128, input + full * 128, repeat, 1, 1, 1, outputStride, inputStride,
+            inputStride);
+    }
+}
+
 } // namespace detail
 } // namespace pto
 

@@ -75,26 +75,6 @@ PTO_INTERNAL void A1VectorRowExpand(DstTile& dst, SrcTile& src)
     else
         set_vector_mask(UINT64_MAX, UINT64_MAX);
 }
-// Copy one complete source row across a bounded group of destination rows.
-// Raw halfwords preserve signed zero and NaN payloads for both float formats.
-// A zero source repeat stride broadcasts without per-row scalar loop/mask work.
-template <unsigned Halfwords>
-PTO_INTERNAL void A1CopyColumnRows(
-    __ubuf__ uint16_t* output, __ubuf__ uint16_t* input, uint8_t repeat, uint8_t outputStride)
-{
-    constexpr unsigned full = Halfwords / 128, tail = Halfwords % 128;
-    if constexpr (full > 0) {
-        set_vector_mask(UINT64_MAX, UINT64_MAX);
-        for (unsigned chunk = 0; chunk < full; ++chunk)
-            vor(output + chunk * 128, input + chunk * 128, input + chunk * 128, repeat, 1, 1, 1, outputStride, 0, 0);
-    }
-    if constexpr (tail > 0) {
-        constexpr uint64_t low = tail >= 64 ? UINT64_MAX : (uint64_t(1) << (tail % 64)) - 1;
-        constexpr uint64_t high = tail > 64 ? (uint64_t(1) << (tail % 64)) - 1 : 0;
-        set_vector_mask(high, low);
-        vor(output + full * 128, input + full * 128, input + full * 128, repeat, 1, 1, 1, outputStride, 0, 0);
-    }
-}
 
 } // namespace detail
 
@@ -154,13 +134,13 @@ PTO_INTERNAL void TCOLEXPAND_IMPL(DstTile& dst, SrcTile& src)
         for (unsigned row = first; row < DstTile::Rows; row += 255) {
             const unsigned remaining = DstTile::Rows - row;
             const uint8_t repeat = remaining < 255 ? remaining : 255;
-            detail::A1CopyColumnRows<halfwords>(output + row * halfwords, input, repeat, blocks);
+            detail::A1CopyBitRows<halfwords>(output + row * halfwords, input, repeat, blocks);
         }
     } else {
         // Wide rows cannot encode an 8-bit repeat stride; copy each row with
         // a single repeat so no stride truncation or out-of-window DMA occurs.
         for (unsigned row = first; row < DstTile::Rows; ++row)
-            detail::A1CopyColumnRows<halfwords>(output + row * halfwords, input, 1, 0);
+            detail::A1CopyBitRows<halfwords>(output + row * halfwords, input, 1, 0);
     }
     if constexpr (sizeof(Element) == 4)
         set_vector_mask(0, UINT64_MAX);
