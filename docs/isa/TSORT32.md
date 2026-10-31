@@ -8,6 +8,48 @@
 
 Sort each 32-element block of `src` together with the corresponding indices from `idx`, and write the sorted value-index pairs into `dst`. The underlying SFU instruction is **VBS32** (`vbitsort`), which sorts one or more independent 32-element lists in a single call.
 
+## Ascend310P (A1) proposal-backed profile
+
+A1 implements the existing four-operand `TSORT32(dst, src, idx, tmp)` using
+m200's 16-proposal `vbitsort`, followed by a two-list `vmrgsort4` for each
+32-value block. Native records have eight FP32 fields (score at field 4,
+index bits at field 5); the public destination remains compact 8-byte pairs.
+No proposal layout escapes the helper and no implicit UB memory is allocated.
+
+- Values, destination and scratch are FP32; indices are UINT32.
+- All operands are full static contiguous row-major, unboxed Vec tiles with
+  32-byte-aligned rows and the existing UB budget. `src` is `R × C`, with
+  `C % 32 == 0`; `dst` is `R × 2C`. Index geometry is `R × C` or `1 × C`
+  (row broadcast).
+- Scratch always needs **at least 512 FP32 elements (2048 bytes)**, including
+  aligned inputs. It holds two banks of `32 × 8` fields per block. One call
+  batches `B = min(127, floor(tmp.Numel / 512))` blocks, reusing the banks
+  across batches and rows. Extra scratch can amortize scalar/vector handoffs;
+  an incomplete final batch stays within the same reserved banks.
+- The three-operand overload, FP16 values, partial valid shapes and non-32
+  tails are not implemented by this A1 profile. They are rejected rather than
+  allocating hidden scratch or changing the public pair format.
+- All writable overlaps involving destination/scratch are rejected before
+  work starts. The read-only source and indices may alias.
+- Native proposals compare scores only. Compaction restores ascending
+  **unsigned** indices within each equal-score run, without converting indices
+  to FP32 or changing score bits, including signed zero. Finite scores and
+  infinities are supported; NaN score ordering is unspecified. Sorting equal
+  value/index keys does not add a traversal-order guarantee.
+- Callers must complete input DMA on `PIPE_V` before the call. Local event 7
+  orders V-to-S extraction and S-to-V publication, and is drained before
+  return. Event 7 is reserved for local ISA helpers; callers must not leave
+  outstanding transactions on it. The outward operation remains `PIPE_V`:
+  synchronize its consumer normally, including V-to-MTE3 for a subsequent store.
+  The helper restores
+  the normal full vector mask.
+
+CPU reference checks, a host model executing the production A1 helper, and
+CCEC compilation validate semantics and native template instantiation. They
+do not establish device timing, asynchronous DMA correctness or performance.
+A1 compiler/public-PyPTO integration must supply the explicit scratch before
+this profile can replace a model's native sort kernel.
+
 ## Hardware: VBS32 (`vbitsort`)
 
 VBS32 runs on the **SFU**. PTO maps `TSORT32` to `PIPE_V` for event synchronization. One invocation sorts `repeat` consecutive 32-element blocks, each consisting of 32 values + 32 indices packed as value-index pairs:
