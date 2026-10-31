@@ -95,24 +95,35 @@ and index shapes must match; source rows and columns may differ.
 
 Indices and scratch must have the same INT32 or UINT32 dtype. Indices remain
 flat **element** offsets, including across source rows. Scratch needs at least
-`dst.Numel * sizeof(src element) / 2` 32-bit elements. A1's 16-bit `vgather`
-copies both halves of each 32-bit value without conversion. Only the required
-scratch prefix is written; this uses caller-provided storage, without a hidden
-UB allocation. Mask-pattern and comparison forms are not implemented on A1.
+`dst.Numel * sizeof(src element) / 2` 32-bit elements, preserving the
+established capacity contract. The implementation now writes only the first
+`dst.Numel` scratch entries: integer vector additions generate byte offsets,
+and native 16/32-bit `vgather` copies raw words without numeric conversion.
+There is no hidden UB allocation. Mask-pattern and comparison forms remain
+unsupported on A1.
 
 Destination and scratch must not overlap each other or either read-only input;
 the implementation traps before writing on such overlap. The two read-only
 inputs may alias. Index bounds remain the caller's responsibility. The caller
-must make DMA inputs visible to both S (indices) and V (values). The helper
-orders vector producers before scalar offset generation, publishes offsets to
-V, and completes V before returning scratch for scalar reuse, using reserved
-local event ID 7. The vector mask is restored to normal/full on return. As with
-other manual instructions, the caller must synchronize the output consumer.
+must make DMA indices and values visible to V. An entry S-to-V handshake
+preserves ordering for existing scalar producers. Vector barriers order previous
+producers, offset generation and gather. A final V-to-S handshake using
+reserved local event ID 7 completes the operation before scratch is returned
+for scalar reuse. Both handshakes use event ID 7 and drain it before return;
+the former leading V-to-S handshake is no longer needed. The vector mask is
+restored to normal/full on return. The caller must still synchronize output
+consumers.
+
+The prior path generated one/two scalar offsets per 16/32-bit output element.
+The new path uses one/two vector additions per group of 64 indices. This is
+an instruction-count comparison, not a measured device speedup. CPU model and
+offline CCEC checks cannot establish device timing or asynchronous correctness.
 
 These restrictions are backend limitations, not changes to the virtual ISA or
 public C++ signature. CPU/native-intrinsic-model checks and offline CCEC
 compilation are available in `tests/compile/test_a1_indexed_gather_host.py`;
 they do not establish device correctness or performance.
+
 
 ## Constraints
 

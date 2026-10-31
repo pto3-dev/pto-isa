@@ -18,7 +18,15 @@ ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "tests/compile/a1_indexed_gather.cpp"
 # 32B tails, the 80-class/96-record geometry, unequal source/output shapes,
 # cross-row indices and a large panel. Together the live tiles fit 128KiB UB.
-GEOMETRIES = [(1, 16, 1, 32), (1, 80, 1, 96), (8, 96, 8, 80), (3, 80, 8, 96), (32, 128, 64, 128)]
+GEOMETRIES = [
+    (1, 16, 1, 32),
+    (1, 80, 1, 96),
+    (8, 96, 8, 80),
+    (3, 80, 8, 96),
+    (32, 128, 64, 128),
+    (1, 96, 1, 112),
+    (8, 96, 8, 112),
+]
 
 
 @pytest.mark.parametrize("dtype", range(4), ids=["fp16", "fp32", "int32", "uint32"])
@@ -142,3 +150,52 @@ extern "C" __global__ AICORE void Invalid(__gm__ float*) {{
     )
     assert result.returncode != 0
     assert diagnostic in result.stderr
+
+
+@pytest.mark.parametrize("ways", [2, 3, 4])
+@pytest.mark.parametrize("prefix", [4, 48, None], ids=["minimum", "prefix", "full"])
+def test_a1_gather_sort_merge_pipeline_cpu_and_offline(tmp_path, ways, prefix):
+    """Keep vector gather and sorting in one ISA build and one compact UB pipeline."""
+    compiler, native = shutil.which("clang++-19"), shutil.which("ccec")
+    if not compiler or not native:
+        pytest.skip("requires clang++-19 and CCEC for CPU/offline checks")
+    source = ROOT / "tests/compile/a1_gather_sort_pipeline.cpp"
+    definitions = [f"-DPIPELINE_WAYS={ways}", f"-DPIPELINE_OUTPUT={ways * 32 if prefix is None else prefix}"]
+    binary = tmp_path / "pipeline"
+    subprocess.run(
+        [
+            compiler,
+            "-std=c++20",
+            "-O1",
+            "-D__CPU_SIM",
+            f"-I{ROOT / 'include'}",
+            *definitions,
+            str(source),
+            "-o",
+            str(binary),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run([str(binary)], check=True, capture_output=True, text=True)
+    subprocess.run(
+        [
+            native,
+            "-c",
+            "-O2",
+            "-x",
+            "cce",
+            "-std=c++17",
+            "--cce-aicore-only",
+            "--cce-aicore-arch=dav-m200",
+            f"-I{ROOT / 'include'}",
+            *definitions,
+            str(source),
+            "-o",
+            str(tmp_path / "native.o"),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
