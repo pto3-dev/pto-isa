@@ -8,6 +8,45 @@
 
 硬件加速的多路归并排序（`vmrgsort4`）。将最多 4 个已预排序的列表归并为一个**降序**排列的输出。每个元素是固定 8 字节的**值-索引对**结构体。
 
+## Ascend310P（A1）支持范围
+
+A1 复用既有的显式 scratch **2～4 列表**接口。后面的通用章节还描述其他后端，
+A1 的具体限制如下：
+
+- 所有操作数均为单行、完整静态、连续行主序 FP32 Vec。每个源包含正整数倍的
+  **16 对**（32 个 FP32 元素），并已按分数降序排列。目的容量为正的 32 字节对齐
+  前缀，不超过全部输入 pair 的总数。
+- `GETMRGSORTTMPSIZE<Src0, Src1, ...>()` 返回 FP32 元素容量：
+  **8 × 各源 Numel 之和**，即 **16 × 输入 pair 总数**。调用方提供两组八字段
+  proposal bank；scratch 和各操作数均须符合 A1 UB 预算。拒绝可写重叠，允许只读
+  源列表别名，不分配隐藏 UB。
+- 分数相等时先取较早的源列表，同一源内部保持原顺序。索引按 UINT32 原始位复制，
+  不作数值转换或额外的索引大小排序；保留符号零等分数位型。NaN 分数顺序未定义。
+- A1 先完成完整原生 proposal 归并，再修复稳定平局并施加目的容量边界。
+  `exhausted=true` 在任一逻辑源耗尽时停止复制，未写输出后缀保持原值。
+  `executedNumList` 返回各列表实际复制的 pair 数，未使用项为零。该 A1 计数由
+  压紧过程计算，**不是**读取 `VMS4_SR`；`exhausted=false` 也定义这些计数。
+- 打包采用带 mask 的 32 位向量 gather 和整数来源标记。第二组 proposal bank 先
+  复用为偏移表，打包完成后才被原生归并覆盖。标量压紧由预留 event 7 同步，返回前
+  排空事件并恢复 normal/full mask。
+- A1 尚不支持单列表/blockLen 形式、FP16、部分有效形状或源尾块。CPU/离线检查
+  不证明设备精度、时序、重叠或性能；完整归并搬运和标量压紧仍须实测后才能切换模型默认
+  路径，proposal 驻留融合链可用于后续减少格式转换。
+
+既有公共接口示例（scratch 查询结果随目标后端变化）：
+
+```cpp
+#include <cstdint>
+#include <pto/pto-inst.hpp>
+using Input = pto::Tile<pto::TileType::Vec, float, 1, 64>;
+using Output = pto::Tile<pto::TileType::Vec, float, 1, 128>;
+using Scratch = pto::Tile<pto::TileType::Vec, float, 1, pto::GETMRGSORTTMPSIZE<Input, Input>()>;
+AICORE void MergeExample(Output& dst, Input& src0, Input& src1, Scratch& tmp) {
+    pto::MrgSortExecutedNumList consumed{};
+    pto::TMRGSORT<Output, Scratch, Input, Input, false>(dst, consumed, tmp, src0, src1);
+}
+```
+
 ## 数据格式：值-索引对
 
 TMRGSORT 操作的是 8 字节结构体，Tile 中的每个元素构成值-索引对的一部分：

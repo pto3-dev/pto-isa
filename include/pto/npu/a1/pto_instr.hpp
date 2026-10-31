@@ -17,6 +17,7 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #include <pto/npu/a1/TImg2col.hpp>
 #include <pto/npu/a1/TGather.hpp>
 #include <pto/npu/a1/TMatrix.hpp>
+#include <pto/npu/a1/TMrgSort.hpp>
 #include <pto/npu/a1/TReduce.hpp>
 #include <pto/npu/a1/TReshape.hpp>
 #include <pto/npu/a1/TSync.hpp>
@@ -82,6 +83,58 @@ PTO_INST RecordEvent TSORT32(DstTile&, SrcTile&, IndexTile&)
 {
     PTO_STATIC_ASSERT(sizeof(SrcTile) == 0, "A1 TSORT32 requires explicit proposal scratch as its fourth operand.");
     return {};
+}
+
+template <typename DstTile, typename TmpTile, typename Src0, typename Src1, bool Exhausted, typename... WaitEvents>
+PTO_INST RecordEvent
+TMRGSORT(DstTile& dst, MrgSortExecutedNumList& executed, TmpTile& tmp, Src0& src0, Src1& src1, WaitEvents&... events)
+{
+    TSYNC(events...);
+    detail::A1MergeLists<Exhausted>(dst, executed, tmp, src0, src1);
+    return {};
+}
+
+template <
+    typename DstTile, typename TmpTile, typename Src0, typename Src1, typename Src2, bool Exhausted,
+    typename... WaitEvents>
+PTO_INST RecordEvent TMRGSORT(
+    DstTile& dst, MrgSortExecutedNumList& executed, TmpTile& tmp, Src0& src0, Src1& src1, Src2& src2,
+    WaitEvents&... events)
+{
+    TSYNC(events...);
+    detail::A1MergeLists<Exhausted>(dst, executed, tmp, src0, src1, src2);
+    return {};
+}
+
+template <
+    typename DstTile, typename TmpTile, typename Src0, typename Src1, typename Src2, typename Src3, bool Exhausted,
+    typename... WaitEvents>
+PTO_INST RecordEvent TMRGSORT(
+    DstTile& dst, MrgSortExecutedNumList& executed, TmpTile& tmp, Src0& src0, Src1& src1, Src2& src2, Src3& src3,
+    WaitEvents&... events)
+{
+    TSYNC(events...);
+    detail::A1MergeLists<Exhausted>(dst, executed, tmp, src0, src1, src2, src3);
+    return {};
+}
+
+template <typename DstTile, typename SrcTile, typename... WaitEvents>
+PTO_INST RecordEvent TMRGSORT(DstTile&, SrcTile&, uint32_t, WaitEvents&...)
+{
+    PTO_STATIC_ASSERT(sizeof(SrcTile) == 0, "A1 TMRGSORT requires the existing explicit-scratch multi-list form.");
+    return {};
+}
+
+template <typename... SrcTiles>
+PTO_INTERNAL constexpr uint32_t GETMRGSORTTMPSIZE()
+{
+    static_assert(sizeof...(SrcTiles) >= 2 && sizeof...(SrcTiles) <= 4, "A1 merge needs two to four source types.");
+    static_assert(
+        ((static_cast<uint64_t>(SrcTiles::Numel) <= PTO_UBUF_SIZE_BYTES / sizeof(float)) && ...),
+        "A1 merge source capacity exceeds the UB budget.");
+    constexpr uint64_t words = 8 * (uint64_t{0} + ... + static_cast<uint64_t>(SrcTiles::Numel));
+    static_assert(words <= PTO_UBUF_SIZE_BYTES / sizeof(float), "A1 merge proposal scratch exceeds the UB budget.");
+    return static_cast<uint32_t>(words);
 }
 
 template <typename DstTile, typename SrcTile, typename... WaitEvents>
