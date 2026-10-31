@@ -11,7 +11,9 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #define TIMG2COL_CPU_HPP
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
+#include <pto/common/img2col_filter_order.hpp>
 #include "pto/cpu/tile_offsets.hpp"
 
 namespace pto {
@@ -166,6 +168,31 @@ PTO_INTERNAL auto CalculateValue(
     return value;
 }
 
+template <typename Left, typename Conv, SetFmatrixMode Mode, int... Order>
+PTO_INTERNAL void TIMG2COL_ORDERED_IMPL(
+    Left& dst, Conv& src, uint16_t posM, uint16_t posK, std::integer_sequence<int, Order...> order)
+{
+    detail::CheckA1Img2colFilterOrder<Left, Conv>(order);
+    static_assert(
+        Mode == SetFmatrixMode::FMATRIX_A_AUTO || Mode == SetFmatrixMode::FMATRIX_A_MANUAL,
+        "A1 ordered im2col supports the FMATRIX A bank only.");
+    PTO_CPU_ASSERT(
+        (detail::ValidA1Img2colFilterWindow<Left, Conv>(src, posM, posK, order)),
+        "A1 ordered im2col requires a bounded filter selection and default metadata.");
+    const auto params = ExtractImg2ColParams(src);
+    constexpr std::array<int, sizeof...(Order)> taps{Order...};
+    const int64_t c1 = posK / (uint64_t(src.GetFilterH()) * src.GetFilterW() * 16);
+    for (int row = 0; row < dst.GetValidRow(); ++row) {
+        const int64_t m = int64_t(posM) + row;
+        for (int col = 0; col < dst.GetValidCol(); ++col) {
+            const int tap = taps[col / 16];
+            const auto value = CalculateValue(
+                src, params, 0, 0, c1, col % 16, tap / params.filterW, tap % params.filterW, m / params.outW,
+                m % params.outW, src.GetPadValue());
+            dst.data()[GetTileElementOffset<Left>(row, col)] = value;
+        }
+    }
+}
 } // namespace pto
 
 #endif

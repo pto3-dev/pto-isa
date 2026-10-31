@@ -11,47 +11,11 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #ifndef PTO_NPU_A1_TIMG2COL_HPP
 #define PTO_NPU_A1_TIMG2COL_HPP
 
+#include <pto/common/img2col_filter_order.hpp>
 #include <pto/npu/a1/TVector.hpp>
 
 namespace pto {
 namespace detail {
-template <typename Conv>
-PTO_INTERNAL void CheckA1ConvImage()
-{
-    PTO_STATIC_ASSERT(
-        (Conv::Loc == TileType::Mat && std::is_same_v<typename Conv::DType, half> && Conv::layout == Layout::NC1HWC0 &&
-         Conv::totalDimCount == 5),
-        "A1 im2col requires an FP16 NC1HWC0 Mat image.");
-    PTO_STATIC_ASSERT(
-        (Conv::dynamicDimCount == 0 && Conv::validDynamicDimCount == 0 && Conv::staticShape[0] == 1 &&
-         Conv::staticShape[1] > 0 && Conv::staticShape[1] <= 4095 && Conv::staticShape[2] > 0 &&
-         Conv::staticShape[2] <= 65535 && Conv::staticShape[3] > 0 && Conv::staticShape[3] <= 65535 &&
-         Conv::staticShape[4] == 16),
-        "A1 im2col requires one static C16 image with 16-bit spatial dimensions.");
-    constexpr uint64_t elements = uint64_t(Conv::staticShape[1]) * Conv::staticShape[2] * Conv::staticShape[3] * 16;
-    PTO_STATIC_ASSERT(
-        (elements * sizeof(half) <= 1048576 && Conv::bufferSize >= elements),
-        "A1 im2col image must fit its allocation and the 1 MiB L1 budget.");
-    PTO_STATIC_ASSERT(
-        (Conv::staticValidShape[0] == Conv::staticShape[0] && Conv::staticValidShape[1] == Conv::staticShape[1] &&
-         Conv::staticValidShape[2] == Conv::staticShape[2] && Conv::staticValidShape[3] == Conv::staticShape[3] &&
-         Conv::staticValidShape[4] == Conv::staticShape[4]),
-        "A1 im2col requires the complete static image valid shape.");
-}
-
-template <typename Conv>
-PTO_INTERNAL bool ValidA1ConvGeometry(Conv& src)
-{
-    // A1 has one FMATRIX bank. Restrict the first public profile to a single
-    // complete image and the ordinary, untransposed LoadData3DV2 operation.
-    return src.GetFmapH() == Conv::staticShape[2] && src.GetFmapW() == Conv::staticShape[3] && src.GetFilterH() > 0 &&
-           src.GetFilterH() <= 255 && src.GetFilterW() > 0 && src.GetFilterW() <= 255 && src.GetStrideH() > 0 &&
-           src.GetStrideH() <= 63 && src.GetStrideW() > 0 && src.GetStrideW() <= 63 && src.GetDilationH() > 0 &&
-           src.GetDilationW() > 0 && src.GetChannelSize() == Conv::staticShape[1] * 16 && !src.GetTranspose() &&
-           src.GetRepeatStride() == 0 && src.GetRepeatTime() == 1 && src.GetRepeatMode() == 0 &&
-           src.GetDstStride() == 0 && src.GetDstMposition() == 0;
-}
-
 template <typename Conv>
 PTO_INTERNAL void SetA1Fmatrix(Conv& src)
 {
@@ -158,6 +122,53 @@ PTO_INTERNAL void A1Img2col(Left& dst, Conv& src, uint16_t posM, uint16_t posK)
     img2colv2_cbuf_to_ca(
         dst.data(), src.data(), Left::Cols, Left::ValidRow, posK, posM, src.GetStrideW(), src.GetStrideH(),
         src.GetFilterW(), src.GetFilterH(), src.GetDilationW(), src.GetDilationH(), false, src.GetChannelSize());
+}
+
+namespace detail {
+template <size_t Column, int Tap, size_t Count, typename Left, typename Conv>
+PTO_INTERNAL void A1Img2colFilterTap(Left& dst, Conv& src, int firstW, int firstH, uint16_t c1)
+{
+    // ZZ address = (M16 * Count + filter-column) *256 + M0 *16 + C0.
+    // V1 repeats over M16 fragments while retaining this fixed filter tap.
+    img2col_cbuf_to_ca(
+        dst.data() + Column * 256, src.data(), Tap % src.GetFilterW(), Tap / src.GetFilterW(), firstW, firstH, c1,
+        src.GetStrideW(), src.GetStrideH(), src.GetFilterW(), src.GetFilterH(), src.GetDilationW(), src.GetDilationH(),
+        Count, true, Left::ValidRow / 16, CSIZE0);
+}
+
+template <typename Left, typename Conv, int... Order, size_t... Column>
+PTO_INTERNAL void A1Img2colFilterTaps(
+    Left& dst, Conv& src, uint16_t posM, uint16_t posK, std::integer_sequence<int, Order...>,
+    std::index_sequence<Column...>)
+{
+    const int outW =
+        (src.GetFmapW() + src.GetPadList(0) + src.GetPadList(1) - src.GetDilationW() * (src.GetFilterW() - 1) - 1) /
+            src.GetStrideW() +
+        1;
+    const int firstW = posM % outW * src.GetStrideW() - src.GetPadList(0);
+    const int firstH = posM / outW * src.GetStrideH() - src.GetPadList(2);
+    const uint16_t c1 = posK / (uint64_t(src.GetFilterH()) * src.GetFilterW() * 16);
+    (A1Img2colFilterTap<Column, Order, sizeof...(Order)>(dst, src, firstW, firstH, c1), ...);
+}
+} // namespace detail
+
+template <typename Left, typename Conv, SetFmatrixMode Mode, int... Order>
+PTO_INTERNAL void A1Img2colOrdered(
+    Left& dst, Conv& src, uint16_t posM, uint16_t posK, std::integer_sequence<int, Order...> order)
+{
+    detail::CheckA1Img2colFilterOrder<Left, Conv>(order);
+    PTO_STATIC_ASSERT(
+        (Mode == SetFmatrixMode::FMATRIX_A_AUTO || Mode == SetFmatrixMode::FMATRIX_A_MANUAL),
+        "A1 ordered im2col supports the FMATRIX A bank only.");
+    if (!detail::ValidA1Img2colFilterWindow<Left, Conv>(src, posM, posK, order)) {
+        trap();
+        return;
+    }
+    if constexpr (Mode == SetFmatrixMode::FMATRIX_A_AUTO)
+        detail::SetA1Fmatrix(src);
+    // A compile-time selection produces one V1 M-repeat instruction per
+    // tap, matching phase-major native extraction without a temporary patch.
+    detail::A1Img2colFilterTaps(dst, src, posM, posK, order, std::make_index_sequence<sizeof...(Order)>{});
 }
 } // namespace pto
 #endif // PTO_NPU_A1_TIMG2COL_HPP

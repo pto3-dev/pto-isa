@@ -1381,6 +1381,23 @@ TIMG2COL(TileData& dst, ConvTileData& src, uint16_t posM = 0, uint16_t posK = 0,
     return {};
 }
 
+#if defined(__CPU_SIM)
+// The filter-selection overload is currently an A1/CPU profile. Other
+// architectures retain their existing V2 instruction and metadata contracts.
+template <
+    typename Left, typename Conv, SetFmatrixMode Mode = SetFmatrixMode::FMATRIX_A_MANUAL, int... Order,
+    typename... WaitEvents>
+PTO_INST RecordEvent TIMG2COL(
+    Left& dst, Conv& src, uint16_t posM, uint16_t posK, std::integer_sequence<int, Order...> order,
+    WaitEvents&... events)
+{
+    detail::PtoWaitEvents(events...);
+    PTO_INSTR_SCOPE(TIMG2COL, dst, src, posM, posK);
+    TIMG2COL_ORDERED_IMPL<Left, Conv, Mode>(dst, src, posM, posK, order);
+    return {};
+}
+#endif
+
 template <typename ConvTileData, SetFmatrixMode FmatrixMode = SetFmatrixMode::FMATRIX_A_MANUAL, typename... WaitEvents>
 PTO_INST RecordEvent SETFMATRIX(ConvTileData& src, WaitEvents&... events)
 {

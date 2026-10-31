@@ -59,6 +59,43 @@ A1 使用原生十四参数指令，不支持 `SET_L3D_RPT`。DMA、im2col 与 M
 `tests/compile/a1_img2col.cpp` 和 `test_a1_img2col_native.py` 展示两种寄存器
 模式、CPU oracle、多 fractal 布局检查，以及通过精确单位矩阵 GEMM 的设备回读。
 
+### A1卷积核位置选择与排列
+
+A1与CPU-SIM在同一条`TIMG2COL`指令上增加C++重载：
+
+```cpp
+#include <pto/pto-inst.hpp>
+#include <utility>
+
+using FilterOrder = std::integer_sequence<int, 0, 4, 8, 3, 7, 2, 6, 1, 5>;
+// Configure image as above; Left is an FP16 ZZ tile with K=9*16.
+TIMG2COL<Left, Image, SetFmatrixMode::FMATRIX_A_AUTO>(
+    left, image, posM, posK, FilterOrder{});
+```
+
+令`F = filterH * filterW`，`S`为选中位置数。编译期顺序包含`1 <= S <= 127`个
+互不重复的`[0,F)`索引，可以是完整排列或子集。Left恰有`S*16`列。
+`posK`为原始`F*16`的倍数，选择源C16通道组，与`S`无关。
+输出列`j*16+c0`由`FilterOrder[j]`选择卷积核行列、`c0`选择通道。
+空间位置、步长、膨胀率和padding保留普通im2col语义；全部有效输出元素均被定义，
+不依赖原有Left内容或原位目标。
+
+源图像与Left继续满足上述A1形状、布局、对齐和容量约束。特征图高宽不超过32767，
+完整输出网格的起始源坐标必须位于V1的有符号16位范围内。
+V2的repeat/目标偏移元数据仍使用默认值；支持FMATRIX A的AUTO/MANUAL模式和事件参数。
+
+实现使用原生LoadData3DV1，每个卷积核位置发出一条M-repeat指令。
+ZZ存储中相邻M16片段相距`S`个fractal，无需通过UB或GM暂存补丁。
+3x3的`(phase+4*j)%9`可表达有序卷积的phase-major排列；选前六项形成K96，
+选择`{6,7,8}`形成RGB首层所需K48尾部，无需将两者扩张为K144。
+调用方须同步安排权重与FP32部分和，位置选择和排列本身不证明卷积精度。
+
+该重载当前仅由A1与CPU提供，A2/A3/A5及当前PTO-AS语法尚无filter-order参数；
+编译器接入单独推进，此处不定义新的文本语法，既有V2重载保持不变。
+`tests/compile/test_a1_img2col_order_host.py`使用独立逐位CPU补丁/GEMM参考、guard和
+非法组合校验，并将优化后CCEC V1操作数与直接intrinsic控制逐项比较。
+离线编译不证明设备精度、并发或性能。
+
 ## 示例
 
 参见 `docs/isa/` 和 `docs/coding/tutorials/` 中的相关示例。

@@ -346,6 +346,18 @@ PTO_INST RecordEvent TIMG2COL(Left& dst, Conv& src, uint16_t posM = 0, uint16_t 
     return {};
 }
 
+template <
+    typename Left, typename Conv, SetFmatrixMode Mode = SetFmatrixMode::FMATRIX_A_MANUAL, int... Order,
+    typename... WaitEvents>
+PTO_INST RecordEvent TIMG2COL(
+    Left& dst, Conv& src, uint16_t posM, uint16_t posK, std::integer_sequence<int, Order...> order,
+    WaitEvents&... events)
+{
+    TSYNC(events...);
+    A1Img2colOrdered<Left, Conv, Mode>(dst, src, posM, posK, order);
+    return {};
+}
+
 template <typename Conv, SetFmatrixMode Mode = SetFmatrixMode::FMATRIX_A_MANUAL, typename... WaitEvents>
 PTO_INST RecordEvent SETFMATRIX(Conv& src, WaitEvents&... events)
 {

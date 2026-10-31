@@ -100,11 +100,16 @@ PTO_INST RecordEvent TIMG2COL(TileData &dst, ConvTileData &src, uint16_t posM = 
     ### CPU 模拟器
 
     - CPU 使用显式公式直接完成 im2col 展开。
-    - CPU 目前沿用与 A5 相同的 `Left` 目标布局约束：
-      - `dst.SFractal == SLayout::RowMajor`
-      - `dst.isRowMajor == false`
+    - CPU要求`dst.SFractal == SLayout::RowMajor`，同时支持A1/A2的ZZ与A5的NZ外层布局。
+      不同布局按各自fractal地址映射写入。
 
     这意味着 `TIMG2COL` 的 Left Tile 细节并不是所有目标完全一致，文档里必须按目标区分。
+
+## A1 C++位置排列
+
+A1/CPU的filter-selection重载按编译期指定顺序生成选中的C16卷积核位置块，
+A1使用原生V1 M-repeat提取。约束与C++签名见[TIMG2COL支持范围](../../../TIMG2COL_zh.md)。
+上述PTO-AS语法尚不携带该参数，A2/A3/A5保留各自既有重载。
 
 ## 示例
 
