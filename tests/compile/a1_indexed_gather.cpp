@@ -11,6 +11,7 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #include <cstdint>
 #include <pto/pto-inst.hpp>
 #ifdef __CPU_SIM
+#include <algorithm>
 #include <array>
 #include <cstring>
 #include <vector>
@@ -59,10 +60,11 @@ using GM = pto::GlobalTensor<T, pto::Shape<1, 1, 1, R, C>, pto::Stride<1, 1, 1, 
 
 #ifdef A1_GATHER_NATIVE_MODEL
 // Execute the production A1 offset/mask/repeat implementation on the host.
-// Only the vgather intrinsic is modeled; it copies enabled uint16 lanes.
+// Model integer VADD plus raw 16/32-bit vgather. Numeric and guard
+// checks are shared with the independent generic CPU reference.
 // The source address field is the low 32 bits of the UB pointer on m200.
 static const uint8_t* modelSource;
-static unsigned modelSourceBytes, modelRepeats, modelErrors, modelSets;
+static unsigned modelSourceBytes, modelRepeats, modelErrors, modelSets, modelAdds, modelBarriers;
 static unsigned modelPending[2];
 static void modelSetFlag(pipe_t from, pipe_t to, event_t id)
 {
@@ -88,19 +90,40 @@ static void modelMask(uint64_t high, uint64_t low)
     modelLow = low;
 }
 static void trap() { std::exit(86); }
-static void vgather(uint16_t* dst, uint32_t* offsets, uint64_t config)
+static void modelBarrier(pipe_t pipe)
+{
+    if (pipe != PIPE_V)
+        std::abort();
+    ++modelBarriers;
+}
+static void vadd(
+    int32_t* dst, int32_t* left, int32_t* right, uint8_t repeats, int db, int lb, int rb, int dr, int lr, int rr)
+{
+    if (modelHigh || db != 1 || lb != 1 || rb != 1 || dr != 8 || lr != 8 || rr != 8 || !repeats)
+        std::abort();
+    for (unsigned repeat = 0; repeat < repeats; ++repeat)
+        for (unsigned lane = 0; lane < 64; ++lane)
+            if ((modelLow >> lane) & 1) {
+                const unsigned i = repeat * 64 + lane;
+                const uint32_t value = uint32_t(left[i]) + uint32_t(right[i]);
+                std::memcpy(dst + i, &value, sizeof(value));
+            }
+    modelAdds += repeats;
+}
+template <typename Word>
+static void vgather(Word* dst, uint32_t* offsets, uint64_t config)
 {
     if (uint32_t(config) != uint32_t(reinterpret_cast<uintptr_t>(modelSource)) || ((config >> 32) & 0xff) != 8 ||
         ((config >> 56) & 0xff) == 0)
         std::abort();
     const unsigned repeats = config >> 56;
     for (unsigned repeat = 0; repeat < repeats; ++repeat) {
-        for (unsigned lane = 0; lane < 128; ++lane) {
+        for (unsigned lane = 0; lane < 256 / sizeof(Word); ++lane) {
             if (((lane < 64 ? modelLow : modelHigh) >> (lane % 64)) & 1) {
-                const unsigned index = repeat * 128 + lane;
-                if (offsets[index] + sizeof(uint16_t) > modelSourceBytes)
+                const unsigned index = repeat * (256 / sizeof(Word)) + lane;
+                if (offsets[index] + sizeof(Word) > modelSourceBytes)
                     std::abort();
-                std::memcpy(dst + index, modelSource + offsets[index], sizeof(uint16_t));
+                std::memcpy(dst + index, modelSource + offsets[index], sizeof(Word));
             }
         }
     }
@@ -112,9 +135,11 @@ static void vgather(uint16_t* dst, uint32_t* offsets, uint64_t config)
 #define PTO_NPU_ARCH_A1
 #define set_flag modelSetFlag
 #define wait_flag modelWaitFlag
+#define pipe_barrier modelBarrier
 #define TGATHER_IMPL A1NativeIndexedGather
 #include <pto/npu/a1/TGather.hpp>
 #undef TGATHER_IMPL
+#undef pipe_barrier
 #undef set_flag
 #undef wait_flag
 #undef set_vector_mask
@@ -148,16 +173,24 @@ extern "C" __global__ AICORE void A1IndexedGather(
     pto::TLOAD(outputBefore, outputBeforeGM);
     pto::TLOAD(outputAfter, outputAfterGM);
 #ifndef __CPU_SIM
-    // TGATHER reads indices on S and source values on V.
+    // Keep conservative DMA publication to both pipes for manual callers.
+    // The optimized offset generation and value gather both execute on V.
     set_flag(PIPE_MTE2, PIPE_S, EVENT_ID0);
     wait_flag(PIPE_MTE2, PIPE_S, EVENT_ID0);
     set_flag(PIPE_MTE2, PIPE_V, EVENT_ID0);
     wait_flag(PIPE_MTE2, PIPE_V, EVENT_ID0);
 #endif
 #ifdef A1_GATHER_NATIVE_MODEL
+    std::fill_n(scratch.data(), N * Halves, Index(0x13579bdf));
     modelSource = reinterpret_cast<const uint8_t*>(source.data());
     modelSourceBytes = SourceN * sizeof(Data);
     pto::A1NativeIndexedGather(result, source, indices, scratch);
+    for (unsigned i = 0; i < N; ++i)
+        if (uint32_t(scratch.data()[i]) != uint32_t(positions[i]) * sizeof(Data))
+            ++modelErrors;
+    for (unsigned i = N; i < N * Halves; ++i)
+        if (scratch.data()[i] != Index(0x13579bdf))
+            ++modelErrors;
     if (std::memcmp(source.data(), input, SourceN * sizeof(Data)) ||
         std::memcmp(indices.data(), positions, N * sizeof(Index)) || modelHigh != UINT64_MAX || modelLow != UINT64_MAX)
         ++modelErrors;
@@ -254,8 +287,11 @@ int main(int argc, char** argv)
     }
 #ifdef A1_GATHER_NATIVE_MODEL
     constexpr unsigned repeats = (N * Halves + 127) / 128;
-    if (modelErrors || modelRepeats != repeats * 4 || modelSets != 12 || modelPending[0] || modelPending[1])
+    if (modelErrors || modelRepeats != repeats * 4 || modelSets != 8 || modelPending[0] || modelPending[1])
         return 4;
+    constexpr unsigned passes = sizeof(Data) == 4 ? 2 : 1;
+    if (modelAdds != ((N + 63) / 64) * passes * 4 || modelBarriers != (passes + 1) * 4)
+        return 5;
 #endif
     return 0;
 }

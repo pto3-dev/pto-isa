@@ -15,16 +15,17 @@ See LICENSE in the root of the software repository for the full text of the Lice
 
 namespace pto {
 
-// The public indices are flat element offsets. m200 only has a 16-bit
-// vgather, so a 32-bit source is copied as two adjacent halves, preserving
-// NaN payloads and integer bits. The caller owns the explicit offset scratch.
+// Public indices are flat element offsets. Generate byte offsets on V and
+// gather raw 16/32-bit words without converting floating-point or integer bits.
+// Keep the established scratch capacity contract for existing callers.
 template <typename DstTile, typename SrcTile, typename IndexTile, typename TmpTile>
 PTO_INTERNAL void TGATHER_IMPL(DstTile& dst, SrcTile& src, IndexTile& indices, TmpTile& tmp)
 {
     using Element = typename SrcTile::DType;
     using Index = typename IndexTile::DType;
     constexpr unsigned halves = sizeof(Element) / sizeof(uint16_t);
-    constexpr unsigned halfLanes = 128;
+    constexpr unsigned indexLanes = 64;
+    constexpr unsigned gatherLanes = 256 / sizeof(Element);
     constexpr unsigned elements = DstTile::Numel;
     constexpr unsigned gatheredHalves = elements * halves;
     PTO_STATIC_ASSERT(
@@ -59,27 +60,54 @@ PTO_INTERNAL void TGATHER_IMPL(DstTile& dst, SrcTile& src, IndexTile& indices, T
         return;
     }
     auto* offsets = reinterpret_cast<__ubuf__ uint32_t*>(tmp.data());
-    // A prior vector producer may have filled the indices, source or recycled
-    // scratch. ID 7 is reserved for local ISA helpers and drained before return.
-    set_flag(PIPE_V, PIPE_S, EVENT_ID7);
-    wait_flag(PIPE_V, PIPE_S, EVENT_ID7);
-    for (unsigned i = 0; i < elements; ++i) {
-        const uint32_t byteOffset = static_cast<uint32_t>(indices.data()[i]) * sizeof(Element);
-        for (unsigned h = 0; h < halves; ++h)
-            offsets[i * halves + h] = byteOffset + h * sizeof(uint16_t);
-    }
+    auto* indexWords = reinterpret_cast<__ubuf__ int32_t*>(indices.data());
+    auto* offsetWords = reinterpret_cast<__ubuf__ int32_t*>(offsets);
+    // Preserve ordering for manual callers that filled indices on S.
     set_flag(PIPE_S, PIPE_V, EVENT_ID7);
     wait_flag(PIPE_S, PIPE_V, EVENT_ID7);
-    auto* output = reinterpret_cast<__ubuf__ uint16_t*>(dst.data());
+    // Finish earlier vector readers/producers before recycling scratch.
+    pipe_barrier(PIPE_V);
+    set_mask_norm();
+    // Valid source indices fit the UB budget, so their byte offsets fit INT32.
+    // m200 supports integer VADD but not the 32-bit VSHL scalar overload.
+    // One doubling forms FP16 offsets; two form FP32/INT32/UINT32 offsets.
+    constexpr unsigned fullIndices = elements / indexLanes * indexLanes;
+    constexpr unsigned tailIndices = elements % indexLanes;
+    set_vector_mask(0, UINT64_MAX);
+    for (unsigned offset = 0; offset < fullIndices; offset += 255 * indexLanes) {
+        const unsigned remaining = (fullIndices - offset) / indexLanes;
+        const uint8_t repeats = remaining > 255 ? 255 : remaining;
+        vadd(offsetWords + offset, indexWords + offset, indexWords + offset, repeats, 1, 1, 1, 8, 8, 8);
+    }
+    if constexpr (tailIndices != 0) {
+        set_vector_mask(0, (uint64_t{1} << tailIndices) - 1);
+        vadd(offsetWords + fullIndices, indexWords + fullIndices, indexWords + fullIndices, 1, 1, 1, 1, 8, 8, 8);
+    }
+    pipe_barrier(PIPE_V);
+    if constexpr (sizeof(Element) == 4) {
+        set_vector_mask(0, UINT64_MAX);
+        for (unsigned offset = 0; offset < fullIndices; offset += 255 * indexLanes) {
+            const unsigned remaining = (fullIndices - offset) / indexLanes;
+            const uint8_t repeats = remaining > 255 ? 255 : remaining;
+            vadd(offsetWords + offset, offsetWords + offset, offsetWords + offset, repeats, 1, 1, 1, 8, 8, 8);
+        }
+        if constexpr (tailIndices != 0) {
+            set_vector_mask(0, (uint64_t{1} << tailIndices) - 1);
+            vadd(offsetWords + fullIndices, offsetWords + fullIndices, offsetWords + fullIndices, 1, 1, 1, 1, 8, 8, 8);
+        }
+        pipe_barrier(PIPE_V);
+    }
+    using Word = typename std::conditional<sizeof(Element) == 4, uint32_t, uint16_t>::type;
+    auto* output = reinterpret_cast<__ubuf__ Word*>(dst.data());
     const uint64_t sourceAddress = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(src.data()));
-    constexpr unsigned full = gatheredHalves / halfLanes * halfLanes;
-    constexpr unsigned tail = gatheredHalves % halfLanes;
+    constexpr unsigned full = elements / gatherLanes * gatherLanes;
+    constexpr unsigned tail = elements % gatherLanes;
     set_mask_norm();
     set_vector_mask(UINT64_MAX, UINT64_MAX);
-    // A gather repeat writes 256 contiguous bytes (dst stride 8 * 32B) and
-    // consumes 128 uint32 offsets. Split at the 8-bit repeat-count limit.
-    for (unsigned offset = 0; offset < full; offset += 255 * halfLanes) {
-        const unsigned remaining = (full - offset) / halfLanes;
+    // A repeat writes 256 contiguous bytes and consumes one offset per word.
+    // Split at the 8-bit repeat-count limit; restore the full mask on return.
+    for (unsigned offset = 0; offset < full; offset += 255 * gatherLanes) {
+        const unsigned remaining = (full - offset) / gatherLanes;
         const uint64_t repeats = remaining > 255 ? 255 : remaining;
         const uint64_t config = sourceAddress | (uint64_t{8} << 32) | (repeats << 56);
         vgather(output + offset, offsets + offset, config);
