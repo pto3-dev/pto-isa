@@ -20,6 +20,7 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #include <pto/npu/a1/TReduce.hpp>
 #include <pto/npu/a1/TReshape.hpp>
 #include <pto/npu/a1/TSync.hpp>
+#include <pto/npu/a1/TSort32.hpp>
 #include <pto/npu/a1/TVector.hpp>
 // This assignment helper only assigns typed addresses and has no A2/A3 instructions.
 #include <pto/npu/a2a3/TAssign.hpp>
@@ -64,6 +65,22 @@ PTO_INST RecordEvent TGATHER(DstTile& dst, SrcTile& src, IndexTile& indices, Tmp
 {
     TSYNC(events...);
     TGATHER_IMPL(dst, src, indices, tmp);
+    return {};
+}
+
+// Match the existing public four-operand TSORT32 surface. A1 always needs
+// proposal-format scratch, including for aligned inputs; no implicit UB bank.
+template <typename DstTile, typename SrcTile, typename IndexTile, typename TmpTile>
+PTO_INST RecordEvent TSORT32(DstTile& dst, SrcTile& src, IndexTile& indices, TmpTile& tmp)
+{
+    TSORT32_IMPL(dst, src, indices, tmp);
+    return {};
+}
+
+template <typename DstTile, typename SrcTile, typename IndexTile>
+PTO_INST RecordEvent TSORT32(DstTile&, SrcTile&, IndexTile&)
+{
+    PTO_STATIC_ASSERT(sizeof(SrcTile) == 0, "A1 TSORT32 requires explicit proposal scratch as its fourth operand.");
     return {};
 }
 

@@ -1,12 +1,42 @@
-# TSort32
+# TSORT32
 
 ## 指令示意图
 
-![TSort32 tile operation](../../../../figures/isa/TSort32.svg)
+![TSORT32 tile operation](../../../../figures/isa/TSORT32.svg)
 
 ## 简介
 
 对 `src` 的每个 32 元素块，与 `idx` 中对应的索引一起进行排序，并将排序后的值-索引对写入 `dst`。底层 SFU 指令为 **VBS32**（`vbitsort`），单次调用可排序一个或多个独立的 32 元素列表。
+
+## Ascend310P (A1) 提案排序支持范围
+
+A1 复用既有四操作数 `TSORT32(dst, src, idx, tmp)`：先调用 m200 的 16 提案
+`vbitsort`，再对每个 32 值块执行双列表 `vmrgsort4`。原生记录包含八个 FP32
+字段（字段 4 为分数，字段 5 为索引原始位）；公共结果仍为紧凑的 8 字节值-索引对。
+提案布局不暴露到接口外，也不隐式分配 UB。
+
+- 源值、结果与 scratch 为 FP32，索引为 UINT32。
+- 所有操作数必须是完整静态、连续行主序、无分形的 Vec Tile，行按 32 字节对齐，
+  并满足既有 UB 容量。源为 `R × C`、`C % 32 == 0`，结果为 `R × 2C`；
+  索引为 `R × C` 或支持行广播的 `1 × C`。
+- 包括对齐输入在内，scratch 始终至少为 **512 个 FP32 元素（2048 字节）**。
+  每个块有两组 `32 × 8` 字段缓冲区。每批处理
+  `B = min(127, floor(tmp.Numel / 512))` 个块，并跨批次和行复用缓冲区。
+  增大 scratch 可以减少标量/向量交接次数；末批不足 B 时仍不超出预留范围。
+- 本 A1 支持范围尚不含三操作数形式、FP16 值、部分有效形状及非 32 对齐尾块。
+  这些情况会被拒绝，不会隐式申请 scratch 或改变公共值-索引对格式。
+- 结果/scratch 与其他操作数的任何可写重叠会在开始前拒绝；两个只读输入可别名。
+- 原生提案指令只比较分数。压紧结果时，在相等分数内恢复**无符号**索引升序，
+  不把索引转换为 FP32，不改变分数原始位，包括符号零。支持有限分数与无穷大；
+  NaN 分数顺序未定义。当值与索引都相等时，不额外保证遍历顺序。
+- 调用方必须先完成输入 DMA 到 `PIPE_V` 的同步。局部事件 7 负责 V→S 提取及
+  S→V 发布，并在返回前排空。事件 7 为局部 ISA helper 保留，调用方不能在其上
+  留有未完成事务。操作对外仍属于 `PIPE_V`，消费方按通常规则同步，
+  后续存储包括 V→MTE3 同步。helper 恢复 normal/full 向量掩码。
+
+CPU 参考、执行生产 A1 helper 的宿主指令模型与 CCEC 编译用于验证语义和原生
+模板实例化，不证明设备时延、异步 DMA 正确性或性能。A1 编译器与公共 PyPTO
+接入仍需提供显式 scratch，完成后才能替换模型的原生排序 kernel。
 
 ## 硬件：VBS32（`vbitsort`）
 
@@ -50,11 +80,11 @@ $$
 ```cpp
 // 3 参数：src 必须 32 对齐（validCol % 32 == 0）
 template <typename DstTileData, typename SrcTileData, typename IdxTileData>
-PTO_INST RecordEvent TSort32(DstTileData &dst, SrcTileData &src, IdxTileData &idx);
+PTO_INST RecordEvent TSORT32(DstTileData &dst, SrcTileData &src, IdxTileData &idx);
 
 // 4 参数：支持非 32 对齐尾部（validCol % 32 != 0），通过 tmp 填充
 template <typename DstTileData, typename SrcTileData, typename IdxTileData, typename TmpTileData>
-PTO_INST RecordEvent TSort32(DstTileData &dst, SrcTileData &src, IdxTileData &idx, TmpTileData &tmp);
+PTO_INST RecordEvent TSORT32(DstTileData &dst, SrcTileData &src, IdxTileData &idx, TmpTileData &tmp);
 ```
 
 ## Tile 尺寸与数据类型
@@ -133,6 +163,7 @@ pto.tsort32 ins(%src, %idx : !pto.tile_buf<...>, !pto.tile_buf<...>) outs(%dst :
 ## 示例
 
 ```cpp
+#include <cstdint>
 #include <pto/pto-inst.hpp>
 using namespace pto;
 
@@ -141,14 +172,15 @@ using SrcT = Tile<TileType::Vec, float, 1, 32>;
 using IdxT = Tile<TileType::Vec, uint32_t, 1, 32>;
 using DstT = Tile<TileType::Vec, float, 1, 64>;   // 2× src 列数（float）
 SrcT src; IdxT idx; DstT dst;
-TSort32(dst, src, idx);
+TSORT32(dst, src, idx);
 
 // 非 32 对齐尾部：4 参数 + tmp
-using SrcT2 = Tile<TileType::Vec, half, 1, 100>;
-using IdxT2 = Tile<TileType::Vec, uint32_t, 1, 100>;
-using DstT2 = Tile<TileType::Vec, half, 1, 400>;  // 4× src 列数（half）
+using SrcT2 = Tile<TileType::Vec, half, 1, 128, BLayout::RowMajor, 1, 100>;
+using IdxT2 = Tile<TileType::Vec, uint32_t, 1, 128, BLayout::RowMajor, 1, 100>;
+using DstT2 = Tile<TileType::Vec, half, 1, 512, BLayout::RowMajor, 1, 400>;  // 4× src 列数（half）
 using TmpT  = Tile<TileType::Vec, half, 1, 128>;  // ≥ ceil32(100)=128
-TSort32(dst2, src2, idx2, tmp);
+SrcT2 src2; IdxT2 idx2; DstT2 dst2; TmpT tmp;
+TSORT32(dst2, src2, idx2, tmp);
 ```
 
 ## ASM 形式示例

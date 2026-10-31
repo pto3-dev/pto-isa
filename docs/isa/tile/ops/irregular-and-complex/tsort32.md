@@ -5,11 +5,53 @@
 
 ## Tile Operation Diagram
 
-![TSort32 tile operation](../../../../figures/isa/TSort32.svg)
+![TSORT32 tile operation](../../../../figures/isa/TSORT32.svg)
 
 ## Introduction
 
 Sort each 32-element block of `src` together with the corresponding indices from `idx`, and write the sorted value-index pairs into `dst`. The underlying SFU instruction is **VBS32** (`vbitsort`), which sorts one or more independent 32-element lists in a single call.
+
+## Ascend310P (A1) proposal-backed profile
+
+A1 implements the existing four-operand `TSORT32(dst, src, idx, tmp)` using
+m200's 16-proposal `vbitsort`, followed by a two-list `vmrgsort4` for each
+32-value block. Native records have eight FP32 fields (score at field 4,
+index bits at field 5); the public destination remains compact 8-byte pairs.
+No proposal layout escapes the helper and no implicit UB memory is allocated.
+
+- Values, destination and scratch are FP32; indices are UINT32.
+- All operands are full static contiguous row-major, unboxed Vec tiles with
+  32-byte-aligned rows and the existing UB budget. `src` is `R × C`, with
+  `C % 32 == 0`; `dst` is `R × 2C`. Index geometry is `R × C` or `1 × C`
+  (row broadcast).
+- Scratch always needs **at least 512 FP32 elements (2048 bytes)**, including
+  aligned inputs. It holds two banks of `32 × 8` fields per block. One call
+  batches `B = min(127, floor(tmp.Numel / 512))` blocks, reusing the banks
+  across batches and rows. Extra scratch can amortize scalar/vector handoffs;
+  an incomplete final batch stays within the same reserved banks.
+- The three-operand overload, FP16 values, partial valid shapes and non-32
+  tails are not implemented by this A1 profile. They are rejected rather than
+  allocating hidden scratch or changing the public pair format.
+- All writable overlaps involving destination/scratch are rejected before
+  work starts. The read-only source and indices may alias.
+- Native proposals compare scores only. Compaction restores ascending
+  **unsigned** indices within each equal-score run, without converting indices
+  to FP32 or changing score bits, including signed zero. Finite scores and
+  infinities are supported; NaN score ordering is unspecified. Sorting equal
+  value/index keys does not add a traversal-order guarantee.
+- Callers must complete input DMA on `PIPE_V` before the call. Local event 7
+  orders V-to-S extraction and S-to-V publication, and is drained before
+  return. Event 7 is reserved for local ISA helpers; callers must not leave
+  outstanding transactions on it. The outward operation remains `PIPE_V`:
+  synchronize its consumer normally, including V-to-MTE3 for a subsequent store.
+  The helper restores
+  the normal full vector mask.
+
+CPU reference checks, a host model executing the production A1 helper, and
+CCEC compilation validate semantics and native template instantiation. They
+do not establish device timing, asynchronous DMA correctness or performance.
+A1 compiler/public-PyPTO integration must supply the explicit scratch before
+this profile can replace a model's native sort kernel.
 
 ## Hardware: VBS32 (`vbitsort`)
 
@@ -53,11 +95,11 @@ Declared in `include/pto/common/pto_instr.hpp`:
 ```cpp
 // 3-arg: src must be 32-aligned (validCol % 32 == 0)
 template <typename DstTileData, typename SrcTileData, typename IdxTileData>
-PTO_INST RecordEvent TSort32(DstTileData &dst, SrcTileData &src, IdxTileData &idx);
+PTO_INST RecordEvent TSORT32(DstTileData &dst, SrcTileData &src, IdxTileData &idx);
 
 // 4-arg: supports non-32-aligned tails (validCol % 32 != 0) via tmp padding
 template <typename DstTileData, typename SrcTileData, typename IdxTileData, typename TmpTileData>
-PTO_INST RecordEvent TSort32(DstTileData &dst, SrcTileData &src, IdxTileData &idx, TmpTileData &tmp);
+PTO_INST RecordEvent TSORT32(DstTileData &dst, SrcTileData &src, IdxTileData &idx, TmpTileData &tmp);
 ```
 
 ## Tile Sizes & Data Types
@@ -136,6 +178,7 @@ pto.tsort32 ins(%src, %idx : !pto.tile_buf<...>, !pto.tile_buf<...>) outs(%dst :
 ## Examples
 
 ```cpp
+#include <cstdint>
 #include <pto/pto-inst.hpp>
 using namespace pto;
 
@@ -144,14 +187,15 @@ using SrcT = Tile<TileType::Vec, float, 1, 32>;
 using IdxT = Tile<TileType::Vec, uint32_t, 1, 32>;
 using DstT = Tile<TileType::Vec, float, 1, 64>;   // 2× src cols (float)
 SrcT src; IdxT idx; DstT dst;
-TSort32(dst, src, idx);
+TSORT32(dst, src, idx);
 
 // Non-32-aligned tail: 4-arg with tmp
-using SrcT2 = Tile<TileType::Vec, half, 1, 100>;
-using IdxT2 = Tile<TileType::Vec, uint32_t, 1, 100>;
-using DstT2 = Tile<TileType::Vec, half, 1, 400>;  // 4× src cols (half)
+using SrcT2 = Tile<TileType::Vec, half, 1, 128, BLayout::RowMajor, 1, 100>;
+using IdxT2 = Tile<TileType::Vec, uint32_t, 1, 128, BLayout::RowMajor, 1, 100>;
+using DstT2 = Tile<TileType::Vec, half, 1, 512, BLayout::RowMajor, 1, 400>;  // 4× src cols (half)
 using TmpT  = Tile<TileType::Vec, half, 1, 128>;  // ≥ ceil32(100)=128
-TSort32(dst2, src2, idx2, tmp);
+SrcT2 src2; IdxT2 idx2; DstT2 dst2; TmpT tmp;
+TSORT32(dst2, src2, idx2, tmp);
 ```
 
 ## ASM Form Examples
