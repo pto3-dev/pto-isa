@@ -73,6 +73,13 @@ Tile's `TileType` (i.e. `Loc` template parameter):
 | ScaleLeft | L0A | N/A | 4KB | N/A | N/A | 32 B |
 | ScaleRight | L0B | N/A | 4KB | N/A | N/A | 32 B |
 
+Ascend310P (A1) uses the complete 1 MiB L1 from the CANN platform profile,
+including regular Mat tiles and ConvTile allocations. UB retains a conservative
+128 KiB budget; L0A/L0B remain 64 KiB and L0C 256 KiB. The static guard checks
+the entire address range and its alignment; live allocations must still be
+budgeted together by the caller or compiler. Explicit capacity overrides
+continue to apply. Other architectures retain the table values above.
+
 On NPU targets, capacities can be overridden at build time via `-D` flags (e.g.
 `-DPTO_UBUF_SIZE_BYTES=262144`). See `include/pto/common/buffer_limits.hpp`.
 
