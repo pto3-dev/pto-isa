@@ -18,7 +18,15 @@ ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "tests/compile/a1_indexed_gather.cpp"
 # 32B tails, the 80-class/96-record geometry, unequal source/output shapes,
 # cross-row indices and a large panel. Together the live tiles fit 128KiB UB.
-GEOMETRIES = [(1, 16, 1, 32), (1, 80, 1, 96), (8, 96, 8, 80), (3, 80, 8, 96), (32, 128, 64, 128)]
+GEOMETRIES = [
+    (1, 16, 1, 32),
+    (1, 80, 1, 96),
+    (8, 96, 8, 80),
+    (3, 80, 8, 96),
+    (32, 128, 64, 128),
+    (1, 96, 1, 112),
+    (8, 96, 8, 112),
+]
 
 
 @pytest.mark.parametrize("dtype", range(4), ids=["fp16", "fp32", "int32", "uint32"])
