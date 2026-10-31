@@ -66,6 +66,51 @@ the caller's responsibility.
 register modes, CPU-oracle validation, multi-fractal layout checks, and device
 readback through exact identity GEMM.
 
+### A1 filter selection and order
+
+A1 and CPU-SIM provide an additional C++ overload of the same instruction:
+
+```cpp
+#include <pto/pto-inst.hpp>
+#include <utility>
+
+using FilterOrder = std::integer_sequence<int, 0, 4, 8, 3, 7, 2, 6, 1, 5>;
+// Configure image as above; Left is an FP16 ZZ tile with K=9*16.
+TIMG2COL<Left, Image, SetFmatrixMode::FMATRIX_A_AUTO>(
+    left, image, posM, posK, FilterOrder{});
+```
+
+Let `F = filterH * filterW` and `S` be the number of selected taps. The
+compile-time order contains `1 <= S <= 127` unique indices, each in `[0,F)`;
+it can be a full permutation or a subset. Left has exactly `S*16` columns.
+`posK` must be a multiple of the original `F*16` and selects a source C16
+channel group independently of `S`. For output column `j*16+c0`, tap
+`FilterOrder[j]` selects the kernel row/column and `c0` selects its channel. Spatial positions, stride, dilation and padding retain
+their ordinary im2col meaning. Every valid output element is defined; the
+operation does not depend on prior Left contents or an in-place destination.
+
+The source and Left retain the A1 image, layout, alignment and capacity
+constraints above. Feature-map H/W are at most 32767 and the complete output
+grid must keep starting source coordinates within the signed 16-bit V1 range.
+V2 repeat/destination metadata remains at its default values. AUTO/MANUAL
+FMATRIX A modes and event arguments are supported.
+
+The implementation uses native LoadData3DV1, emitting one M-repeat per filter
+tap. Adjacent M16 fragments jump `S` fractals in ZZ storage; no patch is staged
+through UB or GM. For 3x3, `(phase+4*j)%9` describes the phase-major order used
+by ordered convolution. Selecting its first six taps gives K96; selecting
+`{6,7,8}` gives the K48 tail used by the RGB stem, without expanding either
+to K144. Consumers must arrange weights and FP32 partial sums consistently;
+selection/order alone does not establish convolution precision.
+
+This overload is currently A1/CPU-only. A2/A3/A5 and the current PTO-AS grammar
+do not expose the filter-order argument. Compiler integration is separate;
+no new textual syntax is implied here. The existing V2 overload is unchanged.
+`tests/compile/test_a1_img2col_order_host.py` checks independent bitwise CPU
+patch/GEMM results, guards, invalid profiles and optimized CCEC V1 operands
+against a direct intrinsic control. Offline compilation does not establish
+device accuracy, overlap or performance.
+
 ## Examples
 
 See related examples in `docs/isa/` and `docs/coding/tutorials/`.

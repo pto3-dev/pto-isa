@@ -10,7 +10,7 @@ Image-to-column transform for convolution-like workloads.
 
 Transform an input feature-map tile (e.g. NC1HWC0 layout) into an im2col-style matrix tile for convolution-like workloads. Parameters are provided via `Img2colTileConfig` and `(posM, posK)` offsets. It belongs to the tile instructions and carries architecture-visible behavior that is not reducible to a plain elementwise compute pattern.
 
-Unless otherwise specified, semantics are defined over the valid region. On A2/A3 and A5, the im2col transform operates with target-specific tile layouts (NC1HWC0 input, row-major output); on the CPU simulator, the transform follows the natural tile row-major ordering.
+Unless otherwise specified, semantics are defined over the valid region. On A2/A3 and A5, the im2col transform operates with target-specific tile layouts (NC1HWC0 input, row-major output); the CPU simulator uses explicit coordinate mapping and the selected destination fractal layout.
 
 ## Syntax
 
@@ -81,6 +81,14 @@ No architectural side effects beyond producing the destination tile. Does not im
     - `pto.timg2col` preserves PTO-visible semantics across CPU simulation, A2/A3-class targets, and A5-class targets, but concrete support subsets may differ by profile.
 
     - Portable code must rely only on the documented type, layout, shape, and mode combinations that the selected target profile guarantees.
+
+## A1 C++ filter order
+
+The A1/CPU filter-selection overload produces the selected C16 filter blocks
+in a requested compile-time order using native V1 M-repeat extraction. See the
+[TIMG2COL profile](../../../TIMG2COL.md) for constraints and the C++ signature.
+The current PTO-AS syntax above does not yet carry this argument; A2/A3/A5
+retain their existing overloads.
 
 ## Examples
 
