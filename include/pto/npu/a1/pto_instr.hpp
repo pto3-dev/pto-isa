@@ -69,6 +69,17 @@ PTO_INST RecordEvent TGATHER(DstTile& dst, SrcTile& src, IndexTile& indices, Tmp
     return {};
 }
 
+// Preserve the common public mask form; the A1 backend supplies m200 VREDUCE.
+template <
+    typename DstTile, typename SrcTile, MaskPattern Pattern = MaskPattern::P1111, auto Axis = GatherAxis::GATHER_ROW,
+    typename... WaitEvents>
+PTO_INST RecordEvent TGATHER(DstTile& dst, SrcTile& src, WaitEvents&... events)
+{
+    TSYNC(events...);
+    TGATHER_IMPL<DstTile, SrcTile, Pattern, Axis>(dst, src);
+    return {};
+}
+
 // Match the existing public four-operand TSORT32 surface. A1 always needs
 // proposal-format scratch, including for aligned inputs; no implicit UB bank.
 template <typename DstTile, typename SrcTile, typename IndexTile, typename TmpTile>

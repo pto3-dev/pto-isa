@@ -90,8 +90,7 @@ flat **element** offsets, including across source rows. Scratch needs at least
 established capacity contract. The implementation now writes only the first
 `dst.Numel` scratch entries: integer vector additions generate byte offsets,
 and native 16/32-bit `vgather` copies raw words without numeric conversion.
-There is no hidden UB allocation. Mask-pattern and comparison forms remain
-unsupported on A1.
+There is no hidden UB allocation. Fixed-mask support is described below; comparison forms remain unsupported.
 
 Destination and scratch must not overlap each other or either read-only input;
 the implementation traps before writing on such overlap. The two read-only
@@ -114,6 +113,33 @@ These restrictions are backend limitations, not changes to the virtual ISA or
 public C++ signature. CPU/native-intrinsic-model checks and offline CCEC
 compilation are available in `tests/compile/test_a1_indexed_gather_host.py`;
 they do not establish device correctness or performance.
+
+### Ascend310P (A1) fixed-mask gather
+
+The existing two-tile mask form supports all seven fixed patterns on the row
+axis. Source and destination are full static contiguous row-major Vec tiles,
+with 32-byte-aligned rows and no padding. Both use FP16, FP32, INT32 or UINT32
+storage and have equal element widths. Same-size cross-type output copies raw
+bits, so FP32 pair storage can yield UINT32 indices without numeric conversion.
+The destination element count must exactly match the selected source count;
+source rows are concatenated without gaps. Each tile retains the UB limit.
+
+Patterns 1--6 use m200's ten-argument `vreduce`, with repeats split at 255 and
+counter mode for a final partial source repeat. Complete pattern groups follow
+from row alignment. P1111 uses the shared raw-halfword OR copy helper, which
+also serves column broadcast. There is no index tile, extra scratch, hidden UB
+allocation, scalar per-element gather or intermediate GM transfer.
+
+Every source/destination overlap, including an exact alias, traps before any
+write. A vector barrier orders earlier vector users; the mask is restored to
+normal/full on return. Callers publish inputs from MTE2 to V and synchronize
+output consumers (for example V to MTE3 or V to S). Column-axis and comparison
+forms remain unsupported. These are A1 backend limits, not new ISA operators.
+
+Driver-free CPU reference, production-intrinsic model, guards, overlap rejection
+and dav-m200 compilation are covered by
+`tests/compile/test_a1_mask_gather_host.py`. These checks do not qualify device
+precision, asynchronous timing or model performance.
 
 ## Constraints
 

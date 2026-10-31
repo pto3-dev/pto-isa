@@ -15,6 +15,80 @@ See LICENSE in the root of the software repository for the full text of the Lice
 
 namespace pto {
 
+// Mask gather selects a fixed sub-sequence from each source row. Full aligned
+// rows contain complete pattern groups, so flattening preserves row semantics.
+// m200 uses the ten-argument VREDUCE overload, not VREDUCEv2. No index/scratch
+// bank is needed; raw 16/32-bit words also permit same-size dtype extraction.
+template <typename DstTile, typename SrcTile, MaskPattern Pattern, auto Axis = GatherAxis::GATHER_ROW>
+PTO_INTERNAL void TGATHER_IMPL(DstTile& dst, SrcTile& src)
+{
+    using Input = typename SrcTile::DType;
+    using Output = typename DstTile::DType;
+    constexpr unsigned pattern = static_cast<unsigned>(Pattern);
+    constexpr unsigned factor = pattern <= 2 ? 2 : pattern <= 6 ? 4 : 1;
+    constexpr unsigned lanes = 256 / sizeof(Input);
+    constexpr unsigned full = SrcTile::Numel / lanes * lanes;
+    constexpr unsigned tail = SrcTile::Numel % lanes;
+    PTO_STATIC_ASSERT(pattern >= 1 && pattern <= 7, "A1 mask gather requires a fixed pattern in 1..7.");
+    PTO_STATIC_ASSERT(Axis == GatherAxis::GATHER_ROW, "A1 mask gather supports the row axis only.");
+    PTO_STATIC_ASSERT(
+        (std::is_same<Input, half>::value || std::is_same<Input, float>::value || std::is_same<Input, int32_t>::value ||
+         std::is_same<Input, uint32_t>::value) &&
+            (std::is_same<Output, half>::value || std::is_same<Output, float>::value ||
+             std::is_same<Output, int32_t>::value || std::is_same<Output, uint32_t>::value),
+        "A1 mask gather requires FP16, FP32, INT32 or UINT32 storage.");
+    PTO_STATIC_ASSERT(sizeof(Input) == sizeof(Output), "A1 mask gather requires equal element widths.");
+    PTO_STATIC_ASSERT(
+        DstTile::Loc == TileType::Vec && SrcTile::Loc == TileType::Vec, "A1 mask gather requires Vec storage.");
+    detail::CheckA1VectorStorageLayout<DstTile>();
+    detail::CheckA1VectorStorageLayout<SrcTile>();
+    PTO_STATIC_ASSERT(
+        DstTile::Numel == SrcTile::Numel / factor, "A1 mask gather destination must match the selected element count.");
+    // Compact writes can clobber later reads. Keep all source/destination
+    // overlaps fail-closed, including exact aliases, until separately qualified.
+    if (detail::A1BuffersOverlap(dst, src)) {
+        trap();
+        return;
+    }
+    pipe_barrier(PIPE_V);
+    set_mask_norm();
+    if constexpr (Pattern == MaskPattern::P1111) {
+        auto* output = reinterpret_cast<__ubuf__ uint16_t*>(dst.data());
+        auto* input = reinterpret_cast<__ubuf__ uint16_t*>(src.data());
+        constexpr unsigned halfwords = SrcTile::Numel * sizeof(Input) / 2;
+        constexpr unsigned whole = halfwords / 128 * 128, remaining = halfwords % 128;
+        for (unsigned offset = 0; offset < whole; offset += 255 * 128) {
+            const unsigned count = (whole - offset) / 128;
+            const uint8_t repeats = count > 255 ? 255 : count;
+            detail::A1CopyBitRows<128>(output + offset, input + offset, repeats, 8, 8);
+        }
+        if constexpr (remaining != 0) {
+            detail::A1CopyBitRows<remaining>(output + whole, input + whole, 1, 0);
+        }
+    } else {
+        using Word = typename std::conditional<sizeof(Input) == 4, uint32_t, uint16_t>::type;
+        auto* output = reinterpret_cast<__ubuf__ Word*>(dst.data());
+        auto* input = reinterpret_cast<__ubuf__ Word*>(src.data());
+        set_vector_mask(UINT64_MAX, UINT64_MAX);
+        // Fixed patterns ignore source1; keep its pointer inside the source.
+        // m200 packs output contiguously with the mandated dst repeat stride 8.
+        for (unsigned offset = 0; offset < full; offset += 255 * lanes) {
+            const unsigned count = (full - offset) / lanes;
+            const uint8_t repeats = count > 255 ? 255 : count;
+            vreduce(output + offset / factor, input + offset, input + offset, repeats, 1, 1, pattern, 8, 8, 0);
+        }
+        if constexpr (tail != 0) {
+            // Counter mode represents the final partial source repeat. All
+            // pattern groups are complete and no masked source word is read.
+            set_mask_count();
+            set_vector_mask(0, tail);
+            vreduce(output + full / factor, input + full, input + full, 1, 1, 1, pattern, 8, 8, 0);
+        }
+    }
+    set_mask_norm();
+    set_vector_mask(UINT64_MAX, UINT64_MAX);
+}
+
 // Public indices are flat element offsets. Generate byte offsets on V and
 // gather raw 16/32-bit words without converting floating-point or integer bits.
 // Keep the established scratch capacity contract for existing callers.
