@@ -11,18 +11,26 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #ifndef PTO_NPU_A1_TRESHAPE_HPP
 #define PTO_NPU_A1_TRESHAPE_HPP
 
-#include <pto/npu/a1/TVector.hpp>
+#include <pto/npu/a1/TVectorUtils.hpp>
 #include <pto/npu/a2a3/TAssign.hpp>
 
 namespace pto {
 
 // Full row-major Vec tiles have address (base + (row * Cols + col) * sizeof(T)).
 // Equal element counts therefore allow shape changes without moving any bytes.
+// Integer views carry raw storage/index bits and do not enable arithmetic or dtype conversion.
 template <typename DstTile, typename SrcTile>
 PTO_INTERNAL void TRESHAPE_IMPL(DstTile& dst, SrcTile& src)
 {
-    detail::CheckA1VectorTile<SrcTile>();
-    detail::CheckA1VectorTile<DstTile>();
+    PTO_STATIC_ASSERT(
+        SrcTile::Loc == TileType::Vec && DstTile::Loc == TileType::Vec, "A1 TRESHAPE requires Vec storage.");
+    PTO_STATIC_ASSERT(
+        (std::is_same<typename SrcTile::DType, half>::value || std::is_same<typename SrcTile::DType, float>::value ||
+         std::is_same<typename SrcTile::DType, int32_t>::value ||
+         std::is_same<typename SrcTile::DType, uint32_t>::value),
+        "A1 TRESHAPE supports FP16/FP32/INT32/UINT32 storage.");
+    detail::CheckA1VectorStorageLayout<SrcTile>();
+    detail::CheckA1VectorStorageLayout<DstTile>();
     PTO_STATIC_ASSERT(
         (std::is_same<typename DstTile::DType, typename SrcTile::DType>::value),
         "A1 TRESHAPE requires matching element types.");

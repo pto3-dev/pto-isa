@@ -88,7 +88,7 @@ extern "C" __global__ AICORE void NativeReshape(__gm__ int64_t* args) {
         ("float, 2, 16", "float, 8, 4, pto::BLayout::ColMajor", "row-major"),
         ("float, 2, 16", "float, 4, 8, pto::BLayout::RowMajor, 3, 8", "full valid shape"),
         ("float, 2, 16", "float, 1, 31", "32 bytes align"),
-        ("int32_t, 2, 16", "int32_t, 1, 32", "FP16 or FP32"),
+        ("int64_t, 2, 16", "int64_t, 1, 32", "FP16/FP32/INT32/UINT32"),
     ],
 )
 def test_a1_reshape_rejects_unsupported_profile(tmp_path, src, dst, diagnostic):
