@@ -8,6 +8,53 @@
 
 Hardware-accelerated multi-way merge sort (`vmrgsort4`). Merges up to 4 pre-sorted lists into a single sorted output in **descending** order. Each element is a fixed 8-byte **value-index pair** structure.
 
+## Ascend310P (A1) profile
+
+A1 supports the existing explicit-scratch **2–4-list** interface. The generic
+sections below also describe other backends; the A1 restrictions are:
+
+- All operands are one-row, full static, contiguous row-major FP32 Vec tiles.
+  Every source contains a positive multiple of **16 pairs** (32 FP32 elements).
+  Destination capacity is a positive 32-byte-aligned prefix, at most the total
+  input pair count. Sources must already be in descending score order.
+- `GETMRGSORTTMPSIZE<Src0, Src1, ...>()` returns FP32 element capacity:
+  **8 × sum(source.Numel)**, equivalently **16 × total input pairs**. The caller
+  provides this scratch for two eight-field proposal banks; it and every
+  operand must fit the A1 UB budget. Writable overlaps are rejected; read-only
+  source lists may alias. No hidden UB allocation is used.
+- Equal scores retain earlier-list priority and order within each list. Index
+  payloads are copied as raw UINT32 bits, without numeric conversion or an
+  additional index-order sort. Score bits, including signed zero, are preserved.
+  NaN score ordering is undefined.
+- A1 performs the complete native proposal merge, then applies stable tie
+  repair and the destination boundary. With `exhausted=true`, copying stops
+  when any logical input list is exhausted; the unwritten output suffix is
+  preserved. `executedNumList` reports the pairs actually copied from each
+  list, with unused entries zero. These A1 counts are computed by compaction,
+  **not** read from `VMS4_SR`; they are also defined for `exhausted=false`.
+- Packing uses masked 32-bit vector gather and integer origin tags. The second
+  proposal bank first holds a reusable offset table and is overwritten by the
+  native merge only after packing completes. Scalar compaction is ordered by
+  reserved event 7, drained on return; normal/full vector mask is restored.
+- The single-list/blockLen form, FP16, partial shapes and source tails remain
+  unsupported on A1. CPU/offline checks do not prove device accuracy, timing, overlap or
+  performance. Full-merge staging and scalar compaction must be measured before
+  model default selection; a proposal-resident fused chain may avoid conversion.
+
+Example using the existing public interface (scratch query is target-specific):
+
+```cpp
+#include <cstdint>
+#include <pto/pto-inst.hpp>
+using Input = pto::Tile<pto::TileType::Vec, float, 1, 64>;
+using Output = pto::Tile<pto::TileType::Vec, float, 1, 128>;
+using Scratch = pto::Tile<pto::TileType::Vec, float, 1, pto::GETMRGSORTTMPSIZE<Input, Input>()>;
+AICORE void MergeExample(Output& dst, Input& src0, Input& src1, Scratch& tmp) {
+    pto::MrgSortExecutedNumList consumed{};
+    pto::TMRGSORT<Output, Scratch, Input, Input, false>(dst, consumed, tmp, src0, src1);
+}
+```
+
 ## Data Format: Value-Index Pair
 
 TMRGSORT operates on 8-byte structures where each element in the tile represents part of a value-index pair:
