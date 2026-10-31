@@ -68,6 +68,11 @@ PTO_INST void TASSIGN(T& obj);
 | ScaleLeft | L0A | N/A | 4KB | N/A | N/A | 32Byte |
 | ScaleRight | L0B | N/A | 4KB | N/A | N/A | 32Byte |
 
+昇腾310P（A1）按CANN平台配置开放完整1MiB L1，同时适用于普通Mat与ConvTile分配。
+UB仍采用128KiB保守预算，L0A/L0B保持64KiB，L0C保持256KiB。
+静态检查继续验证完整地址范围与对齐；调用方或编译器仍须共同规划全部存活分配。
+显式容量覆盖参数继续生效，其他架构保持上表值。
+
 在 NPU 目标上，容量可通过编译标志 `-D` 覆盖（如 `-DPTO_UBUF_SIZE_BYTES=262144`）。详见 `include/pto/common/buffer_limits.hpp`。
 
 **注意：** 该重载仅适用于 `Tile` 和 `ConvTile` 类型。对于 `GlobalTensor`，请使用 `TASSIGN(obj, pointer)`（形式1）。

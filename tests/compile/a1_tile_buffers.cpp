@@ -18,7 +18,7 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #include <pto/common/tassign_check.hpp>
 
 static_assert(PTO_UBUF_SIZE_BYTES == 128 * 1024);
-static_assert(PTO_CBUF_SIZE_BYTES == 512 * 1024);
+static_assert(PTO_CBUF_SIZE_BYTES == 1024 * 1024);
 static_assert(PTO_L0A_SIZE_BYTES == 64 * 1024);
 static_assert(PTO_L0B_SIZE_BYTES == 64 * 1024);
 static_assert(PTO_L0C_SIZE_BYTES == 256 * 1024);

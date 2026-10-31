@@ -19,10 +19,10 @@ See LICENSE in the root of the software repository for the full text of the Lice
 // Each macro can be overridden by the build system (-D flag) to accommodate
 // non-standard configurations.  When not overridden, defaults are derived from
 // the hardware reference for A2A3 / A5 / Kirin9030 / KirinX90.
-// A1 uses conservative bring-up budgets: 128 KiB UB and 512 KiB L1, below
-// the 310P3 physical 256 KiB UB and 1 MiB L1. This keeps allocations below
-// the legacy helper scratch region at UB offset 184 KiB; helpers using that
-// region still need separate validation before enabling their instructions.
+// A1 exposes the physical 1 MiB L1 reported by the CANN 310P platform
+// profile. UB remains conservatively budgeted at 128 KiB, below its physical
+// 256 KiB, to keep allocations below legacy scratch at UB offset 184 KiB.
+// Helpers using that scratch still require separate instruction validation.
 //
 // All values are in BYTES.
 // =============================================================================
@@ -55,10 +55,9 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #endif
 
 #ifndef PTO_CBUF_SIZE_BYTES
-#if defined(PTO_NPU_ARCH_KIRINX90)
+#if defined(PTO_NPU_ARCH_A1) || defined(PTO_NPU_ARCH_KIRINX90)
 #define PTO_CBUF_SIZE_BYTES (1024u * 1024u)
-#elif defined(PTO_NPU_ARCH_A1) || defined(PTO_NPU_ARCH_A2A3) || defined(PTO_NPU_ARCH_A5) || \
-    defined(PTO_NPU_ARCH_KIRIN9030)
+#elif defined(PTO_NPU_ARCH_A2A3) || defined(PTO_NPU_ARCH_A5) || defined(PTO_NPU_ARCH_KIRIN9030)
 #define PTO_CBUF_SIZE_BYTES (512u * 1024u)
 #elif defined(PTO_NPU_ARCH_A6)
 #define PTO_CBUF_SIZE_BYTES (512u * 1024u)
