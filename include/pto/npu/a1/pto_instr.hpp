@@ -156,6 +156,24 @@ PTO_INST RecordEvent TRESHAPE(DstTile& dst, SrcTile& src, WaitEvents&... events)
     return {};
 }
 
+template <unsigned SrcBlockStep, typename DstTile, typename SrcTile, typename... WaitEvents>
+PTO_INST RecordEvent
+TEXTRACT(DstTile& dst, SrcTile& src, uint16_t indexRow = 0, uint16_t indexCol = 0, WaitEvents&... events)
+{
+    TSYNC(events...);
+    TEXTRACT_IMPL<SrcBlockStep>(dst, src, indexRow, indexCol);
+    return {};
+}
+
+template <typename DstTile, typename SrcTile, typename... WaitEvents>
+PTO_INST RecordEvent
+TEXTRACT(DstTile& dst, SrcTile& src, uint16_t indexRow = 0, uint16_t indexCol = 0, WaitEvents&... events)
+{
+    TSYNC(events...);
+    TEXTRACT_IMPL<1>(dst, src, indexRow, indexCol);
+    return {};
+}
+
 template <typename DstTile, typename SrcTile, typename... WaitEvents>
 PTO_INST RecordEvent TMOV(DstTile& dst, SrcTile& src, WaitEvents&... events)
 {

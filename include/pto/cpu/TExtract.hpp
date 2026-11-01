@@ -14,6 +14,7 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #include <cassert>
 #include "common.hpp"
 #include "../common/utils.hpp"
+#include "../common/strided_extract.hpp"
 #include <cmath>
 
 namespace pto {
@@ -140,6 +141,21 @@ PTO_INTERNAL void TEXTRACT_IMPL(DstTileData& dst, SrcTileData& src, uint16_t idx
     } else {
         constexpr bool useRelu = reluMode == ReluPreMode::NormalRelu;
         TExtract_Impl<DstTileData, SrcTileData, QuantMode_t::NoQuant, useRelu>(dst, src, idxRow, idxCol);
+    }
+}
+
+template <unsigned SrcBlockStep, typename DstTileData, typename SrcTileData>
+PTO_INTERNAL void TEXTRACT_IMPL(DstTileData& dst, SrcTileData& src, uint16_t indexRow, uint16_t indexCol)
+{
+    detail::CheckA1BlockStridedExtract<SrcBlockStep, DstTileData, SrcTileData>();
+    PTO_CPU_ASSERT(
+        (detail::ValidA1BlockExtractWindow<SrcBlockStep, DstTileData, SrcTileData>(indexRow, indexCol)),
+        "A1 block extraction requires a bounded window and C16-aligned row/column offsets.");
+    for (size_t row = 0; row < DstTileData::Rows; ++row) {
+        const uint64_t sourceRow = indexRow + (row / 16) * uint64_t(SrcBlockStep) * 16 + row % 16;
+        for (size_t col = 0; col < DstTileData::Cols; ++col) {
+            dst.SetElement(row, col, src.GetElement(sourceRow, indexCol + col));
+        }
     }
 }
 

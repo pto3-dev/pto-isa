@@ -12,6 +12,7 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #define PTO_NPU_A1_TMATRIX_HPP
 
 #include <pto/common/strided_insert.hpp>
+#include <pto/common/strided_extract.hpp>
 #include <pto/npu/a1/TImg2col.hpp>
 #include <pto/npu/a1/TVector.hpp>
 
@@ -187,6 +188,32 @@ PTO_INTERNAL void A1MatrixToOperand(DstTile& dst, SrcTile& src)
                     true, addr_cal_mode_t(0));
             }
         }
+    }
+}
+
+// Each output N16 panel reads selected Mat fractals and transposes their
+// inner rows/columns into interleaved ZN L0B. No UB or intermediate GM copy.
+template <unsigned SrcBlockStep, typename DstTile, typename SrcTile>
+PTO_INTERNAL void TEXTRACT_IMPL(DstTile& dst, SrcTile& src, uint16_t indexRow = 0, uint16_t indexCol = 0)
+{
+    detail::CheckA1BlockStridedExtract<SrcBlockStep, DstTile, SrcTile>();
+    detail::CheckA1MatrixInput<SrcTile>();
+    if (!detail::ValidA1BlockExtractWindow<SrcBlockStep, DstTile, SrcTile>(indexRow, indexCol)) {
+        trap();
+        return;
+    }
+    constexpr unsigned panels = DstTile::Cols / 16;
+    constexpr unsigned repeats = DstTile::Rows / 16;
+    // A single source block has no inter-block stride. Normalize its unused
+    // field so even a large positive logical step has a legal hardware encoding.
+    constexpr unsigned sourcePlanes = SrcTile::isRowMajor ? SrcTile::Cols / 16 : 1;
+    constexpr uint64_t effectiveStep = repeats == 1 ? 1 : uint64_t(SrcBlockStep) * sourcePlanes;
+    const uint64_t rowOffset = uint64_t(indexRow) * (SrcTile::isRowMajor ? SrcTile::Cols : 16);
+    for (unsigned panel = 0; panel < panels; ++panel) {
+        const uint64_t columnOffset = (uint64_t(indexCol) + panel * 16) * (SrcTile::isRowMajor ? 16 : SrcTile::Rows);
+        load_cbuf_to_cb(
+            dst.data() + panel * 256, src.data() + columnOffset + rowOffset, 0, repeats, effectiveStep, panels - 1, 0,
+            true, addr_cal_mode_t(0));
     }
 }
 
