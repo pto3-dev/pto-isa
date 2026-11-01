@@ -1204,6 +1204,19 @@ TEXTRACT(DstTileData& dst, SrcTileData& src, uint16_t indexRow = 0, uint16_t ind
     return {};
 }
 
+// Static C16 source-block stepping is native on A1 and has an exact CPU
+// reference. Other NPU and costmodel backends do not admit this overload.
+#if defined(PTO_NPU_ARCH_A1) || defined(__CPU_SIM)
+template <unsigned SrcBlockStep, typename DstTileData, typename SrcTileData, typename... WaitEvents>
+PTO_INST RecordEvent
+TEXTRACT(DstTileData& dst, SrcTileData& src, uint16_t indexRow = 0, uint16_t indexCol = 0, WaitEvents&... events)
+{
+    detail::PtoWaitEvents(events...);
+    MAP_INSTR_IMPL_T(TEXTRACT, PTO_TEMPLATE_ARGS(SrcBlockStep), dst, src, indexRow, indexCol);
+    return {};
+}
+#endif
+
 template <typename DstTileData, typename SrcTileData, ReluPreMode reluMode, typename... WaitEvents>
 PTO_INST RecordEvent
 TEXTRACT(DstTileData& dst, SrcTileData& src, uint16_t indexRow, uint16_t indexCol, WaitEvents&... events)

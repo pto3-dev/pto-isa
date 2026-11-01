@@ -365,3 +365,42 @@ void example_unit_flag() {
   // TEXTRACT<STPhase::Final>(l1, c, /*indexRow=*/0, /*indexCol=*/0);
 }
 ```
+
+
+## A1 按源 C16 块跨步的 Mat 到 Right 提取
+
+A1 与 CPU 参考为既有指令提供以下附加形式：
+
+```cpp
+template <unsigned SrcBlockStep, typename DstTileData, typename SrcTileData, typename... WaitEvents>
+PTO_INST RecordEvent TEXTRACT(DstTileData &dst, SrcTileData &src,
+                             uint16_t indexRow = 0, uint16_t indexCol = 0, WaitEvents &... events);
+```
+
+`SrcBlockStep` 是正的静态源 C16 行块步长，不是字节步长或块内行步长。
+目标行 r、列 c 对应：
+
+```text
+dst[r, c] = src[indexRow + (r / 16) * SrcBlockStep * 16 + r % 16, indexCol + c]
+```
+
+源须为完整 FP16 NZ 或 ZZ Mat，维度按 C16 对齐、列数不超过 2048，同时满足
+配置的 L1 容量和 A1 的 1 MiB 上限。目标须为完整 FP16 K×16 或 K×32 ZN Right，
+K 在 [16, 2048] 内且按 C16 对齐，同时满足配置的 L0B 容量和 A1 的 64 KiB 上限。
+两个起点须按 C16 对齐，完整行跨度 `((K / 16 - 1) * SrcBlockStep + 1) * 16`
+及目标列宽须处于源边界内。
+
+A1 的普通 `TEXTRACT(dst, src, row, col, events...)` 在同一路径使用步长 1。
+既有 CPU 普通形式及其他后端行为保持；A2/A3、A5、costmodel 不提供新增 unsigned
+块步长重载。目标只有一个 C16 块时，未使用的原生步长字段规范化为 1，
+即使逻辑步长是很大的正数。
+
+每个输出 N16 面板发出一次 MTE1 load，块内 16×16 转置到交错 ZN 布局。
+NZ 源沿 K 的块连续；ZZ 物理步长还须乘源 N16 面板数，不需要中间 Vec 或 GM
+拷贝。源生产者须先完成；Cube 消费前须完成 MTE1→M 同步，覆盖仍被 Cube 读取的
+Right 银行前须完成 M→MTE1 同步。事件沿用 `Op::TEXTRACT_M2LR` 的 MTE1 映射。
+原生非法窗口 trap；显式块跨步 CPU 参考使用不可被 NDEBUG 去掉的边界断言。
+
+例如 `TEXTRACT<4>(right, resident, row, col)` 每隔四个源 C16 块提取一个块，
+在保持元素顺序的前提下将稀疏驻留面板的选定块装入紧凑 Right。
+CPU 与离线原生编码验证不能证明设备延迟或重叠收益。

@@ -448,3 +448,47 @@ void example_unit_flag() {
   // TEXTRACT<STPhase::Final>(l1, c, /*indexRow=*/0, /*indexCol=*/0);
 }
 ```
+
+
+## A1 block-strided Mat-to-Right extraction
+
+A1 and the CPU reference expose this form of the existing instruction:
+
+```cpp
+template <unsigned SrcBlockStep, typename DstTileData, typename SrcTileData, typename... WaitEvents>
+PTO_INST RecordEvent TEXTRACT(DstTileData &dst, SrcTileData &src,
+                             uint16_t indexRow = 0, uint16_t indexCol = 0, WaitEvents &... events);
+```
+
+`SrcBlockStep` is a positive static count of source C16 row blocks, not a byte
+stride or a stride within a block. For output row r and column c:
+
+```text
+dst[r, c] = src[indexRow + (r / 16) * SrcBlockStep * 16 + r % 16, indexCol + c]
+```
+
+The source must be a full FP16 NZ or ZZ Mat, with C16-aligned dimensions,
+columns no larger than 2048, and storage within the configured L1 budget and
+A1's 1 MiB limit. The destination must be a full FP16 Kx16 or Kx32 ZN Right,
+with C16-aligned K in [16, 2048], within the configured L0B budget and A1's
+64 KiB limit. Both offsets must be C16-aligned. The complete selected row span
+`((K / 16 - 1) * SrcBlockStep + 1) * 16` and the column width must fit the source.
+
+The ordinary A1 `TEXTRACT(dst, src, row, col, events...)` call uses step one
+on this path. Existing portable CPU forms and other backends retain their
+behavior; A2/A3, A5 and costmodel do not expose this unsigned block-step overload.
+A one-block destination has no inter-block stride, so its unused native stride
+field is normalized to one even for a large positive logical step.
+
+A1 issues one MTE1 load per output N16 panel, transposing each selected inner
+16x16 block into interleaved ZN storage. NZ source blocks are contiguous along K;
+ZZ physical stepping additionally accounts for the source N16-plane count.
+No intermediate Vec or GM copy is needed. Satisfy source-producer events before
+the load, MTE1-to-M before Cube consumes Right, and M-to-MTE1 before overwriting
+a bank still in use. Event arguments use the existing `Op::TEXTRACT_M2LR`
+MTE1 mapping. Invalid native windows trap; the explicit block-step CPU reference
+uses always-on bounds assertions.
+
+For example, `TEXTRACT<4>(right, resident, row, col)` selects every fourth source
+C16 block from a resident sparse panel while preserving logical element order.
+CPU and offline encoding checks do not establish device latency or overlap.
