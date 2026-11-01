@@ -16,6 +16,8 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #include <cstring>
 #include <type_traits>
 
+#include <pto/common/strided_insert.hpp>
+
 #include "common.hpp"
 
 namespace pto {
@@ -50,6 +52,18 @@ template <typename DstTileData, typename SrcTileData>
 PTO_INTERNAL void TINSERT_IMPL(DstTileData& dst, SrcTileData& src, uint32_t idxRow = 0, uint32_t idxCol = 0)
 {
     TInsert_Impl<DstTileData, SrcTileData, QuantMode_t::NoQuant, false>(dst, src, idxRow, idxCol);
+}
+
+template <unsigned DstRowStep, typename DstTileData, typename SrcTileData>
+PTO_INTERNAL void TINSERT_IMPL(DstTileData& dst, SrcTileData& src, uint16_t indexRow = 0, uint16_t indexCol = 0)
+{
+    detail::CheckA1RowStridedInsert<DstRowStep, DstTileData, SrcTileData>();
+    PTO_CPU_ASSERT(
+        (detail::ValidA1RowStridedInsertWindow<DstRowStep, DstTileData, SrcTileData>(indexRow, indexCol)),
+        "A1 strided insertion requires a bounded window and C16-aligned column offset.");
+    for (size_t row = 0; row < SrcTileData::Rows; ++row)
+        for (size_t col = 0; col < SrcTileData::Cols; ++col)
+            dst.SetElement(indexRow + row * DstRowStep, indexCol + col, src.GetElement(row, col));
 }
 
 template <typename DstTileData, typename SrcTileData, ReluPreMode reluMode, STPhase Phase = STPhase::Unspecified>

@@ -316,3 +316,28 @@ MTE3 流水线的 `TINSERT_V2M` 事件，并确保消费者及缓冲区复用前
 
 C16 宽的源使用一次连续 DMA burst；更宽的 ND 源使用 C16 跨步搬运。
 性能对比需分别测量这两条路径。
+
+### Ascend 310P 静态行步长配置
+
+A1 和 CPU 仿真还提供 `TINSERT<DstRowStep>(dst, src, indexRow, indexCol, events...)`。
+不带行步长模板实参的既有形式仍按矩形复制；其他 NPU 后端不开放这个行步长重载。
+既有 `TInsertMode::SPLIT2/SPLIT4` 形式是独立的重载。
+
+该形式逐元素执行 `dst[indexRow + r * DstRowStep, indexCol + c] = src[r, c]`。
+`DstRowStep` 是 [1, 65536] 内静态的**目标逻辑行距离**，不是字节数或分形块步长。
+源为 128 KiB UB 内完整连续的 FP16 ND Vec，行数可以是任意正整数，包括 RGB 的三行，
+列数为 16 的倍数。目标为配置 L1 容量和 A1 的 1 MiB 双重上限内的完整 FP16 NZ Mat。
+整个跨步窗口须满足 `indexRow + (srcRows - 1) * DstRowStep < dstRows` 和
+`indexCol + srcCols <= dstCols`，仅列偏移要求 C16 对齐。
+非法原生偏移会在插入前 trap；CPU 检查在 `NDEBUG` 下也有效。
+
+```cpp
+// 把十六行 C16 权重放入稀疏驻留平面。
+TINSERT<145>(resident, weights, tap * 16, 0, loaded);
+```
+
+没有写到的行列保留原值，该指令不会清零稀疏空洞。MTE3 每个 C16 面板发起一次 DMA，
+源行 burst 数超过 4095 时拆分；行步长为 1 的 C16 路径合并成一次连续 burst。
+使用 `TINSERT_V2M` 事件：初始化和输入加载先于 MTE3，MTE3 先于消费者，消费者完成后
+才能覆盖 L1 或重载同一 UB bank。编译器须显式选择此重载，普通 `tile.assemble`
+仍表示矩形插入。指令数量不等于设备实测时延。

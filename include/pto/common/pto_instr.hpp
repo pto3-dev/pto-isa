@@ -1457,6 +1457,19 @@ PTO_INST RecordEvent SET_IMG2COL_PADDING(ConvTileData& src, WaitEvents&... event
 }
 #endif
 
+// A1 and its CPU reference expose logical row-scatter through the existing
+// insertion instruction. Other NPU backends do not admit this overload.
+#if defined(PTO_NPU_ARCH_A1) || defined(__CPU_SIM)
+template <unsigned DstRowStep, typename DstTileData, typename SrcTileData, typename... WaitEvents>
+PTO_INST RecordEvent
+TINSERT(DstTileData& dst, SrcTileData& src, uint16_t indexRow = 0, uint16_t indexCol = 0, WaitEvents&... events)
+{
+    detail::PtoWaitEvents(events...);
+    MAP_INSTR_IMPL_T(TINSERT, PTO_TEMPLATE_ARGS(DstRowStep), dst, src, indexRow, indexCol);
+    return {};
+}
+#endif
+
 template <typename DstTileData, typename SrcTileData, ReluPreMode reluMode, typename... WaitEvents>
 PTO_INST RecordEvent
 TINSERT(DstTileData& dst, SrcTileData& src, uint16_t indexRow, uint16_t indexCol, WaitEvents&... events)
