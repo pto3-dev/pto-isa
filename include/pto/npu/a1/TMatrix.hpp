@@ -25,13 +25,16 @@ PTO_INTERNAL void CheckA1NarrowMatrixTile()
         "A1 narrow matrix instructions require full aligned rows in [16, 2048] and 16 columns.");
 }
 
+// Mat is resident L1 storage, not a complete Cube operand. Its row count
+// follows the byte budget; consumers retain their independent L0 limits.
 template <typename TileData>
 PTO_INTERNAL void CheckA1MatrixInput()
 {
     PTO_STATIC_ASSERT(
-        (TileData::Rows >= 16 && TileData::Rows <= 2048 && TileData::Rows % 16 == 0 && TileData::Cols >= 16 &&
-         TileData::Cols <= 2048 && TileData::Cols % 16 == 0 && TileData::ValidRow == TileData::Rows &&
-         TileData::ValidCol == TileData::Cols && uint64_t(TileData::Rows) * TileData::Cols * sizeof(half) <= 1048576),
+        (TileData::Rows >= 16 && TileData::Rows % 16 == 0 && TileData::Cols >= 16 && TileData::Cols <= 2048 &&
+         TileData::Cols % 16 == 0 && TileData::ValidRow == TileData::Rows && TileData::ValidCol == TileData::Cols &&
+         uint64_t(TileData::Rows) * TileData::Cols * sizeof(half) <= 1048576 &&
+         uint64_t(TileData::Rows) * TileData::Cols * sizeof(half) <= PTO_CBUF_SIZE_BYTES),
         "A1 matrix inputs require full aligned M/K dimensions and at most 1 MiB L1.");
     PTO_STATIC_ASSERT(
         (TileData::Loc == TileType::Mat && std::is_same<typename TileData::DType, half>::value &&
@@ -49,7 +52,14 @@ PTO_INTERNAL void A1LoadMatrixPanel(__cbuf__ half* dst, __gm__ half* src)
     if constexpr (gap == 0) {
         copy_gm_to_cbuf(dst, src, 0, 1, Rows, 0, 0, (pad_t)0);
     } else if constexpr (gap <= UINT16_MAX) {
-        copy_gm_to_cbuf(dst, src, 0, Rows, 1, gap, 0, (pad_t)0);
+        // The DMA burst count is 12 bits even when the resident L1 matrix
+        // has more rows. Advance both bases in complete logical rows.
+        constexpr unsigned maxBursts = 4095;
+        for (unsigned row = 0; row < Rows; row += maxBursts) {
+            const unsigned remaining = Rows - row;
+            const unsigned bursts = remaining > maxBursts ? maxBursts : remaining;
+            copy_gm_to_cbuf(dst + row * 16, src + uint64_t(row) * GlobalStride, 0, bursts, 1, gap, 0, (pad_t)0);
+        }
     } else {
         // Preserve full GM strides rather than truncating the DMA field.
         for (unsigned row = 0; row < Rows; ++row)

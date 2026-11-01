@@ -65,6 +65,8 @@ On A5 all listed values are passed through to DMA. CPU / costmodel accept the te
     - Rows are 32-byte aligned and fit the configured UB budget; GM row strides are static, aligned and non-overlapping.
     - INT32/UINT32 transfers preserve raw bits and do not enable integer vector arithmetic, packed-column DMA or matrix operands.
     - Strided transfers split at 4095 row bursts; GM gaps beyond the 16-bit DMA field use complete per-row transfers.
+    - Full FP16 Mat loads repack static ND input into ZZ or NZ storage. Rows are positive multiples of 16; columns are multiples of 16 in [16, 2048]. The matrix must fit both the configured L1 budget and the 1 MiB A1 limit, so a C16-wide resident matrix may have up to 32768 rows.
+    - Mat multi-burst loads also split at 4095 rows, preserving full GM strides and NZ plane origins. GM gaps exceeding 65535 blocks use individual row transfers. This resident-storage profile does not enlarge the 64 KiB L0A/L0B or existing Cube operand limits.
 
 - **Implementation checks (A2A3)**:
     - `TileData::DType` must be one of: `int8_t`, `uint8_t`, `int16_t`, `uint16_t`, `int32_t`, `uint32_t`, `int64_t`, `uint64_t`, `half`, `bfloat16_t`, `float`.
