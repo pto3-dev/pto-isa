@@ -11,6 +11,7 @@ See LICENSE in the root of the software repository for the full text of the Lice
 #ifndef PTO_NPU_A1_TMATRIX_HPP
 #define PTO_NPU_A1_TMATRIX_HPP
 
+#include <pto/common/strided_insert.hpp>
 #include <pto/npu/a1/TImg2col.hpp>
 #include <pto/npu/a1/TVector.hpp>
 
@@ -293,6 +294,36 @@ PTO_INTERNAL void TINSERT_IMPL(DstTile& dst, SrcTile& src, uint16_t indexRow = 0
         load_cbuf_to_ca(
             dst.data() + uint32_t(indexRow) * DstTile::Cols + uint32_t(indexCol) * 16, src.data(), 0,
             SrcTile::Rows / 16, 1, DstTile::Cols / 16 - 1, 0, false, addr_cal_mode_t(0));
+    }
+}
+
+// Static logical row-step form; the ordinary rectangular insertion above
+// retains its original C16 row-alignment contract and generated DMA path.
+template <unsigned DstRowStep, typename DstTile, typename SrcTile>
+PTO_INTERNAL void TINSERT_IMPL(DstTile& dst, SrcTile& src, uint16_t indexRow = 0, uint16_t indexCol = 0)
+{
+    detail::CheckA1RowStridedInsert<DstRowStep, DstTile, SrcTile>();
+    detail::CheckA1VectorTile<SrcTile>();
+    detail::CheckA1MatrixInput<DstTile>();
+    if (!detail::ValidA1RowStridedInsertWindow<DstRowStep, DstTile, SrcTile>(indexRow, indexCol)) {
+        trap();
+        return;
+    }
+    if constexpr (DstRowStep == 1 && SrcTile::Cols == 16) {
+        copy_ubuf_to_cbuf(
+            dst.data() + uint32_t(indexCol) * DstTile::Rows + uint32_t(indexRow) * 16, src.data(), 0, 1, SrcTile::Rows,
+            0, 0);
+    } else {
+        constexpr unsigned maxBursts = 4095;
+        for (unsigned column = 0; column < SrcTile::Cols; column += 16) {
+            for (unsigned row = 0; row < SrcTile::Rows; row += maxBursts) {
+                const unsigned bursts = SrcTile::Rows - row < maxBursts ? SrcTile::Rows - row : maxBursts;
+                copy_ubuf_to_cbuf(
+                    dst.data() + uint32_t(indexCol + column) * DstTile::Rows +
+                        (uint32_t(indexRow) + row * DstRowStep) * 16,
+                    src.data() + row * SrcTile::Cols + column, 0, bursts, 1, SrcTile::Cols / 16 - 1, DstRowStep - 1);
+            }
+        }
     }
 }
 

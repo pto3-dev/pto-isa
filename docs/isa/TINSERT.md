@@ -323,3 +323,36 @@ Use `TINSERT_V2M` for MTE3 pipeline events and fence consumers and buffer reuse.
 
 C16-wide sources use one contiguous DMA burst. Wider ND sources use strided
 C16 gathers; performance comparisons must measure these routes separately.
+
+### Ascend 310P static row-step profile
+
+A1 and CPU simulation also expose `TINSERT<DstRowStep>(dst, src, indexRow,
+indexCol, events...)`. The existing form without a row-step template argument
+keeps its rectangular-copy contract. Other NPU backends do not expose this
+row-step overload; the existing `TInsertMode::SPLIT2/SPLIT4` forms are separate.
+
+For every source element, the row-step form writes
+`dst[indexRow + r * DstRowStep, indexCol + c] = src[r, c]`.
+`DstRowStep` is a static distance in **logical destination rows**, in [1, 65536],
+not a byte count or a fractal-block stride. The source is full FP16 contiguous
+ND Vec storage within 128 KiB UB; its row count may be any positive integer,
+including an RGB three-row payload, and columns are multiples of 16. The target
+is a full FP16 NZ Mat within the configured L1 budget and the 1 MiB A1 limit.
+The complete strided span must fit: `indexRow + (srcRows - 1) * DstRowStep < dstRows`
+and `indexCol + srcCols <= dstCols`. Only the column offset must be C16 aligned.
+Invalid native offsets trap before insertion; the CPU check also remains active
+with `NDEBUG`.
+
+```cpp
+// Place sixteen C16 weight rows into a sparse resident plane.
+TINSERT<145>(resident, weights, tap * 16, 0, loaded);
+```
+
+Untouched rows and columns retain their previous values; this instruction does
+not clear sparse holes. MTE3 gathers one C16 plane per DMA, splitting at 4095
+source-row bursts. The row-step-one C16 path coalesces into one contiguous burst.
+Use `TINSERT_V2M` events: order initialization/input loads before MTE3, MTE3 before
+consumers, and consumers before overwriting L1 or reloading the same UB bank.
+Compiler lowering must select this overload explicitly; ordinary `tile.assemble`
+continues to denote a rectangular insert. Instruction counts are not a device
+latency measurement.
